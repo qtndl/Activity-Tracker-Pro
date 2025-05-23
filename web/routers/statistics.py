@@ -6,8 +6,9 @@ from sqlalchemy import select, func, and_, desc
 from pydantic import BaseModel
 
 from database.database import get_db
-from database.models import Employee, EmployeeStatistics, Message
+from database.models import Employee, Message
 from web.auth import get_current_user, get_current_admin
+from web.services.statistics_service import StatisticsService, EmployeeStats
 
 router = APIRouter()
 
@@ -32,10 +33,8 @@ class StatisticsResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     id: int
-    chat_id: int
-    client_username: Optional[str]
-    client_name: Optional[str]
-    message_text: Optional[str]
+    employee_id: int
+    message_type: str
     received_at: datetime
     responded_at: Optional[datetime]
     response_time_minutes: Optional[float]
@@ -53,31 +52,33 @@ async def get_my_statistics(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получить свою статистику"""
-    query = select(EmployeeStatistics).where(
-        EmployeeStatistics.employee_id == current_user.get('employee_id'),
-        EmployeeStatistics.period_type == period_type
+    """Получить свою статистику в реальном времени"""
+    
+    # Устанавливаем даты по умолчанию
+    if not start_date:
+        start_date = datetime.utcnow().date() - timedelta(days=30)
+    if not end_date:
+        end_date = datetime.utcnow().date()
+    
+    # Получаем сообщения за период
+    start_datetime = datetime.combine(start_date, datetime.min.time())
+    end_datetime = datetime.combine(end_date, datetime.max.time())
+    
+    result = await db.execute(
+        select(Message).where(
+            and_(
+                Message.employee_id == current_user.get('employee_id'),
+                Message.received_at >= start_datetime,
+                Message.received_at <= end_datetime
+            )
+        ).order_by(Message.received_at)
     )
+    messages = result.scalars().all()
     
-    if start_date:
-        query = query.where(EmployeeStatistics.date >= datetime.combine(start_date, datetime.min.time()))
-    if end_date:
-        query = query.where(EmployeeStatistics.date <= datetime.combine(end_date, datetime.max.time()))
+    # Группируем по периодам
+    grouped_stats = _group_messages_by_period(messages, period_type, current_user.get('full_name'))
     
-    result = await db.execute(query.order_by(EmployeeStatistics.date.desc()))
-    stats = result.scalars().all()
-    
-    # Добавляем имя сотрудника и процент эффективности
-    response = []
-    for stat in stats:
-        efficiency = (stat.responded_messages / stat.total_messages * 100) if stat.total_messages > 0 else None
-        response.append({
-            **stat.__dict__,
-            "employee_name": current_user.get('full_name'),
-            "efficiency_percent": efficiency
-        })
-    
-    return response
+    return grouped_stats
 
 
 @router.get("/all", response_model=List[StatisticsResponse])
@@ -89,31 +90,108 @@ async def get_all_statistics(
     current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получить статистику всех сотрудников (только для админов)"""
-    query = select(EmployeeStatistics, Employee).join(
-        Employee, EmployeeStatistics.employee_id == Employee.id
-    ).where(EmployeeStatistics.period_type == period_type)
+    """Получить детальную статистику всех сотрудников - ЕДИНЫЙ ИСТОЧНИК ДАННЫХ"""
     
-    if employee_id:
-        query = query.where(EmployeeStatistics.employee_id == employee_id)
-    if start_date:
-        query = query.where(EmployeeStatistics.date >= datetime.combine(start_date, datetime.min.time()))
-    if end_date:
-        query = query.where(EmployeeStatistics.date <= datetime.combine(end_date, datetime.max.time()))
+    stats_service = StatisticsService(db)
     
-    result = await db.execute(query.order_by(EmployeeStatistics.date.desc()))
-    stats_with_employees = result.all()
+    # Получаем статистику
+    all_stats = await stats_service.get_all_employees_stats(
+        period="today",  # Базовый период для детализации
+        start_date=start_date,
+        end_date=end_date,
+        employee_id=employee_id
+    )
     
-    response = []
-    for stat, employee in stats_with_employees:
-        efficiency = (stat.responded_messages / stat.total_messages * 100) if stat.total_messages > 0 else None
-        response.append({
-            **stat.__dict__,
-            "employee_name": employee.full_name,
-            "efficiency_percent": efficiency
-        })
+    # Конвертируем в формат ответа
+    result = []
+    for stats in all_stats:
+        result.append(StatisticsResponse(
+            employee_id=stats.employee_id,
+            employee_name=stats.employee_name,
+            period_type=period_type,
+            date=stats.period_start,
+            total_messages=stats.total_messages,
+            responded_messages=stats.responded_messages,
+            missed_messages=stats.missed_messages,
+            avg_response_time=stats.avg_response_time,
+            exceeded_15_min=stats.exceeded_15_min,
+            exceeded_30_min=stats.exceeded_30_min,
+            exceeded_60_min=stats.exceeded_60_min,
+            efficiency_percent=stats.efficiency_percent
+        ))
     
-    return response
+    return sorted(result, key=lambda x: x.date, reverse=True)
+
+
+@router.get("/summary")
+async def get_statistics_summary(
+    period: str = Query("today", regex="^(today|week|month)$"),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> Dict:
+    """Получить сводную статистику - ЕДИНЫЙ ИСТОЧНИК ДАННЫХ"""
+    
+    stats_service = StatisticsService(db)
+    
+    if current_user.get('is_admin'):
+        # Админ видит статистику всех сотрудников
+        all_stats = await stats_service.get_all_employees_stats(period=period)
+        
+        if not all_stats:
+            return {
+                "period": period,
+                "total_messages": 0,
+                "responded_messages": 0,
+                "missed_messages": 0,
+                "avg_response_time": 0,
+                "efficiency_percent": 0,
+                "exceeded_15_min": 0,
+                "exceeded_30_min": 0,
+                "exceeded_60_min": 0
+            }
+        
+        # Агрегируем данные всех сотрудников
+        total_messages = sum(s.total_messages for s in all_stats)
+        responded_messages = sum(s.responded_messages for s in all_stats)
+        missed_messages = sum(s.missed_messages for s in all_stats)
+        
+        # Среднее время ответа - среднее арифметическое непустых значений
+        avg_times = [s.avg_response_time for s in all_stats if s.avg_response_time is not None]
+        avg_response_time = sum(avg_times) / len(avg_times) if avg_times else 0
+        
+        exceeded_15 = sum(s.exceeded_15_min for s in all_stats)
+        exceeded_30 = sum(s.exceeded_30_min for s in all_stats)
+        exceeded_60 = sum(s.exceeded_60_min for s in all_stats)
+        
+        efficiency = (responded_messages / total_messages * 100) if total_messages > 0 else 0
+        
+        return {
+            "period": period,
+            "total_messages": total_messages,
+            "responded_messages": responded_messages,
+            "missed_messages": missed_messages,
+            "avg_response_time": round(avg_response_time, 1),
+            "efficiency_percent": round(efficiency, 1),
+            "exceeded_15_min": exceeded_15,
+            "exceeded_30_min": exceeded_30,
+            "exceeded_60_min": exceeded_60
+        }
+    else:
+        # Сотрудник видит только свою статистику
+        employee_id = current_user.get('employee_id')
+        stats = await stats_service.get_employee_stats(employee_id, period=period)
+        
+        return {
+            "period": period,
+            "total_messages": stats.total_messages,
+            "responded_messages": stats.responded_messages,
+            "missed_messages": stats.missed_messages,
+            "avg_response_time": round(stats.avg_response_time or 0, 1),
+            "efficiency_percent": round(stats.efficiency_percent, 1),
+            "exceeded_15_min": stats.exceeded_15_min,
+            "exceeded_30_min": stats.exceeded_30_min,
+            "exceeded_60_min": stats.exceeded_60_min
+        }
 
 
 @router.get("/messages", response_model=List[MessageResponse])
@@ -150,117 +228,176 @@ async def get_messages(
     return messages
 
 
-@router.get("/summary")
-async def get_summary(
+@router.get("/employee/{employee_id}")
+async def get_employee_statistics(
+    employee_id: int,
     period: str = Query("today", regex="^(today|week|month)$"),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получить сводку по статистике"""
-    # Определяем период
-    if period == "today":
-        start_date = datetime.combine(datetime.utcnow().date(), datetime.min.time())
-    elif period == "week":
-        today = datetime.utcnow().date()
-        start_date = datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time())
-    else:  # month
-        today = datetime.utcnow().date()
-        start_date = datetime.combine(today.replace(day=1), datetime.min.time())
+    """Получить статистику конкретного сотрудника - ЕДИНЫЙ ИСТОЧНИК ДАННЫХ"""
     
-    end_date = datetime.utcnow()
+    # Проверяем права доступа
+    if not current_user.get('is_admin') and employee_id != current_user.get('employee_id'):
+        raise HTTPException(status_code=403, detail="Недостаточно прав доступа")
     
-    # Фильтр по сотруднику
-    query_filter = Message.received_at >= start_date
-    if not current_user.get('is_admin'):
-        query_filter = and_(query_filter, Message.employee_id == current_user.get('employee_id'))
+    stats_service = StatisticsService(db)
     
-    # Получаем сообщения
-    result = await db.execute(select(Message).where(query_filter))
-    messages = result.scalars().all()
-    
-    total_messages = len(messages)
-    responded_messages = sum(1 for m in messages if m.responded_at is not None)
-    missed_messages = total_messages - responded_messages
-    
-    # Время ответа
-    response_times = [m.response_time_minutes for m in messages if m.response_time_minutes is not None]
-    avg_response_time = sum(response_times) / len(response_times) if response_times else 0
-    
-    # Подсчет превышений времени
-    exceeded_15 = sum(1 for t in response_times if t > 15)
-    exceeded_30 = sum(1 for t in response_times if t > 30)
-    exceeded_60 = sum(1 for t in response_times if t > 60)
-    
-    return {
-        "period": period,
-        "total_messages": total_messages,
-        "responded_messages": responded_messages,
-        "missed_messages": missed_messages,
-        "avg_response_time": round(avg_response_time, 1),
-        "efficiency_percent": round((responded_messages / total_messages * 100) if total_messages > 0 else 0, 1),
-        "exceeded_15_min": exceeded_15,
-        "exceeded_30_min": exceeded_30,
-        "exceeded_60_min": exceeded_60
-    }
+    try:
+        stats = await stats_service.get_employee_stats(employee_id, period=period)
+        
+        return {
+            "employee": {
+                "id": stats.employee_id,
+                "full_name": stats.employee_name,
+                "telegram_id": stats.telegram_id,
+                "telegram_username": stats.telegram_username,
+                "is_admin": stats.is_admin,
+                "is_active": stats.is_active
+            },
+            "period": period,
+            "period_start": stats.period_start.isoformat(),
+            "period_end": stats.period_end.isoformat(),
+            "total_messages": stats.total_messages,
+            "responded_messages": stats.responded_messages,
+            "missed_messages": stats.missed_messages,
+            "avg_response_time": round(stats.avg_response_time or 0, 1),
+            "response_rate": round(stats.response_rate, 1),
+            "efficiency_percent": round(stats.efficiency_percent, 1),
+            "exceeded_15_min": stats.exceeded_15_min,
+            "exceeded_30_min": stats.exceeded_30_min,
+            "exceeded_60_min": stats.exceeded_60_min
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.get("/charts/response-time")
 async def get_response_time_chart(
     period: str = Query("week", regex="^(week|month)$"),
+    employee_id: Optional[int] = None,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получить данные для графика времени ответа"""
-    # Определяем период
+    """Получить данные для графика времени ответа - ЕДИНЫЙ ИСТОЧНИК ДАННЫХ"""
+    
+    # Проверяем права доступа
+    if employee_id and not current_user.get('is_admin') and employee_id != current_user.get('employee_id'):
+        raise HTTPException(status_code=403, detail="Недостаточно прав доступа")
+    
+    stats_service = StatisticsService(db)
+    
+    # Если не указан employee_id, берем текущего пользователя (если не админ)
+    if not employee_id and not current_user.get('is_admin'):
+        employee_id = current_user.get('employee_id')
+    
+    # Определяем период для графика
     if period == "week":
-        end_date = datetime.utcnow().date()
-        start_date = end_date - timedelta(days=7)
-        date_format = "%Y-%m-%d"
-        group_by_days = True
+        days_count = 7
     else:  # month
-        end_date = datetime.utcnow().date()
-        start_date = end_date - timedelta(days=30)
-        date_format = "%Y-%m-%d"
-        group_by_days = True
+        days_count = 30
     
-    start_datetime = datetime.combine(start_date, datetime.min.time())
+    # Получаем данные по дням
+    chart_data = []
+    today = datetime.utcnow().date()
     
-    # Фильтр по сотруднику
-    query_filter = and_(
-        Message.received_at >= start_datetime,
-        Message.response_time_minutes.is_not(None)
-    )
-    if not current_user.get('is_admin'):
-        query_filter = and_(query_filter, Message.employee_id == current_user.get('employee_id'))
-    
-    # Получаем сообщения с временем ответа
-    result = await db.execute(select(Message).where(query_filter))
-    messages = result.scalars().all()
-    
-    # Группируем по дням
-    daily_stats = {}
-    current_date = start_date
-    while current_date <= end_date:
-        daily_stats[current_date.strftime(date_format)] = []
-        current_date += timedelta(days=1)
-    
-    for message in messages:
-        date_key = message.received_at.strftime(date_format)
-        if date_key in daily_stats:
-            daily_stats[date_key].append(message.response_time_minutes)
-    
-    # Вычисляем средние значения
-    labels = []
-    data = []
-    for date_key in sorted(daily_stats.keys()):
-        response_times = daily_stats[date_key]
-        avg_time = sum(response_times) / len(response_times) if response_times else 0
+    for i in range(days_count):
+        day = today - timedelta(days=days_count - 1 - i)
         
-        labels.append(date_key)
-        data.append(round(avg_time, 1))
+        if employee_id:
+            # Статистика конкретного сотрудника
+            stats = await stats_service.get_employee_stats(
+                employee_id, 
+                start_date=day, 
+                end_date=day
+            )
+            chart_data.append({
+                "date": day.isoformat(),
+                "avg_response_time": stats.avg_response_time or 0,
+                "total_messages": stats.total_messages,
+                "employee_name": stats.employee_name
+            })
+        else:
+            # Общая статистика всех сотрудников (только для админов)
+            all_stats = await stats_service.get_all_employees_stats(
+                start_date=day,
+                end_date=day
+            )
+            
+            if all_stats:
+                avg_times = [s.avg_response_time for s in all_stats if s.avg_response_time is not None]
+                avg_response_time = sum(avg_times) / len(avg_times) if avg_times else 0
+                total_messages = sum(s.total_messages for s in all_stats)
+            else:
+                avg_response_time = 0
+                total_messages = 0
+            
+            chart_data.append({
+                "date": day.isoformat(),
+                "avg_response_time": avg_response_time,
+                "total_messages": total_messages,
+                "employee_name": "Все сотрудники"
+            })
     
     return {
-        "labels": labels,
-        "data": data,
-        "period": period
-    } 
+        "period": period,
+        "data": chart_data
+    }
+
+
+def _group_messages_by_period(messages: List[Message], period_type: str, employee_name: str) -> List[StatisticsResponse]:
+    """Группировка сообщений по периодам"""
+    
+    periods = {}
+    
+    for message in messages:
+        # Определяем ключ периода
+        if period_type == "daily":
+            period_key = message.received_at.date()
+        elif period_type == "weekly":
+            # Начало недели (понедельник)
+            days_since_monday = message.received_at.weekday()
+            week_start = message.received_at.date() - timedelta(days=days_since_monday)
+            period_key = week_start
+        else:  # monthly
+            period_key = message.received_at.date().replace(day=1)
+        
+        if period_key not in periods:
+            periods[period_key] = []
+        periods[period_key].append(message)
+    
+    # Вычисляем статистику для каждого периода
+    result = []
+    for period_date, period_messages in periods.items():
+        total_messages = len(period_messages)
+        responded_messages = sum(1 for m in period_messages if m.responded_at is not None)
+        missed_messages = total_messages - responded_messages
+        
+        response_times = [m.response_time_minutes for m in period_messages if m.response_time_minutes is not None]
+        avg_response_time = sum(response_times) / len(response_times) if response_times else None
+        
+        exceeded_15 = sum(1 for t in response_times if t > 15)
+        exceeded_30 = sum(1 for t in response_times if t > 30)
+        exceeded_60 = sum(1 for t in response_times if t > 60)
+        
+        efficiency = (responded_messages / total_messages * 100) if total_messages > 0 else None
+        
+        # Получаем первое сообщение для employee_id
+        employee_id = period_messages[0].employee_id if period_messages else 0
+        
+        result.append(StatisticsResponse(
+            employee_id=employee_id,
+            employee_name=employee_name,
+            period_type=period_type,
+            date=datetime.combine(period_date, datetime.min.time()),
+            total_messages=total_messages,
+            responded_messages=responded_messages,
+            missed_messages=missed_messages,
+            avg_response_time=avg_response_time,
+            exceeded_15_min=exceeded_15,
+            exceeded_30_min=exceeded_30,
+            exceeded_60_min=exceeded_60,
+            efficiency_percent=efficiency
+        ))
+    
+    return sorted(result, key=lambda x: x.date, reverse=True) 

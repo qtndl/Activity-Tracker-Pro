@@ -2,80 +2,283 @@
 
 {% block title %}Статистика - Трекер активности{% endblock %}
 
+{% block extra_css %}
+<style>
+    .period-selector {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .summary-stat-card {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        text-align: center;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .summary-stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+    
+    .summary-stat-card.total::before { background: linear-gradient(90deg, #17a2b8, #138496); }
+    .summary-stat-card.success::before { background: linear-gradient(90deg, #28a745, #20c997); }
+    .summary-stat-card.danger::before { background: linear-gradient(90deg, #dc3545, #e83e8c); }
+    .summary-stat-card.info::before { background: linear-gradient(90deg, #667eea, #764ba2); }
+    
+    .summary-stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+    
+    .summary-stat-icon {
+        font-size: 2.5rem;
+        margin-bottom: 15px;
+        opacity: 0.8;
+    }
+    
+    .summary-stat-number {
+        font-size: 3rem;
+        font-weight: bold;
+        margin: 15px 0;
+    }
+    
+    .summary-stat-label {
+        color: #6c757d;
+        font-size: 1.1rem;
+        font-weight: 500;
+    }
+    
+    .violation-card {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        text-align: center;
+        margin-bottom: 15px;
+    }
+    
+    .violation-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    
+    .charts-row {
+        margin-top: 30px;
+    }
+    
+    .chart-card {
+        background: white;
+        border-radius: 15px;
+        overflow: hidden;
+    }
+    
+    .chart-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        font-weight: 600;
+    }
+    
+    .chart-body {
+        padding: 30px;
+    }
+    
+    .loading-state {
+        text-align: center;
+        padding: 50px 20px;
+        color: #6c757d;
+    }
+    
+    .no-data-state {
+        text-align: center;
+        padding: 50px 20px;
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0">Статистика</h1>
-        <div>
-            <select class="form-select form-select-sm d-inline-block w-auto me-2" id="periodSelect">
-                <option value="daily">Ежедневная</option>
-                <option value="weekly">Еженедельная</option>
-                <option value="monthly">Ежемесячная</option>
-            </select>
-            <input type="date" class="form-control form-control-sm d-inline-block w-auto me-2" id="startDate">
-            <input type="date" class="form-control form-control-sm d-inline-block w-auto" id="endDate">
-            <button class="btn btn-primary btn-sm" onclick="loadStatistics()">
-                <i class="bi bi-arrow-clockwise"></i> Обновить
-            </button>
+    <!-- Приветствие -->
+    <div class="card welcome-card">
+        <div class="card-body text-center">
+            <h2><i class="fas fa-chart-bar me-2"></i>Статистика работы</h2>
+            <p class="lead mb-0">Детальная аналитика активности и эффективности</p>
+            <p class="mt-2">
+                <i class="fas fa-clock me-1"></i>
+                Последнее обновление: <span id="current-time"></span>
+            </p>
         </div>
     </div>
     
-    <!-- Summary cards -->
-    <div class="row mb-4" id="summaryCards">
-        <div class="col-md-3 mb-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h5 class="card-title text-muted">Всего сообщений</h5>
-                    <p class="display-6" id="totalMessages">0</p>
-                </div>
+    <!-- Селектор периода -->
+    <div class="card period-selector">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <label class="form-label">Тип периода:</label>
+                <select class="form-control" id="periodSelect">
+                    <option value="daily">Ежедневная статистика</option>
+                    <option value="weekly">Еженедельная статистика</option>
+                    <option value="monthly">Месячная статистика</option>
+                </select>
             </div>
-        </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h5 class="card-title text-muted">Отвечено</h5>
-                    <p class="display-6 text-success" id="respondedMessages">0</p>
-                </div>
+            <div class="col-md-3">
+                <label class="form-label">Дата начала:</label>
+                <input type="date" class="form-control" id="startDate">
             </div>
-        </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h5 class="card-title text-muted">Пропущено</h5>
-                    <p class="display-6 text-danger" id="missedMessages">0</p>
-                </div>
+            <div class="col-md-3">
+                <label class="form-label">Дата окончания:</label>
+                <input type="date" class="form-control" id="endDate">
             </div>
-        </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <h5 class="card-title text-muted">Эффективность</h5>
-                    <p class="display-6 text-info"><span id="efficiency">0</span>%</p>
-                </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <button class="btn btn-primary w-100" onclick="loadStatistics()">
+                    <i class="fas fa-sync me-1"></i>Обновить
+                </button>
             </div>
         </div>
     </div>
     
-    <!-- Time violations -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Превышения времени ответа</h5>
+    <!-- Загрузка -->
+    <div id="loadingState" class="loading-state">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p>Загрузка статистики...</p>
+    </div>
+    
+    <!-- Контент статистики -->
+    <div id="statisticsContent" style="display: none;">
+        <!-- Сводные карточки -->
+        <div class="row mb-4" id="summaryCards">
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card summary-stat-card total">
+                    <i class="fas fa-envelope summary-stat-icon info"></i>
+                    <div class="summary-stat-number info" id="totalMessages">0</div>
+                    <div class="summary-stat-label">Всего сообщений</div>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-4 text-center">
-                            <h6 class="text-warning">Более 15 минут</h6>
-                            <p class="h3" id="exceeded15">0</p>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card summary-stat-card success">
+                    <i class="fas fa-check-circle summary-stat-icon success"></i>
+                    <div class="summary-stat-number success" id="respondedMessages">0</div>
+                    <div class="summary-stat-label">Отвечено</div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card summary-stat-card danger">
+                    <i class="fas fa-times-circle summary-stat-icon danger"></i>
+                    <div class="summary-stat-number danger" id="missedMessages">0</div>
+                    <div class="summary-stat-label">Пропущено</div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card summary-stat-card info">
+                    <i class="fas fa-percentage summary-stat-icon primary"></i>
+                    <div class="summary-stat-number primary"><span id="efficiency">0</span>%</div>
+                    <div class="summary-stat-label">Эффективность</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Превышения времени ответа -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient text-white">
+                <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Превышения времени ответа</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="violation-card">
+                            <i class="fas fa-hourglass-half fa-2x warning mb-2"></i>
+                            <div class="violation-number warning" id="exceeded15">0</div>
+                            <div class="text-muted">Более 15 минут</div>
                         </div>
-                        <div class="col-md-4 text-center">
-                            <h6 class="text-warning">Более 30 минут</h6>
-                            <p class="h3" id="exceeded30">0</p>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="violation-card">
+                            <i class="fas fa-hourglass-end fa-2x warning mb-2"></i>
+                            <div class="violation-number warning" id="exceeded30">0</div>
+                            <div class="text-muted">Более 30 минут</div>
                         </div>
-                        <div class="col-md-4 text-center">
-                            <h6 class="text-danger">Более 1 часа</h6>
-                            <p class="h3" id="exceeded60">0</p>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="violation-card">
+                            <i class="fas fa-exclamation-triangle fa-2x danger mb-2"></i>
+                            <div class="violation-number danger" id="exceeded60">0</div>
+                            <div class="text-muted">Более 1 часа</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Детальная статистика -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient text-white">
+                <h5 class="mb-0"><i class="fas fa-table me-2"></i>Детальная статистика</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Дата</th>
+                                <th id="employeeColumn">Сотрудник</th>
+                                <th>Всего</th>
+                                <th>Отвечено</th>
+                                <th>Пропущено</th>
+                                <th>Ср. время (мин)</th>
+                                <th>&gt;15 мин</th>
+                                <th>&gt;30 мин</th>
+                                <th>&gt;60 мин</th>
+                                <th>Эффективность</th>
+                            </tr>
+                        </thead>
+                        <tbody id="statisticsTableBody">
+                            <tr>
+                                <td colspan="10" class="text-center py-4">
+                                    <div class="spinner-border text-primary" role="status"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Графики -->
+        <div class="charts-row">
+            <div class="row">
+                <div class="col-lg-8 mb-4">
+                    <div class="card chart-card">
+                        <div class="chart-header">
+                            <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>График эффективности</h5>
+                        </div>
+                        <div class="chart-body">
+                            <div class="chart-container" style="height: 400px;">
+                                <canvas id="efficiencyChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4 mb-4">
+                    <div class="card chart-card">
+                        <div class="chart-header">
+                            <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Распределение ответов</h5>
+                        </div>
+                        <div class="chart-body">
+                            <div class="chart-container" style="height: 400px;">
+                                <canvas id="responsePieChart"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -83,52 +286,11 @@
         </div>
     </div>
     
-    <!-- Statistics table -->
-    <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0">Детальная статистика</h5>
-        </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover" id="statisticsTable">
-                    <thead>
-                        <tr>
-                            <th>Дата</th>
-                            <th id="employeeColumn">Сотрудник</th>
-                            <th>Всего</th>
-                            <th>Отвечено</th>
-                            <th>Пропущено</th>
-                            <th>Ср. время (мин)</th>
-                            <th>&gt;15 мин</th>
-                            <th>&gt;30 мин</th>
-                            <th>&gt;60 мин</th>
-                            <th>Эффективность</th>
-                        </tr>
-                    </thead>
-                    <tbody id="statisticsTableBody">
-                        <tr>
-                            <td colspan="10" class="text-center">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Загрузка...</span>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Chart -->
-    <div class="card mt-4">
-        <div class="card-header">
-            <h5 class="mb-0">График эффективности</h5>
-        </div>
-        <div class="card-body">
-            <div class="chart-container" style="height: 400px;">
-                <canvas id="efficiencyChart"></canvas>
-            </div>
-        </div>
+    <!-- Состояние "Нет данных" -->
+    <div id="noDataState" class="no-data-state" style="display: none;">
+        <i class="fas fa-chart-bar fa-4x mb-3 text-muted"></i>
+        <h4>Нет данных за выбранный период</h4>
+        <p>Попробуйте выбрать другой период или тип статистики</p>
     </div>
 </div>
 {% endblock %}
@@ -137,34 +299,38 @@
 <script>
     let statisticsData = [];
     let efficiencyChart = null;
+    let responsePieChart = null;
     
-    // Set default dates
-    const today = new Date();
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    document.getElementById('startDate').value = startOfMonth.toISOString().split('T')[0];
-    document.getElementById('endDate').value = today.toISOString().split('T')[0];
+    // Обновление времени
+    function updateCurrentTime() {
+        const now = new Date();
+        document.getElementById('current-time').textContent = now.toLocaleString('ru-RU');
+    }
     
-    // Load statistics
+    // Установка значений по умолчанию
+    function setDefaultDates() {
+        const today = new Date();
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        document.getElementById('startDate').value = startOfMonth.toISOString().split('T')[0];
+        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+    }
+    
+    // Основная функция загрузки статистики
     async function loadStatistics() {
         const periodType = document.getElementById('periodSelect').value;
         const startDate = document.getElementById('startDate').value;
         const endDate = document.getElementById('endDate').value;
         
+        // Показываем загрузку
+        document.getElementById('loadingState').style.display = 'block';
+        document.getElementById('statisticsContent').style.display = 'none';
+        document.getElementById('noDataState').style.display = 'none';
+        
         try {
-            // Load summary first
-            const summaryResponse = await axios.get(`/api/statistics/summary?period=month`);
-            const summary = summaryResponse.data;
+            // Загружаем сводную статистику
+            await loadSummaryData();
             
-            // Update summary cards
-            document.getElementById('totalMessages').textContent = summary.total_messages;
-            document.getElementById('respondedMessages').textContent = summary.responded_messages;
-            document.getElementById('missedMessages').textContent = summary.missed_messages;
-            document.getElementById('efficiency').textContent = summary.efficiency_percent;
-            document.getElementById('exceeded15').textContent = summary.exceeded_15_min;
-            document.getElementById('exceeded30').textContent = summary.exceeded_30_min;
-            document.getElementById('exceeded60').textContent = summary.exceeded_60_min;
-            
-            // Load detailed statistics
+            // Загружаем детальную статистику
             let url = `/api/statistics/${userInfo.is_admin ? 'all' : 'my'}?period_type=${periodType}`;
             if (startDate) url += `&start_date=${startDate}`;
             if (endDate) url += `&end_date=${endDate}`;
@@ -172,26 +338,60 @@
             const response = await axios.get(url);
             statisticsData = response.data;
             
+            if (statisticsData.length === 0) {
+                showNoDataState();
+                return;
+            }
+            
+            // Отображаем данные
             renderStatisticsTable();
-            renderEfficiencyChart();
+            renderCharts();
+            
+            // Показываем контент
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('statisticsContent').style.display = 'block';
             
         } catch (error) {
             console.error('Error loading statistics:', error);
-            showAlert('Ошибка при загрузке статистики', 'danger');
+            showAlert('Ошибка при загрузке статистики: ' + (error.response?.data?.detail || error.message), 'danger');
+            document.getElementById('loadingState').style.display = 'none';
+            showNoDataState();
         }
     }
     
-    // Render statistics table
+    // Загрузка сводных данных
+    async function loadSummaryData() {
+        try {
+            // Определяем период для сводки (всегда за месяц)
+            const summaryResponse = await axios.get('/api/statistics/summary?period=month');
+            const summary = summaryResponse.data;
+            
+            // Обновляем сводные карточки
+            document.getElementById('totalMessages').textContent = summary.total_messages || 0;
+            document.getElementById('respondedMessages').textContent = summary.responded_messages || 0;
+            document.getElementById('missedMessages').textContent = summary.missed_messages || 0;
+            document.getElementById('efficiency').textContent = summary.efficiency_percent || 0;
+            document.getElementById('exceeded15').textContent = summary.exceeded_15_min || 0;
+            document.getElementById('exceeded30').textContent = summary.exceeded_30_min || 0;
+            document.getElementById('exceeded60').textContent = summary.exceeded_60_min || 0;
+            
+        } catch (error) {
+            console.error('Error loading summary:', error);
+            // Не прерываем загрузку из-за ошибки сводки
+        }
+    }
+    
+    // Отображение таблицы статистики
     function renderStatisticsTable() {
         const tbody = document.getElementById('statisticsTableBody');
         
-        // Hide employee column for non-admins
+        // Скрываем колонку сотрудника для не-админов
         if (!userInfo.is_admin) {
             document.getElementById('employeeColumn').style.display = 'none';
         }
         
         if (statisticsData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center">Нет данных за выбранный период</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center py-4">Нет данных за выбранный период</td></tr>';
             return;
         }
         
@@ -199,18 +399,18 @@
             <tr>
                 <td>${new Date(stat.date).toLocaleDateString('ru-RU')}</td>
                 ${userInfo.is_admin ? `<td>${stat.employee_name}</td>` : ''}
-                <td>${stat.total_messages}</td>
-                <td class="text-success">${stat.responded_messages}</td>
-                <td class="text-danger">${stat.missed_messages}</td>
-                <td>${stat.avg_response_time ? stat.avg_response_time.toFixed(1) : '-'}</td>
-                <td class="text-warning">${stat.exceeded_15_min}</td>
-                <td class="text-warning">${stat.exceeded_30_min}</td>
-                <td class="text-danger">${stat.exceeded_60_min}</td>
+                <td><span class="badge bg-info">${stat.total_messages}</span></td>
+                <td><span class="badge bg-success">${stat.responded_messages}</span></td>
+                <td><span class="badge bg-danger">${stat.missed_messages}</span></td>
+                <td>${stat.avg_response_time ? Math.round(stat.avg_response_time) : '-'}</td>
+                <td><span class="badge bg-warning text-dark">${stat.exceeded_15_min}</span></td>
+                <td><span class="badge bg-warning text-dark">${stat.exceeded_30_min}</span></td>
+                <td><span class="badge bg-danger">${stat.exceeded_60_min}</span></td>
                 <td>
                     <div class="progress" style="height: 20px;">
                         <div class="progress-bar ${getEfficiencyClass(stat.efficiency_percent)}" 
                              style="width: ${stat.efficiency_percent || 0}%">
-                            ${stat.efficiency_percent ? stat.efficiency_percent.toFixed(1) : 0}%
+                            ${stat.efficiency_percent ? Math.round(stat.efficiency_percent) : 0}%
                         </div>
                     </div>
                 </td>
@@ -218,14 +418,21 @@
         `).join('');
     }
     
-    // Get efficiency class
+    // Получение класса для эффективности
     function getEfficiencyClass(efficiency) {
-        if (efficiency >= 90) return 'bg-success';
-        if (efficiency >= 70) return 'bg-warning';
+        if (!efficiency) return 'bg-secondary';
+        if (efficiency >= 80) return 'bg-success';
+        if (efficiency >= 60) return 'bg-warning';
         return 'bg-danger';
     }
     
-    // Render efficiency chart
+    // Отображение графиков
+    function renderCharts() {
+        renderEfficiencyChart();
+        renderResponsePieChart();
+    }
+    
+    // График эффективности
     function renderEfficiencyChart() {
         const ctx = document.getElementById('efficiencyChart').getContext('2d');
         
@@ -233,7 +440,7 @@
             efficiencyChart.destroy();
         }
         
-        // Group data by date for chart
+        // Группируем данные по дням для графика
         const chartData = {};
         statisticsData.forEach(stat => {
             const date = new Date(stat.date).toLocaleDateString('ru-RU');
@@ -247,10 +454,10 @@
             chartData[date].responded += stat.responded_messages;
         });
         
-        const labels = Object.keys(chartData);
+        const labels = Object.keys(chartData).slice(0, 10); // Последние 10 дат
         const efficiencyData = labels.map(date => {
             const data = chartData[date];
-            return data.total > 0 ? (data.responded / data.total * 100).toFixed(1) : 0;
+            return data.total > 0 ? Math.round((data.responded / data.total * 100)) : 0;
         });
         
         efficiencyChart = new Chart(ctx, {
@@ -260,15 +467,25 @@
                 datasets: [{
                     label: 'Эффективность (%)',
                     data: efficiencyData,
-                    borderColor: 'rgb(75, 192, 192)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
-                    tension: 0.1,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    tension: 0.4,
+                    borderWidth: 3,
+                    pointBackgroundColor: '#764ba2',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointRadius: 6,
                     fill: true
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
                 scales: {
                     y: {
                         beginAtZero: true,
@@ -277,14 +494,70 @@
                             callback: function(value) {
                                 return value + '%';
                             }
+                        },
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)'
                         }
                     }
-                },
+                }
+            }
+        });
+    }
+    
+    // Круговая диаграмма распределения ответов
+    function renderResponsePieChart() {
+        const ctx = document.getElementById('responsePieChart').getContext('2d');
+        
+        if (responsePieChart) {
+            responsePieChart.destroy();
+        }
+        
+        // Суммируем данные
+        const totalMessages = statisticsData.reduce((sum, stat) => sum + stat.total_messages, 0);
+        const respondedMessages = statisticsData.reduce((sum, stat) => sum + stat.responded_messages, 0);
+        const missedMessages = totalMessages - respondedMessages;
+        
+        responsePieChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Отвечено', 'Пропущено'],
+                datasets: [{
+                    data: [respondedMessages, missedMessages],
+                    backgroundColor: [
+                        '#28a745',
+                        '#dc3545'
+                    ],
+                    borderWidth: 0,
+                    hoverBorderWidth: 3,
+                    hoverBorderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '60%',
                 plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: true,
+                            font: {
+                                size: 14
+                            }
+                        }
+                    },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return context.dataset.label + ': ' + context.parsed.y + '%';
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = Math.round((context.raw / total) * 100);
+                                return context.label + ': ' + context.raw + ' (' + percentage + '%)';
                             }
                         }
                     }
@@ -293,24 +566,40 @@
         });
     }
     
-    // Show alert
+    // Показать состояние "Нет данных"
+    function showNoDataState() {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('statisticsContent').style.display = 'none';
+        document.getElementById('noDataState').style.display = 'block';
+    }
+    
+    // Показать уведомление
     function showAlert(message, type) {
         const alert = document.createElement('div');
-        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.className = `alert alert-${type} alert-dismissible fade show notification`;
         alert.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
         document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.container-fluid').firstChild);
         
         setTimeout(() => {
-            alert.remove();
+            if (alert.parentNode) {
+                alert.remove();
+            }
         }, 5000);
     }
     
-    // Initialize
+    // Инициализация
     document.addEventListener('DOMContentLoaded', () => {
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        setDefaultDates();
         loadStatistics();
+        
+        // Автоматическое обновление каждые 5 минут
+        setInterval(loadStatistics, 300000);
     });
 </script>
 {% endblock %} 

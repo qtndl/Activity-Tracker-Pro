@@ -54,13 +54,20 @@ async def send_verification_code(
 ):
     """Отправить код верификации в Telegram"""
     try:
+        print(f"[DEBUG] Поиск пользователя с telegram_id: {request.telegram_id}")
+        
         # Проверяем что пользователь существует
         result = await db.execute(
             select(Employee).where(Employee.telegram_id == request.telegram_id)
         )
         employee = result.scalar_one_or_none()
         
+        print(f"[DEBUG] Найденный пользователь: {employee}")
+        if employee:
+            print(f"[DEBUG] Пользователь найден: ID={employee.id}, Name={employee.full_name}, Active={employee.is_active}")
+        
         if not employee:
+            print(f"[DEBUG] Пользователь с telegram_id {request.telegram_id} не найден в базе")
             return JSONResponse(
                 status_code=400,
                 content={"success": False, "error": "Пользователь не найден"}
@@ -220,7 +227,11 @@ async def logout():
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Дашборд для всех пользователей"""
+    """Дашборд для всех пользователей - ЕДИНЫЙ ИСТОЧНИК ДАННЫХ"""
+    
+    # Импортируем сервис
+    from web.services.statistics_service import StatisticsService
+    
     if current_user.get("is_admin"):
         # Админ видит админскую панель
         return templates.TemplateResponse("dashboard.html", {
@@ -229,48 +240,38 @@ async def dashboard_page(request: Request, current_user: dict = Depends(get_curr
         })
     else:
         # Сотрудник видит личный кабинет с его статистикой
-        # Получаем статистику сотрудника
-        today = datetime.utcnow().date()
-        start_of_day = datetime.combine(today, datetime.min.time())
+        employee_id = current_user.get('employee_id')
         
-        # Получаем сообщения сотрудника за сегодня
+        # Используем единый сервис статистики
+        stats_service = StatisticsService(db)
+        stats = await stats_service.get_employee_stats(employee_id, period="today")
+        
+        # Получаем последние 10 сообщений
         messages_result = await db.execute(
             select(Message).where(
                 and_(
-                    Message.employee_id == current_user.get('employee_id'),
-                    Message.received_at >= start_of_day
+                    Message.employee_id == employee_id,
+                    Message.message_type == "client"
                 )
             ).order_by(Message.received_at.desc()).limit(10)
         )
         recent_messages = messages_result.scalars().all()
         
-        # Считаем статистику
-        total_messages = len(recent_messages)
-        responded_messages = sum(1 for m in recent_messages if m.responded_at is not None)
-        missed_messages = total_messages - responded_messages
-        
-        response_times = [m.response_time_minutes for m in recent_messages if m.response_time_minutes is not None]
-        avg_response_time = sum(response_times) / len(response_times) if response_times else 0
-        
-        # Превышения времени
-        exceeded_15_min = sum(1 for t in response_times if t > 15)
-        exceeded_30_min = sum(1 for t in response_times if t > 30)
-        exceeded_60_min = sum(1 for t in response_times if t > 60)
-        
-        stats = {
-            'total_messages': total_messages,
-            'responded_messages': responded_messages,
-            'missed_messages': missed_messages,
-            'avg_response_time': avg_response_time,
-            'exceeded_15_min': exceeded_15_min,
-            'exceeded_30_min': exceeded_30_min,
-            'exceeded_60_min': exceeded_60_min
+        # Создаем объект статистики
+        stats_obj = {
+            'total_messages': stats.total_messages,
+            'responded_messages': stats.responded_messages,
+            'missed_messages': stats.missed_messages,
+            'avg_response_time': stats.avg_response_time or 0,
+            'exceeded_15_min': stats.exceeded_15_min,
+            'exceeded_30_min': stats.exceeded_30_min,
+            'exceeded_60_min': stats.exceeded_60_min
         }
         
         return templates.TemplateResponse("employee_dashboard.html", {
             "request": request,
             "user": current_user,
-            "stats": stats,
+            "stats": stats_obj,
             "recent_messages": recent_messages
         })
 
@@ -373,6 +374,15 @@ async def health_check():
 async def test_auth(current_user: dict = Depends(get_current_user)):
     """Тестовый endpoint для проверки аутентификации"""
     return {"user": current_user}
+
+
+@app.get("/debug-config")
+async def debug_config():
+    """Отладочный эндпоинт для проверки конфигурации"""
+    return {
+        "database_url": settings.database_url,
+        "message": "Конфигурация сервера"
+    }
 
 
 if __name__ == "__main__":

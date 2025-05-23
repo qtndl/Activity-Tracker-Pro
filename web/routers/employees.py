@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel
 
 from database.database import get_db
-from database.models import Employee, Message, EmployeeStatistics
+from database.models import Employee, Message
 from web.auth import get_current_user, get_current_admin
 
 router = APIRouter()
@@ -176,52 +176,28 @@ async def get_employee_statistics(
     current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получить статистику конкретного сотрудника (только для админов)"""
-    # Проверяем, что сотрудник существует
-    result = await db.execute(select(Employee).where(Employee.id == employee_id))
-    employee = result.scalar_one_or_none()
+    """Получить статистику конкретного сотрудника (только для админов) - ЕДИНЫЙ ИСТОЧНИК ДАННЫХ"""
     
-    if not employee:
-        raise HTTPException(status_code=404, detail="Сотрудник не найден")
+    # Импортируем сервис
+    from web.services.statistics_service import StatisticsService
     
-    # Определяем период
-    if period == "today":
-        start_date = datetime.combine(datetime.utcnow().date(), datetime.min.time())
-    elif period == "week":
-        today = datetime.utcnow().date()
-        start_date = datetime.combine(today - timedelta(days=today.weekday()), datetime.min.time())
-    else:  # month
-        today = datetime.utcnow().date()
-        start_date = datetime.combine(today.replace(day=1), datetime.min.time())
+    stats_service = StatisticsService(db)
     
-    # Получаем сообщения сотрудника
-    messages_result = await db.execute(
-        select(Message).where(
-            and_(
-                Message.employee_id == employee_id,
-                Message.received_at >= start_date
-            )
-        )
-    )
-    messages = messages_result.scalars().all()
-    
-    total = len(messages)
-    responded = sum(1 for m in messages if m.responded_at is not None)
-    missed = total - responded
-    
-    response_times = [m.response_time_minutes for m in messages if m.response_time_minutes is not None]
-    avg_time = sum(response_times) / len(response_times) if response_times else 0
-    
-    return {
-        "employee": {
-            "id": employee.id,
-            "full_name": employee.full_name,
-            "telegram_username": employee.telegram_username
-        },
-        "period": period,
-        "total_messages": total,
-        "responded_messages": responded,
-        "missed_messages": missed,
-        "avg_response_time": round(avg_time, 1),
-        "response_rate": round((responded / total * 100) if total > 0 else 0, 1)
-    } 
+    try:
+        stats = await stats_service.get_employee_stats(employee_id, period=period)
+        
+        return {
+            "employee": {
+                "id": stats.employee_id,
+                "full_name": stats.employee_name,
+                "telegram_username": stats.telegram_username
+            },
+            "period": period,
+            "total_messages": stats.total_messages,
+            "responded_messages": stats.responded_messages,
+            "missed_messages": stats.missed_messages,
+            "avg_response_time": round(stats.avg_response_time or 0, 1),
+            "response_rate": round(stats.response_rate, 1)
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail="Сотрудник не найден") 

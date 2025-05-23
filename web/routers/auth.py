@@ -39,16 +39,28 @@ async def telegram_auth(
             detail="Ваш аккаунт деактивирован"
         )
     
-    # Создаем токен
-    access_token = create_access_token(data={"sub": str(user.id)})
+    # Создаем токен в том же формате, что и новая система
+    access_token = create_access_token(data={
+        "sub": str(user.telegram_id),  # Используем telegram_id вместо id
+        "employee_id": user.id,
+        "telegram_id": user.telegram_id,
+        "telegram_username": user.telegram_username,
+        "full_name": user.full_name,
+        "is_active": user.is_active,
+        "is_admin": user.is_admin
+    })
     
     return TokenResponse(
         access_token=access_token,
         user_info={
-            "id": user.id,
+            "employee_id": user.id,
             "telegram_id": user.telegram_id,
+            "telegram_username": user.telegram_username,
             "full_name": user.full_name,
-            "is_admin": user.is_admin
+            "is_active": user.is_active,
+            "is_admin": user.is_admin,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "updated_at": user.updated_at.isoformat() if user.updated_at else None
         }
     )
 
@@ -67,8 +79,16 @@ async def telegram_callback(
             content={"error": "Пользователь не найден"}
         )
     
-    # Создаем токен
-    access_token = create_access_token(data={"sub": str(user.id)})
+    # Создаем токен в правильном формате
+    access_token = create_access_token(data={
+        "sub": str(user.telegram_id),
+        "employee_id": user.id,
+        "telegram_id": user.telegram_id,
+        "telegram_username": user.telegram_username,
+        "full_name": user.full_name,
+        "is_active": user.is_active,
+        "is_admin": user.is_admin
+    })
     
     # Возвращаем HTML с JavaScript для сохранения токена
     html_content = f"""
@@ -80,10 +100,14 @@ async def telegram_callback(
         <script>
             localStorage.setItem('access_token', '{access_token}');
             localStorage.setItem('user_info', JSON.stringify({{
-                id: {user.id},
+                employee_id: {user.id},
                 telegram_id: {user.telegram_id},
+                telegram_username: '{user.telegram_username}',
                 full_name: '{user.full_name}',
-                is_admin: {str(user.is_admin).lower()}
+                is_active: {str(user.is_active).lower()},
+                is_admin: {str(user.is_admin).lower()},
+                created_at: '{user.created_at.isoformat() if user.created_at else None}',
+                updated_at: '{user.updated_at.isoformat() if user.updated_at else None}'
             }}));
             window.location.href = '/dashboard';
         </script>

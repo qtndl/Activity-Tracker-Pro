@@ -5,7 +5,7 @@ from .models import Base
 
 # Создаем асинхронный движок
 engine = create_async_engine(
-    settings.database_url,
+    "sqlite+aiosqlite:///./bot.db",  # Жестко заданный путь
     echo=False,
     future=True
 )

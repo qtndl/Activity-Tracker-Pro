@@ -26,7 +26,6 @@ google-auth-oauthlib==1.2.0
 
 # Utils
 python-dotenv==1.0.0
-apscheduler==3.10.4
 aiofiles==23.2.1
 httpx==0.25.2
 
