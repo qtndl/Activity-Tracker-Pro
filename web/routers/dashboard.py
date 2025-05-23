@@ -20,14 +20,14 @@ class DashboardSettings(BaseModel):
     
 @router.get("/overview")
 async def get_dashboard_overview(
-    current_user: Employee = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
     """Получить обзор для дашборда"""
     today = datetime.utcnow().date()
     start_of_day = datetime.combine(today, datetime.min.time())
     
-    if current_user.is_admin:
+    if current_user.get('is_admin'):
         # Для админа - общая статистика
         # Активные сотрудники
         active_employees = await db.execute(
@@ -74,7 +74,7 @@ async def get_dashboard_overview(
         my_messages = await db.execute(
             select(Message).where(
                 and_(
-                    Message.employee_id == current_user.id,
+                    Message.employee_id == current_user.get('employee_id'),
                     Message.received_at >= start_of_day
                 )
             )
@@ -92,7 +92,7 @@ async def get_dashboard_overview(
         unanswered = await db.execute(
             select(Message).where(
                 and_(
-                    Message.employee_id == current_user.id,
+                    Message.employee_id == current_user.get('employee_id'),
                     Message.responded_at.is_(None)
                 )
             )
@@ -111,7 +111,7 @@ async def get_dashboard_overview(
 
 @router.get("/settings")
 async def get_dashboard_settings(
-    current_user: Employee = Depends(get_current_admin),
+    current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ) -> DashboardSettings:
     """Получить настройки дашборда (только для админов)"""
@@ -129,7 +129,7 @@ async def get_dashboard_settings(
 @router.put("/settings")
 async def update_dashboard_settings(
     settings_data: DashboardSettings,
-    current_user: Employee = Depends(get_current_admin),
+    current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Обновить настройки дашборда (только для админов)"""
@@ -157,7 +157,7 @@ async def update_dashboard_settings(
 @router.post("/export/google-sheets")
 async def export_to_google_sheets(
     period: str = Query("today", regex="^(today|week|month)$"),
-    current_user: Employee = Depends(get_current_admin),
+    current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
     """Экспортировать статистику в Google Sheets (только для админов)"""

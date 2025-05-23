@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход в систему - Мониторинг активности</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 450px;
+            width: 100%;
+            text-align: center;
+        }
+        .login-icon {
+            font-size: 4rem;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        .form-control {
+            font-size: 16px;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+        .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        .btn-secondary {
+            background: #6c757d;
+            border: none;
+            border-radius: 10px;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .auth-step {
+            display: none;
+        }
+        .auth-step.active {
+            display: block;
+        }
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        .step-item {
+            display: flex;
+            align-items: center;
+            margin: 0 10px;
+        }
+        .step-number {
+            background: #e9ecef;
+            color: #6c757d;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        .step-number.active {
+            background: #667eea;
+            color: white;
+        }
+        .step-number.completed {
+            background: #28a745;
+            color: white;
+        }
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            display: none;
+        }
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            display: none;
+        }
+        .info-message {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #b8daff;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .code-input {
+            font-family: 'Courier New', monospace;
+            font-size: 24px;
+            text-align: center;
+            letter-spacing: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="login-icon">🔐</div>
+        <h2 class="mb-3">Безопасный вход в систему</h2>
+        
+        <!-- Индикатор шагов -->
+        <div class="step-indicator">
+            <div class="step-item">
+                <div class="step-number active" id="step-1">1</div>
+                <span>ID</span>
+            </div>
+            <div class="step-item">
+                <div class="step-number" id="step-2">2</div>
+                <span>Код</span>
+            </div>
+            <div class="step-item">
+                <div class="step-number" id="step-3">3</div>
+                <span>Вход</span>
+            </div>
+        </div>
+        
+        <div id="error-message" class="error-message"></div>
+        <div id="success-message" class="success-message"></div>
+        
+        <!-- Шаг 1: Ввод ID -->
+        <div id="step-id" class="auth-step active">
+            <p class="text-muted mb-4">Введите ваш Telegram ID</p>
+            
+            <form onsubmit="sendCode(event)" class="mb-4">
+                <div class="mb-3">
+                    <label for="telegram-id" class="form-label text-start d-block">
+                        <i class="fas fa-id-card me-2"></i>Ваш Telegram ID:
+                    </label>
+                    <input type="number" class="form-control" id="telegram-id" required 
+                           placeholder="Введите ваш Telegram ID">
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100">
+                    <i class="fas fa-paper-plane me-2"></i>Отправить код
+                </button>
+            </form>
+            
+            <div class="info-message">
+                <h6><i class="fas fa-lightbulb me-2"></i>Как узнать свой ID:</h6>
+                <p class="mb-0">Напишите боту <strong>@userinfobot</strong> команду <strong>/start</strong></p>
+            </div>
+        </div>
+        
+        <!-- Шаг 2: Ввод кода -->
+        <div id="step-code" class="auth-step">
+            <p class="text-muted mb-4">Введите код из Telegram</p>
+            
+            <div class="info-message mb-4">
+                <i class="fas fa-mobile-alt me-2"></i>
+                Код отправлен в ваш Telegram.<br>
+                Проверьте сообщения от бота.
+            </div>
+            
+            <form onsubmit="verifyCode(event)" class="mb-4">
+                <div class="mb-3">
+                    <label for="verification-code" class="form-label text-start d-block">
+                        <i class="fas fa-key me-2"></i>Код подтверждения:
+                    </label>
+                    <input type="text" class="form-control code-input" id="verification-code" required 
+                           placeholder="000000" maxlength="6" pattern="[0-9]{6}">
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100 mb-2">
+                    <i class="fas fa-sign-in-alt me-2"></i>Войти в систему
+                </button>
+                <button type="button" class="btn btn-secondary w-100" onclick="goBackToStep1()">
+                    <i class="fas fa-arrow-left me-2"></i>Изменить ID
+                </button>
+            </form>
+            
+            <p class="text-muted small">
+                Код действует 5 минут.<br>
+                Не получили код? Проверьте, что бот не заблокирован.
+            </p>
+        </div>
+        
+        <hr class="my-4">
+        
+        <div class="text-muted small">
+            <p><i class="fas fa-shield-alt me-1"></i>Двухфакторная авторизация</p>
+            <p>💼 <strong>Сотрудники:</strong> личная статистика</p>
+            <p>👑 <strong>Администраторы:</strong> полное управление</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        let currentTelegramId = null;
+        
+        // Шаг 1: Отправка кода
+        function sendCode(event) {
+            event.preventDefault();
+            
+            const telegramId = document.getElementById('telegram-id').value;
+            if (!telegramId) {
+                showMessage('Введите ваш Telegram ID', 'error');
+                return;
+            }
+            
+            currentTelegramId = telegramId;
+            showMessage('Отправка кода...', 'success');
+            
+            // Отправляем запрос на генерацию кода
+            fetch('/send-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    telegram_id: parseInt(telegramId)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showMessage('Код отправлен в Telegram!', 'success');
+                    setTimeout(() => {
+                        goToStep2();
+                    }, 1500);
+                } else {
+                    showMessage(data.message || data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка отправки кода:', error);
+                showMessage('Ошибка при отправке кода. Попробуйте еще раз.', 'error');
+            });
+        }
+        
+        // Шаг 2: Проверка кода
+        function verifyCode(event) {
+            event.preventDefault();
+            
+            const code = document.getElementById('verification-code').value;
+            if (!code || code.length !== 6) {
+                showMessage('Введите 6-значный код', 'error');
+                return;
+            }
+            
+            showMessage('Проверка кода...', 'success');
+            
+            // Отправляем запрос на проверку кода
+            fetch('/verify-code', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    telegram_id: parseInt(currentTelegramId),
+                    code: code
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateStepIndicator(3);
+                    showMessage('Вход выполнен успешно! Перенаправление...', 'success');
+                    
+                    // Сохраняем токен и информацию о пользователе в localStorage
+                    // Генерируем фиктивный токен для localStorage (настоящий в cookies)
+                    localStorage.setItem('access_token', 'cookie_based_auth');
+                    localStorage.setItem('user_info', JSON.stringify(data.user));
+                    
+                    // Принудительное обновление страницы с redirect
+                    setTimeout(() => {
+                        window.location.replace(data.redirect);
+                    }, 1000);
+                } else {
+                    showMessage(data.message || data.error, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка проверки кода:', error);
+                showMessage('Ошибка при проверке кода. Попробуйте еще раз.', 'error');
+            });
+        }
+        
+        // Переходы между шагами
+        function goToStep2() {
+            document.getElementById('step-id').classList.remove('active');
+            document.getElementById('step-code').classList.add('active');
+            updateStepIndicator(2);
+            document.getElementById('verification-code').focus();
+        }
+        
+        function goBackToStep1() {
+            document.getElementById('step-code').classList.remove('active');
+            document.getElementById('step-id').classList.add('active');
+            updateStepIndicator(1);
+            document.getElementById('telegram-id').focus();
+        }
+        
+        function updateStepIndicator(activeStep) {
+            for (let i = 1; i <= 3; i++) {
+                const stepEl = document.getElementById(`step-${i}`);
+                stepEl.classList.remove('active', 'completed');
+                
+                if (i < activeStep) {
+                    stepEl.classList.add('completed');
+                } else if (i === activeStep) {
+                    stepEl.classList.add('active');
+                }
+            }
+        }
+        
+        function showMessage(text, type) {
+            const errorDiv = document.getElementById('error-message');
+            const successDiv = document.getElementById('success-message');
+            
+            // Скрываем все сообщения
+            errorDiv.style.display = 'none';
+            successDiv.style.display = 'none';
+            
+            // Показываем нужное сообщение
+            if (type === 'error') {
+                errorDiv.textContent = text;
+                errorDiv.style.display = 'block';
+            } else {
+                successDiv.textContent = text;
+                successDiv.style.display = 'block';
+            }
+        }
+        
+        // Автоматическое форматирование кода
+        document.getElementById('verification-code').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, ''); // Только цифры
+            if (value.length > 6) value = value.slice(0, 6);
+            e.target.value = value;
+        });
+        
+        // Проверяем сообщения в URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const message = urlParams.get('message');
+        const error = urlParams.get('error');
+        
+        if (error) {
+            showMessage(decodeURIComponent(error), 'error');
+        } else if (message) {
+            showMessage(decodeURIComponent(message), 'success');
+        }
+        
+        // Фокус на поле ввода
+        document.getElementById('telegram-id').focus();
+    </script>
+</body>
+</html> 

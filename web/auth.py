@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -38,11 +38,24 @@ def verify_token(token: str):
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: Request,
     db: AsyncSession = Depends(get_db)
-) -> Employee:
-    """Получение текущего пользователя из токена"""
-    token = credentials.credentials
+) -> dict:
+    """Получение текущего пользователя из токена в cookies"""
+    
+    # Получаем токен из cookies
+    token_cookie = request.cookies.get("access_token")
+    if not token_cookie:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Убираем префикс "Bearer " если есть
+    token = token_cookie
+    if token.startswith("Bearer "):
+        token = token[7:]
     
     payload = verify_token(token)
     if not payload:
@@ -52,39 +65,30 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    user_id = payload.get("sub")
-    if not user_id:
+    telegram_id = payload.get("sub")
+    if not telegram_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Недействительный токен",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    result = await db.execute(
-        select(Employee).where(Employee.id == int(user_id))
-    )
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Пользователь не найден"
-        )
-    
-    # Администраторы всегда могут войти в систему, даже если деактивированы
-    # Деактивация для админов означает только отключение уведомлений бота
-    if not user.is_active and not user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Ваш аккаунт временно деактивирован. Обратитесь к администратору."
-        )
-    
-    return user
+    # Возвращаем информацию о пользователе из токена
+    return {
+        "telegram_id": int(telegram_id),
+        "employee_id": payload.get("employee_id"),
+        "telegram_username": payload.get("telegram_username", ""),
+        "full_name": payload.get("full_name", ""),
+        "is_active": payload.get("is_active", True),
+        "is_admin": payload.get("is_admin", False),
+        "created_at": None,  # Эти поля не храним в токене
+        "last_activity": None
+    }
 
 
-async def get_current_admin(current_user: Employee = Depends(get_current_user)) -> Employee:
+async def get_current_admin(current_user: dict = Depends(get_current_user)) -> dict:
     """Проверка прав администратора"""
-    if not current_user.is_admin:
+    if not current_user.get("is_admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Недостаточно прав"

@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Личный кабинет - {{ user.full_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .navbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card {
+            text-align: center;
+            padding: 30px 20px;
+        }
+        .stat-number {
+            font-size: 3rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 1.1rem;
+        }
+        .success { color: #28a745; }
+        .warning { color: #ffc107; }
+        .danger { color: #dc3545; }
+        .info { color: #17a2b8; }
+        .primary { color: #007bff; }
+        
+        .welcome-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            margin-bottom: 30px;
+        }
+        .activity-item {
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 10px 0;
+            background: white;
+            border-radius: 0 10px 10px 0;
+        }
+        .performance-badge {
+            font-size: 1.2rem;
+            padding: 10px 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Навигация -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-chart-line me-2"></i>
+                Мониторинг активности
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3">
+                    <i class="fas fa-user-circle me-1"></i>
+                    {{ user.full_name }}
+                    {% if user.username %}(@{{ user.username }}){% endif %}
+                </span>
+                <a class="btn btn-outline-light btn-sm" href="/logout">
+                    <i class="fas fa-sign-out-alt me-1"></i>
+                    Выход
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Приветствие -->
+        <div class="card welcome-card">
+            <div class="card-body text-center">
+                <h2><i class="fas fa-user-circle me-2"></i>Добро пожаловать, {{ user.full_name }}!</h2>
+                <p class="lead mb-0">Ваша личная статистика и активность в системе мониторинга</p>
+                <p class="mt-2">
+                    <i class="fas fa-clock me-1"></i>
+                    Последнее обновление: <span id="current-time"></span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Статистика -->
+        <div class="row">
+            <div class="col-md-3 col-sm-6 mb-4">
+                <div class="card stat-card">
+                    <i class="fas fa-envelope fa-2x info"></i>
+                    <div class="stat-number info" id="total-messages">{{ stats.total_messages }}</div>
+                    <div class="stat-label">Всего сообщений</div>
+                </div>
+            </div>
+            
+            <div class="col-md-3 col-sm-6 mb-4">
+                <div class="card stat-card">
+                    <i class="fas fa-check-circle fa-2x success"></i>
+                    <div class="stat-number success" id="responded-messages">{{ stats.responded_messages }}</div>
+                    <div class="stat-label">Отвечено</div>
+                </div>
+            </div>
+            
+            <div class="col-md-3 col-sm-6 mb-4">
+                <div class="card stat-card">
+                    <i class="fas fa-times-circle fa-2x danger"></i>
+                    <div class="stat-number danger" id="missed-messages">{{ stats.missed_messages }}</div>
+                    <div class="stat-label">Пропущено</div>
+                </div>
+            </div>
+            
+            <div class="col-md-3 col-sm-6 mb-4">
+                <div class="card stat-card">
+                    <i class="fas fa-clock fa-2x primary"></i>
+                    <div class="stat-number primary" id="avg-response-time">
+                        {{ "%.1f" | format(stats.avg_response_time) if stats.avg_response_time else "0" }}
+                    </div>
+                    <div class="stat-label">Среднее время ответа (мин)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Производительность -->
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-chart-pie me-2"></i>Эффективность работы</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        {% set response_rate = (stats.responded_messages / stats.total_messages * 100) if stats.total_messages > 0 else 0 %}
+                        <div class="progress mb-3" style="height: 20px;">
+                            <div class="progress-bar 
+                                {% if response_rate >= 90 %}bg-success
+                                {% elif response_rate >= 70 %}bg-warning  
+                                {% else %}bg-danger{% endif %}" 
+                                style="width: {{ response_rate }}%">
+                                {{ "%.1f" | format(response_rate) }}%
+                            </div>
+                        </div>
+                        <span class="badge performance-badge
+                            {% if response_rate >= 90 %}bg-success
+                            {% elif response_rate >= 70 %}bg-warning
+                            {% else %}bg-danger{% endif %}">
+                            {% if response_rate >= 90 %}
+                                <i class="fas fa-star me-1"></i>Отлично!
+                            {% elif response_rate >= 70 %}
+                                <i class="fas fa-thumbs-up me-1"></i>Хорошо
+                            {% else %}
+                                <i class="fas fa-exclamation-triangle me-1"></i>Нужно улучшить
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-stopwatch me-2"></i>Время ответа</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if stats.avg_response_time %}
+                            {% set avg_time = stats.avg_response_time %}
+                            <div class="text-center">
+                                <div class="stat-number 
+                                    {% if avg_time <= 15 %}success
+                                    {% elif avg_time <= 30 %}warning
+                                    {% else %}danger{% endif %}">
+                                    {{ "%.1f" | format(avg_time) }} мин
+                                </div>
+                                <p class="stat-label">
+                                    {% if avg_time <= 15 %}
+                                        <i class="fas fa-rocket me-1"></i>Очень быстро!
+                                    {% elif avg_time <= 30 %}
+                                        <i class="fas fa-clock me-1"></i>В пределах нормы
+                                    {% else %}
+                                        <i class="fas fa-hourglass-half me-1"></i>Можно быстрее
+                                    {% endif %}
+                                </p>
+                            </div>
+                        {% else %}
+                            <div class="text-center text-muted">
+                                <i class="fas fa-info-circle fa-2x mb-2"></i>
+                                <p>Пока нет данных о времени ответа</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Превышения времени -->
+        {% if stats.exceeded_15_min > 0 or stats.exceeded_30_min > 0 or stats.exceeded_60_min > 0 %}
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-exclamation-triangle me-2"></i>Превышения времени ответа</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <div class="p-3">
+                                    <div class="stat-number warning">{{ stats.exceeded_15_min }}</div>
+                                    <div class="stat-label">Более 15 минут</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="p-3">
+                                    <div class="stat-number warning">{{ stats.exceeded_30_min }}</div>
+                                    <div class="stat-label">Более 30 минут</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="p-3">
+                                    <div class="stat-number danger">{{ stats.exceeded_60_min }}</div>
+                                    <div class="stat-label">Более 1 часа</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Последняя активность -->
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5><i class="fas fa-history me-2"></i>Последняя активность</h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="refreshData()">
+                            <i class="fas fa-sync-alt me-1"></i>Обновить
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="activity-list">
+                            {% if recent_messages %}
+                                {% for message in recent_messages %}
+                                <div class="activity-item">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <strong>
+                                                {% if message.client_username %}
+                                                    @{{ message.client_username }}
+                                                {% else %}
+                                                    {{ message.client_name or "Клиент" }}
+                                                {% endif %}
+                                            </strong>
+                                            <p class="mb-1">{{ message.message_text[:100] }}{% if message.message_text|length > 100 %}...{% endif %}</p>
+                                        </div>
+                                        <div class="text-end">
+                                            {% if message.responded_at %}
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check me-1"></i>
+                                                    {{ "%.1f" | format(message.response_time_minutes) }} мин
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-warning">
+                                                    <i class="fas fa-clock me-1"></i>
+                                                    Ожидает ответа
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">
+                                        <i class="fas fa-clock me-1"></i>
+                                        {{ message.received_at.strftime('%d.%m.%Y %H:%M') }}
+                                    </small>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center text-muted py-4">
+                                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                                    <p>Пока нет сообщений</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Обновление времени
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleString('ru-RU');
+        }
+        
+        // Обновление данных
+        function refreshData() {
+            window.location.reload();
+        }
+        
+        // Автообновление каждые 5 минут
+        setInterval(refreshData, 300000);
+        
+        // Обновление времени каждую секунду
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        
+        // Показать уведомление при загрузке
+        console.log('Личный кабинет загружен для:', '{{ user.full_name }}');
+    </script>
+</body>
+</html> 
