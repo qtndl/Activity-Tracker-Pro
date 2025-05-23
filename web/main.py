@@ -12,9 +12,9 @@ from datetime import datetime, timedelta
 
 from config.config import settings
 from database.database import init_db, get_db
-from database.models import Employee
+from database.models import Employee, Message
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from .routers import auth, employees, statistics, dashboard
 from .routes import settings as settings_router
 from .auth import get_current_user, create_access_token
@@ -219,7 +219,7 @@ async def logout():
     return response
 
 @app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard_page(request: Request, current_user: dict = Depends(get_current_user)):
+async def dashboard_page(request: Request, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Дашборд для всех пользователей"""
     if current_user.get("is_admin"):
         # Админ видит админскую панель
@@ -228,10 +228,50 @@ async def dashboard_page(request: Request, current_user: dict = Depends(get_curr
             "user": current_user
         })
     else:
-        # Сотрудник видит личный кабинет
+        # Сотрудник видит личный кабинет с его статистикой
+        # Получаем статистику сотрудника
+        today = datetime.utcnow().date()
+        start_of_day = datetime.combine(today, datetime.min.time())
+        
+        # Получаем сообщения сотрудника за сегодня
+        messages_result = await db.execute(
+            select(Message).where(
+                and_(
+                    Message.employee_id == current_user.get('employee_id'),
+                    Message.received_at >= start_of_day
+                )
+            ).order_by(Message.received_at.desc()).limit(10)
+        )
+        recent_messages = messages_result.scalars().all()
+        
+        # Считаем статистику
+        total_messages = len(recent_messages)
+        responded_messages = sum(1 for m in recent_messages if m.responded_at is not None)
+        missed_messages = total_messages - responded_messages
+        
+        response_times = [m.response_time_minutes for m in recent_messages if m.response_time_minutes is not None]
+        avg_response_time = sum(response_times) / len(response_times) if response_times else 0
+        
+        # Превышения времени
+        exceeded_15_min = sum(1 for t in response_times if t > 15)
+        exceeded_30_min = sum(1 for t in response_times if t > 30)
+        exceeded_60_min = sum(1 for t in response_times if t > 60)
+        
+        stats = {
+            'total_messages': total_messages,
+            'responded_messages': responded_messages,
+            'missed_messages': missed_messages,
+            'avg_response_time': avg_response_time,
+            'exceeded_15_min': exceeded_15_min,
+            'exceeded_30_min': exceeded_30_min,
+            'exceeded_60_min': exceeded_60_min
+        }
+        
         return templates.TemplateResponse("employee_dashboard.html", {
             "request": request,
-            "user": current_user
+            "user": current_user,
+            "stats": stats,
+            "recent_messages": recent_messages
         })
 
 # Подключение роутеров

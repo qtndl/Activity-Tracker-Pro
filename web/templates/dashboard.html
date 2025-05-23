@@ -2,14 +2,111 @@
 
 {% block title %}Дашборд - Employee Activity Tracker{% endblock %}
 
+{% block extra_css %}
+<style>
+    .welcome-admin-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        margin-bottom: 30px;
+        border-radius: 20px;
+    }
+    
+    .period-buttons {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        padding: 10px;
+    }
+    
+    .admin-stat-card {
+        text-align: center;
+        padding: 25px 20px;
+        border-radius: 15px;
+        position: relative;
+        overflow: hidden;
+        background: white;
+        transition: all 0.3s ease;
+    }
+    
+    .admin-stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+    
+    .admin-stat-card.bg-primary { background: linear-gradient(135deg, #667eea, #764ba2) !important; }
+    .admin-stat-card.bg-info { background: linear-gradient(135deg, #17a2b8, #138496) !important; }
+    .admin-stat-card.bg-success { background: linear-gradient(135deg, #28a745, #20c997) !important; }
+    .admin-stat-card.bg-danger { background: linear-gradient(135deg, #dc3545, #e83e8c) !important; }
+    
+    .admin-stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin: 10px 0;
+        color: white;
+    }
+    
+    .admin-stat-label {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 1rem;
+        font-weight: 500;
+        margin-bottom: 0;
+    }
+    
+    .admin-stat-icon {
+        font-size: 2rem;
+        margin-bottom: 10px;
+        color: rgba(255, 255, 255, 0.8);
+    }
+    
+    .metric-card {
+        background: white;
+        border-radius: 15px;
+        padding: 30px;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-5px);
+    }
+    
+    .metric-number {
+        font-size: 3rem;
+        font-weight: bold;
+        margin: 15px 0;
+    }
+    
+    .export-card {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+        border-radius: 15px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0">Дашборд</h1>
-        <div class="btn-group" role="group">
-            <button type="button" class="btn btn-outline-primary active" onclick="loadDashboard('today')">Сегодня</button>
-            <button type="button" class="btn btn-outline-primary" onclick="loadDashboard('week')">Неделя</button>
-            <button type="button" class="btn btn-outline-primary" onclick="loadDashboard('month')">Месяц</button>
+    <!-- Приветствие админа -->
+    <div class="card welcome-admin-card">
+        <div class="card-body text-center">
+            <h2><i class="fas fa-crown me-2"></i>Админ-панель</h2>
+            <p class="lead mb-3">Общая статистика и управление системой мониторинга</p>
+            <div class="period-buttons">
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-light active" onclick="loadDashboard('today')">
+                        <i class="fas fa-calendar-day me-1"></i>Сегодня
+                    </button>
+                    <button type="button" class="btn btn-outline-light" onclick="loadDashboard('week')">
+                        <i class="fas fa-calendar-week me-1"></i>Неделя
+                    </button>
+                    <button type="button" class="btn btn-outline-light" onclick="loadDashboard('month')">
+                        <i class="fas fa-calendar-alt me-1"></i>Месяц
+                    </button>
+                </div>
+            </div>
+            <p class="mt-3 mb-0">
+                <i class="fas fa-clock me-1"></i>
+                Последнее обновление: <span id="current-time"></span>
+            </p>
         </div>
     </div>
     
@@ -22,70 +119,70 @@
     
     <!-- Admin dashboard -->
     <div id="adminDashboard" style="display: none;">
-        <!-- Stats cards -->
+        <!-- Основная статистика -->
         <div class="row mb-4">
             <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card stat-card bg-primary text-white h-100">
+                <div class="card admin-stat-card bg-primary h-100">
                     <div class="card-body">
-                        <i class="bi bi-people stat-icon"></i>
-                        <p class="stat-label">Активные сотрудники</p>
-                        <p class="stat-value" id="activeEmployees">0</p>
+                        <i class="fas fa-users admin-stat-icon"></i>
+                        <div class="admin-stat-number" id="activeEmployees">0</div>
+                        <div class="admin-stat-label">Активные сотрудники</div>
                     </div>
                 </div>
             </div>
             <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card stat-card bg-info text-white h-100">
+                <div class="card admin-stat-card bg-info h-100">
                     <div class="card-body">
-                        <i class="bi bi-envelope stat-icon"></i>
-                        <p class="stat-label">Сообщений сегодня</p>
-                        <p class="stat-value" id="totalMessagesToday">0</p>
+                        <i class="fas fa-envelope admin-stat-icon"></i>
+                        <div class="admin-stat-number" id="totalMessagesToday">0</div>
+                        <div class="admin-stat-label">Сообщений сегодня</div>
                     </div>
                 </div>
             </div>
             <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card stat-card bg-success text-white h-100">
+                <div class="card admin-stat-card bg-success h-100">
                     <div class="card-body">
-                        <i class="bi bi-check-circle stat-icon"></i>
-                        <p class="stat-label">Отвечено</p>
-                        <p class="stat-value" id="respondedToday">0</p>
+                        <i class="fas fa-check-circle admin-stat-icon"></i>
+                        <div class="admin-stat-number" id="respondedToday">0</div>
+                        <div class="admin-stat-label">Отвечено</div>
                     </div>
                 </div>
             </div>
             <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card stat-card bg-danger text-white h-100">
+                <div class="card admin-stat-card bg-danger h-100">
                     <div class="card-body">
-                        <i class="bi bi-exclamation-triangle stat-icon"></i>
-                        <p class="stat-label">Срочные сообщения</p>
-                        <p class="stat-value" id="urgentMessages">0</p>
+                        <i class="fas fa-exclamation-triangle admin-stat-icon"></i>
+                        <div class="admin-stat-number" id="urgentMessages">0</div>
+                        <div class="admin-stat-label">Срочные сообщения</div>
                     </div>
                 </div>
             </div>
         </div>
         
-        <!-- Additional stats -->
+        <!-- Детальные метрики -->
         <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Среднее время ответа</h5>
-                        <p class="display-4 text-primary"><span id="avgResponseTime">0</span> мин</p>
-                    </div>
+            <div class="col-md-4 mb-4">
+                <div class="card metric-card h-100">
+                    <i class="fas fa-clock fa-2x primary mb-3"></i>
+                    <h5 class="card-title">Среднее время ответа</h5>
+                    <div class="metric-number primary" id="avgResponseTime">0</div>
+                    <div class="text-muted">минут</div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Эффективность</h5>
-                        <p class="display-4 text-success"><span id="efficiencyToday">0</span>%</p>
-                    </div>
+            <div class="col-md-4 mb-4">
+                <div class="card metric-card h-100">
+                    <i class="fas fa-chart-line fa-2x success mb-3"></i>
+                    <h5 class="card-title">Эффективность</h5>
+                    <div class="metric-number success" id="efficiencyToday">0</div>
+                    <div class="text-muted">процентов</div>
                 </div>
             </div>
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Пропущено</h5>
-                        <p class="display-4 text-danger" id="missedToday">0</p>
-                    </div>
+            <div class="col-md-4 mb-4">
+                <div class="card metric-card h-100">
+                    <i class="fas fa-times-circle fa-2x danger mb-3"></i>
+                    <h5 class="card-title">Пропущено</h5>
+                    <div class="metric-number danger" id="missedToday">0</div>
+                    <div class="text-muted">сообщений</div>
                 </div>
             </div>
         </div>
@@ -93,78 +190,33 @@
         <!-- Google Sheets export -->
         <div class="row mb-4" id="googleSheetsSection" style="display: none;">
             <div class="col-12">
-                <div class="card">
+                <div class="card export-card">
                     <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="bi bi-table"></i> Экспорт в Google Sheets
-                        </h5>
-                        <p class="card-text">Выгрузите текущую статистику в Google Таблицы для дополнительного анализа</p>
-                        <button class="btn btn-success" onclick="exportToGoogleSheets()">
-                            <i class="bi bi-cloud-upload"></i> Экспортировать
-                        </button>
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h5 class="card-title text-white mb-2">
+                                    <i class="fas fa-table me-2"></i>Экспорт в Google Sheets
+                                </h5>
+                                <p class="text-white mb-0">Выгрузите текущую статистику в Google Таблицы для дополнительного анализа</p>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <button class="btn btn-light btn-lg" onclick="exportToGoogleSheets()">
+                                    <i class="fas fa-cloud-upload me-2"></i>Экспортировать
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <!-- Employee dashboard -->
-    <div id="employeeDashboard" style="display: none;">
-        <div class="row mb-4">
-            <div class="col-md-6 mb-4">
-                <div class="card stat-card bg-info text-white h-100">
-                    <div class="card-body">
-                        <i class="bi bi-envelope stat-icon"></i>
-                        <p class="stat-label">Сообщений сегодня</p>
-                        <p class="stat-value" id="myTotalMessages">0</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6 mb-4">
-                <div class="card stat-card bg-warning text-white h-100">
-                    <div class="card-body">
-                        <i class="bi bi-hourglass-split stat-icon"></i>
-                        <p class="stat-label">Неотвеченные</p>
-                        <p class="stat-value" id="myUnanswered">0</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Отвечено</h5>
-                        <p class="display-4 text-success" id="myResponded">0</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Среднее время</h5>
-                        <p class="display-4 text-primary"><span id="myAvgTime">0</span> мин</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-body text-center">
-                        <h5 class="card-title">Эффективность</h5>
-                        <p class="display-4 text-info"><span id="myEfficiency">0</span>%</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Charts -->
+    <!-- Графики -->
     <div class="row" id="chartsSection" style="display: none;">
-        <div class="col-lg-8">
+        <div class="col-lg-8 mb-4">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">График времени ответа</h5>
+                <div class="card-header bg-gradient text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>График времени ответа</h5>
                 </div>
                 <div class="card-body">
                     <div class="chart-container">
@@ -173,10 +225,10 @@
                 </div>
             </div>
         </div>
-        <div class="col-lg-4">
+        <div class="col-lg-4 mb-4">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Распределение сообщений</h5>
+                <div class="card-header bg-gradient text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Распределение сообщений</h5>
                 </div>
                 <div class="card-body">
                     <div class="chart-container">
@@ -194,6 +246,12 @@
     let currentPeriod = 'today';
     let responseTimeChart = null;
     let pieChart = null;
+    
+    // Обновление времени
+    function updateCurrentTime() {
+        const now = new Date();
+        document.getElementById('current-time').textContent = now.toLocaleString('ru-RU');
+    }
     
     // Load dashboard data
     async function loadDashboard(period = 'today') {
@@ -214,35 +272,20 @@
             // Hide spinner
             document.getElementById('loadingSpinner').style.display = 'none';
             
-            // Check if admin
-            if (userInfo.is_admin) {
-                // Show admin dashboard
-                document.getElementById('adminDashboard').style.display = 'block';
-                document.getElementById('employeeDashboard').style.display = 'none';
-                
-                // Update stats
-                document.getElementById('activeEmployees').textContent = data.active_employees || 0;
-                document.getElementById('totalMessagesToday').textContent = data.total_messages_today || 0;
-                document.getElementById('respondedToday').textContent = data.responded_today || 0;
-                document.getElementById('urgentMessages').textContent = data.urgent_messages || 0;
-                document.getElementById('avgResponseTime').textContent = data.avg_response_time || 0;
-                document.getElementById('efficiencyToday').textContent = data.efficiency_today || 0;
-                document.getElementById('missedToday').textContent = data.missed_today || 0;
-                
-                // Check Google Sheets settings
-                checkGoogleSheetsSettings();
-            } else {
-                // Show employee dashboard
-                document.getElementById('adminDashboard').style.display = 'none';
-                document.getElementById('employeeDashboard').style.display = 'block';
-                
-                // Update stats
-                document.getElementById('myTotalMessages').textContent = data.total_messages_today || 0;
-                document.getElementById('myUnanswered').textContent = data.unanswered_messages || 0;
-                document.getElementById('myResponded').textContent = data.responded_today || 0;
-                document.getElementById('myAvgTime').textContent = data.avg_response_time || 0;
-                document.getElementById('myEfficiency').textContent = data.efficiency_today || 0;
-            }
+            // Show admin dashboard
+            document.getElementById('adminDashboard').style.display = 'block';
+            
+            // Update stats
+            document.getElementById('activeEmployees').textContent = data.active_employees || 0;
+            document.getElementById('totalMessagesToday').textContent = data.total_messages_today || 0;
+            document.getElementById('respondedToday').textContent = data.responded_today || 0;
+            document.getElementById('urgentMessages').textContent = data.urgent_messages || 0;
+            document.getElementById('avgResponseTime').textContent = data.avg_response_time || 0;
+            document.getElementById('efficiencyToday').textContent = data.efficiency_today || 0;
+            document.getElementById('missedToday').textContent = data.missed_today || 0;
+            
+            // Check Google Sheets settings
+            checkGoogleSheetsSettings();
             
             // Load charts
             await loadCharts();
@@ -275,9 +318,14 @@
                     datasets: [{
                         label: 'Среднее время ответа (мин)',
                         data: data.data,
-                        borderColor: 'rgb(75, 192, 192)',
-                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
-                        tension: 0.1
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        borderWidth: 3,
+                        pointBackgroundColor: '#764ba2',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 6
                     }]
                 },
                 options: {
@@ -290,7 +338,15 @@
                     },
                     scales: {
                         y: {
-                            beginAtZero: true
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
                         }
                     }
                 }
@@ -312,14 +368,27 @@
                     datasets: [{
                         data: [summary.responded_messages, summary.missed_messages],
                         backgroundColor: [
-                            'rgba(75, 192, 192, 0.8)',
-                            'rgba(255, 99, 132, 0.8)'
-                        ]
+                            '#28a745',
+                            '#dc3545'
+                        ],
+                        borderWidth: 0,
+                        hoverBorderWidth: 3,
+                        hoverBorderColor: '#fff'
                     }]
                 },
                 options: {
                     responsive: true,
-                    maintainAspectRatio: false
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true
+                            }
+                        }
+                    }
                 }
             });
             
@@ -345,6 +414,7 @@
     // Export to Google Sheets
     async function exportToGoogleSheets() {
         const btn = event.target;
+        const originalText = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Экспорт...';
         
@@ -360,7 +430,7 @@
             showAlert(error.response?.data?.detail || 'Ошибка при экспорте', 'danger');
         } finally {
             btn.disabled = false;
-            btn.innerHTML = '<i class="bi bi-cloud-upload"></i> Экспортировать';
+            btn.innerHTML = originalText;
         }
     }
     
@@ -369,19 +439,29 @@
         const alert = document.createElement('div');
         alert.className = `alert alert-${type} alert-dismissible fade show notification`;
         alert.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
         document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.container-fluid').firstChild);
         
         setTimeout(() => {
-            alert.remove();
+            if (alert.parentNode) {
+                alert.remove();
+            }
         }, 5000);
     }
     
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
         loadDashboard();
+        
+        // Автообновление каждые 5 минут
+        setInterval(() => {
+            loadDashboard(currentPeriod);
+        }, 300000);
     });
 </script>
 {% endblock %} 

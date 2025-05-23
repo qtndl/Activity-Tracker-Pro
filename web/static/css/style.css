@@ -1,42 +1,39 @@
-/* Custom styles for Employee Activity Tracker */
-
-:root {
-    --primary-color: #0d6efd;
-    --success-color: #198754;
-    --warning-color: #ffc107;
-    --danger-color: #dc3545;
-    --info-color: #0dcaf0;
-    --dark-color: #212529;
-    --light-bg: #f8f9fa;
-}
+/* Унифицированные стили для всей системы мониторинга */
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    background-color: var(--light-bg);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
+    background-color: #f8f9fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-main {
-    flex: 1;
+/* Навигация */
+.navbar {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-/* Cards with hover effect */
+.navbar-brand {
+    font-weight: 700;
+    color: white !important;
+}
+
+/* Карточки */
 .card {
     border: none;
-    border-radius: 10px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    transition: transform 0.2s, box-shadow 0.2s;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    background: white;
 }
 
 .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 
-/* Stat cards */
+/* Статистические карточки */
 .stat-card {
+    text-align: center;
+    padding: 30px 20px;
     position: relative;
     overflow: hidden;
 }
@@ -45,202 +42,285 @@ main {
     content: '';
     position: absolute;
     top: 0;
-    right: -50px;
-    width: 100px;
-    height: 100%;
-    background: rgba(255,255,255,0.1);
-    transform: skewX(-20deg);
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #667eea, #764ba2);
 }
 
-.stat-icon {
+.stat-number {
     font-size: 3rem;
-    opacity: 0.3;
-    position: absolute;
-    right: 20px;
-    top: 20px;
-}
-
-/* Dashboard stats */
-.stat-value {
-    font-size: 2rem;
     font-weight: bold;
-    margin-bottom: 0;
+    margin: 15px 0;
+    color: #2c3e50;
 }
 
 .stat-label {
     color: #6c757d;
-    font-size: 0.875rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 0;
 }
 
-/* Tables */
-.table {
+.stat-icon {
+    font-size: 2.5rem;
+    margin-bottom: 15px;
+    opacity: 0.8;
+}
+
+.stat-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin: 10px 0;
+}
+
+/* Цветовые классы */
+.success { color: #28a745 !important; }
+.warning { color: #ffc107 !important; }
+.danger { color: #dc3545 !important; }
+.info { color: #17a2b8 !important; }
+.primary { color: #667eea !important; }
+
+/* Приветственная карточка */
+.welcome-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    margin-bottom: 30px;
+    border-radius: 20px;
+}
+
+.welcome-card .card-body {
+    padding: 40px;
+}
+
+/* Элементы активности */
+.activity-item {
+    border-left: 4px solid #667eea;
+    padding: 20px;
+    margin: 15px 0;
     background: white;
+    border-radius: 0 15px 15px 0;
+    transition: all 0.3s ease;
+}
+
+.activity-item:hover {
+    border-left-color: #764ba2;
+    transform: translateX(5px);
+}
+
+/* Значки производительности */
+.performance-badge {
+    font-size: 1.2rem;
+    padding: 10px 20px;
+    border-radius: 25px;
+}
+
+/* Прогресс-бары */
+.progress {
+    height: 12px;
     border-radius: 10px;
+    background-color: #e9ecef;
     overflow: hidden;
 }
 
-.table thead th {
-    background-color: #f8f9fa;
-    border-bottom: 2px solid #dee2e6;
-    font-weight: 600;
-    text-transform: uppercase;
-    font-size: 0.875rem;
-    letter-spacing: 0.5px;
+.progress-bar {
+    border-radius: 10px;
+    transition: width 0.6s ease;
 }
 
-/* Status badges */
-.badge-active {
-    background-color: var(--success-color);
+/* Кнопки */
+.btn {
+    border-radius: 10px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border: none;
 }
 
-.badge-inactive {
-    background-color: var(--danger-color);
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
 }
 
-/* Charts container */
-.chart-container {
-    position: relative;
-    height: 300px;
-    margin-top: 20px;
+.btn-primary:hover {
+    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
 }
 
-/* Loading spinner */
+.btn-outline-primary {
+    border: 2px solid #667eea;
+    color: #667eea;
+    background: transparent;
+}
+
+.btn-outline-primary:hover {
+    background: #667eea;
+    color: white;
+    transform: translateY(-2px);
+}
+
+.btn-outline-primary.active {
+    background: #667eea;
+    color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.btn-outline-light {
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    transition: all 0.3s ease;
+}
+
+.btn-outline-light:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: white;
+    transform: translateY(-1px);
+}
+
+/* Загрузочный спиннер */
 .spinner-container {
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 200px;
+    height: 200px;
 }
 
-/* Alerts */
-.alert {
-    border: none;
-    border-radius: 10px;
+/* Заголовки */
+h1, h2, h3, h4, h5, h6 {
+    color: #2c3e50;
+    font-weight: 600;
 }
 
-/* Buttons */
-.btn {
-    border-radius: 5px;
-    padding: 0.5rem 1rem;
-    font-weight: 500;
-    transition: all 0.2s;
+/* Таблицы */
+.table {
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-}
-
-/* Forms */
-.form-control, .form-select {
-    border-radius: 5px;
-    border: 1px solid #ced4da;
-}
-
-.form-control:focus, .form-select:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-}
-
-/* Login page */
-.login-container {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.table th {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    font-weight: 600;
+    padding: 15px;
 }
 
-.login-card {
-    max-width: 400px;
-    width: 100%;
-    padding: 2rem;
+.table td {
+    padding: 15px;
+    border: none;
+    border-bottom: 1px solid #e9ecef;
 }
 
-/* Employee status toggle */
-.form-check-input:checked {
-    background-color: var(--success-color);
-    border-color: var(--success-color);
+.table tbody tr:hover {
+    background-color: #f8f9fa;
 }
 
-/* Responsive tables */
-@media (max-width: 768px) {
-    .table-responsive {
-        font-size: 0.875rem;
-    }
-    
-    .stat-value {
-        font-size: 1.5rem;
-    }
+/* Формы */
+.form-control {
+    border-radius: 10px;
+    border: 2px solid #e9ecef;
+    padding: 12px 15px;
+    transition: all 0.3s ease;
 }
 
-/* Animation for notifications */
-@keyframes slideIn {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
+.form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+/* Модальные окна */
+.modal-content {
+    border-radius: 20px;
+    border: none;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 20px 20px 0 0;
+    border: none;
+}
+
+/* Уведомления */
+.alert {
+    border-radius: 15px;
+    border: none;
+    font-weight: 500;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .notification {
-    animation: slideIn 0.3s ease-out;
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+    min-width: 300px;
 }
 
-/* Custom scrollbar */
+/* Графики */
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .stat-card {
+        padding: 20px 15px;
+    }
+    
+    .stat-number {
+        font-size: 2.5rem;
+    }
+    
+    .welcome-card .card-body {
+        padding: 30px 20px;
+    }
+    
+    .activity-item {
+        padding: 15px;
+    }
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.card {
+    animation: fadeIn 0.6s ease forwards;
+}
+
+/* Дополнительные утилиты */
+.text-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.bg-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Скроллбар */
 ::-webkit-scrollbar {
     width: 8px;
-    height: 8px;
 }
 
 ::-webkit-scrollbar-track {
     background: #f1f1f1;
+    border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 4px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #555;
-}
-
-/* Navbar customization */
-.navbar-dark .navbar-nav .nav-link {
-    color: rgba(255,255,255,0.8);
-    transition: color 0.2s;
-}
-
-.navbar-dark .navbar-nav .nav-link:hover {
-    color: rgba(255,255,255,1);
-}
-
-.navbar-dark .navbar-nav .nav-link.active {
-    color: rgba(255,255,255,1);
-    font-weight: 500;
-}
-
-/* Progress bars */
-.progress {
-    height: 8px;
-    border-radius: 4px;
-    background-color: #e9ecef;
-}
-
-.progress-bar {
-    border-radius: 4px;
-    transition: width 0.6s ease;
-}
-
-/* Tooltips */
-.tooltip-inner {
-    background-color: var(--dark-color);
-    border-radius: 5px;
-    padding: 0.5rem 0.75rem;
+    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
 } 
