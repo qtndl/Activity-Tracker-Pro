@@ -8,7 +8,7 @@ import uvicorn
 os.environ["BOT_TOKEN"] = "8110382002:AAHuWex2O-QvW7ElqyOMu1ZHJEGiS8dSGmE"
 os.environ["ADMIN_CHAT_ID"] = "896737668"
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./employee_tracker.db"
-os.environ["SECRET_KEY"] = "super-secret-key-change-in-production-2024"
+os.environ["SECRET_KEY"] = "super-secret-key-change-in-production-2025"
 os.environ["ALGORITHM"] = "HS256"
 os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "43200"
 os.environ["GOOGLE_SHEETS_ENABLED"] = "false"

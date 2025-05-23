@@ -20,7 +20,7 @@ from .routes import settings as settings_router
 from .auth import get_current_user, create_access_token
 from web.templates import templates
 
-app = FastAPI(title="Employee Activity Tracker", version="1.0.0")
+app = FastAPI(title="Трекер активности", version="1.0.0")
 
 # CORS настройки
 app.add_middleware(
@@ -366,7 +366,7 @@ async def admin_page(request: Request, current_user: dict = Depends(get_current_
 @app.get("/health")
 async def health_check():
     """Проверка состояния приложения"""
-    return {"status": "ok", "message": "Employee Activity Tracker is running"}
+    return {"status": "ok", "message": "Трекер активности is running"}
 
 
 @app.get("/test-auth")

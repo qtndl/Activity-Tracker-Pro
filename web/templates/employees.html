@@ -1,62 +1,303 @@
 {% extends "base.html" %}
 
-{% block title %}Управление сотрудниками - Employee Activity Tracker{% endblock %}
+{% block title %}Управление сотрудниками - Трекер активности{% endblock %}
+
+{% block extra_css %}
+<style>
+    .employee-card {
+        background: white;
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: 2px solid transparent;
+    }
+    
+    .employee-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        border-color: #667eea;
+    }
+    
+    .employee-card.selected {
+        border-color: #667eea;
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+    }
+    
+    .employee-avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 2rem;
+        font-weight: bold;
+        margin: 0 auto 15px;
+    }
+    
+    .employee-status {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        border: 3px solid white;
+    }
+    
+    .status-active { background: #28a745; }
+    .status-inactive { background: #ffc107; }
+    .status-admin { background: #667eea; }
+    
+    .employee-role {
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        font-size: 1.5rem;
+        color: #667eea;
+    }
+    
+    .stats-sidebar {
+        position: fixed;
+        top: 0;
+        right: -500px;
+        width: 500px;
+        height: 100vh;
+        background: white;
+        box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+        z-index: 1050;
+        transition: all 0.3s ease;
+        overflow-y: auto;
+    }
+    
+    .stats-sidebar.open {
+        right: 0;
+    }
+    
+    .stats-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    
+    .stats-content {
+        padding: 30px;
+    }
+    
+    .mini-stat-card {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        margin-bottom: 15px;
+    }
+    
+    .mini-stat-number {
+        font-size: 2rem;
+        font-weight: bold;
+        margin: 10px 0;
+    }
+    
+    .sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1040;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+    }
+    
+    .sidebar-overlay.show {
+        opacity: 1;
+        visibility: visible;
+    }
+    
+    .add-employee-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 40px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 2px dashed rgba(255, 255, 255, 0.3);
+    }
+    
+    .add-employee-card:hover {
+        transform: translateY(-5px);
+        border-color: white;
+    }
+    
+    .search-card {
+        background: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0">Управление сотрудниками</h1>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
-            <i class="bi bi-person-plus"></i> Добавить сотрудника
-        </button>
+    <!-- Приветствие -->
+    <div class="card welcome-card">
+        <div class="card-body text-center">
+            <h2><i class="fas fa-users me-2"></i>Управление сотрудниками</h2>
+            <p class="lead mb-0">Просматривайте информацию о сотрудниках и их статистику</p>
+            <p class="mt-2">
+                <i class="fas fa-info-circle me-1"></i>
+                Нажмите на карточку сотрудника чтобы посмотреть его детальную статистику
+            </p>
+        </div>
     </div>
     
-    <!-- Info about deactivation -->
-    <div class="alert alert-info mb-4">
-        <i class="bi bi-info-circle"></i>
-        <strong>О деактивации:</strong> Деактивированные сотрудники не получают уведомления от бота (выходные, отпуск, больничный), 
-        но их статистика продолжает учитываться. Администраторы всегда могут войти в веб-панель.
+    <!-- Поиск и фильтры -->
+    <div class="card search-card">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <div class="input-group">
+                    <span class="input-group-text">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" class="form-control" id="searchInput" placeholder="Поиск по имени или username...">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <select class="form-control" id="filterSelect">
+                    <option value="all">Все сотрудники</option>
+                    <option value="active">Только активные</option>
+                    <option value="inactive">Только неактивные</option>
+                    <option value="admin">Только администраторы</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" onclick="clearFilters()">
+                    <i class="fas fa-undo me-1"></i>Сбросить
+                </button>
+            </div>
+        </div>
     </div>
     
-    <!-- Employees table -->
-    <div class="card">
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover" id="employeesTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Имя</th>
-                            <th>Telegram ID</th>
-                            <th>Username</th>
-                            <th>Статус</th>
-                            <th>Роль</th>
-                            <th>Дата регистрации</th>
-                            <th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody id="employeesTableBody">
-                        <tr>
-                            <td colspan="8" class="text-center">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Загрузка...</span>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+    <!-- Сотрудники -->
+    <div class="row" id="employeesContainer">
+        <div class="col-12 text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Загрузка...</span>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Add Employee Modal -->
+<!-- Боковая панель статистики -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+<div class="stats-sidebar" id="statsSidebar">
+    <div class="stats-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h4 class="mb-1" id="statsEmployeeName">Статистика сотрудника</h4>
+                <p class="mb-0" id="statsEmployeeInfo">Загрузка...</p>
+            </div>
+            <button class="btn btn-outline-light" onclick="closeSidebar()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    
+    <div class="stats-content">
+        <div id="statsLoading" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2">Загрузка статистики...</p>
+        </div>
+        
+        <div id="statsData" style="display: none;">
+            <!-- Период выбора -->
+            <div class="mb-4">
+                <div class="btn-group w-100" role="group">
+                    <button type="button" class="btn btn-outline-primary active" onclick="loadEmployeeStats('today')">Сегодня</button>
+                    <button type="button" class="btn btn-outline-primary" onclick="loadEmployeeStats('week')">Неделя</button>
+                    <button type="button" class="btn btn-outline-primary" onclick="loadEmployeeStats('month')">Месяц</button>
+                </div>
+            </div>
+            
+            <!-- Основная статистика -->
+            <div class="row">
+                <div class="col-6">
+                    <div class="mini-stat-card">
+                        <i class="fas fa-envelope fa-2x info mb-2"></i>
+                        <div class="mini-stat-number info" id="statsTotalMessages">0</div>
+                        <div class="text-muted">Всего сообщений</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="mini-stat-card">
+                        <i class="fas fa-check-circle fa-2x success mb-2"></i>
+                        <div class="mini-stat-number success" id="statsResponded">0</div>
+                        <div class="text-muted">Отвечено</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="mini-stat-card">
+                        <i class="fas fa-times-circle fa-2x danger mb-2"></i>
+                        <div class="mini-stat-number danger" id="statsMissed">0</div>
+                        <div class="text-muted">Пропущено</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="mini-stat-card">
+                        <i class="fas fa-clock fa-2x primary mb-2"></i>
+                        <div class="mini-stat-number primary" id="statsAvgTime">0</div>
+                        <div class="text-muted">Среднее время (мин)</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Эффективность -->
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h6 class="card-title">Эффективность работы</h6>
+                    <div class="progress mb-2" style="height: 15px;">
+                        <div class="progress-bar" id="statsEfficiency" style="width: 0%"></div>
+                    </div>
+                    <div class="text-center">
+                        <span class="badge performance-badge" id="statsEfficiencyBadge">0%</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Действия -->
+            <div class="mt-4">
+                <button class="btn btn-outline-primary w-100 mb-2" onclick="editEmployeeFromStats()">
+                    <i class="fas fa-edit me-2"></i>Редактировать сотрудника
+                </button>
+                <button class="btn btn-outline-warning w-100 mb-2" onclick="toggleEmployeeFromStats()">
+                    <i class="fas fa-toggle-on me-2"></i>Изменить статус
+                </button>
+                <button class="btn btn-outline-danger w-100" onclick="deleteEmployeeFromStats()">
+                    <i class="fas fa-trash me-2"></i>Удалить сотрудника
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальные окна (сокращенные версии) -->
 <div class="modal fade" id="addEmployeeModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header bg-gradient text-white">
                 <h5 class="modal-title">Добавить сотрудника</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="addEmployeeForm">
                 <div class="modal-body">
@@ -65,7 +306,7 @@
                         <input type="number" class="form-control" id="telegramId" required>
                     </div>
                     <div class="mb-3">
-                        <label for="telegramUsername" class="form-label">Telegram Username (опционально)</label>
+                        <label for="telegramUsername" class="form-label">Telegram Username</label>
                         <div class="input-group">
                             <span class="input-group-text">@</span>
                             <input type="text" class="form-control" id="telegramUsername">
@@ -77,9 +318,7 @@
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="isAdmin">
-                        <label class="form-check-label" for="isAdmin">
-                            Права администратора
-                        </label>
+                        <label class="form-check-label" for="isAdmin">Права администратора</label>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -91,13 +330,12 @@
     </div>
 </div>
 
-<!-- Edit Employee Modal -->
 <div class="modal fade" id="editEmployeeModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header bg-gradient text-white">
                 <h5 class="modal-title">Редактировать сотрудника</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="editEmployeeForm">
                 <input type="hidden" id="editEmployeeId">
@@ -108,18 +346,11 @@
                     </div>
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="editIsActive">
-                        <label class="form-check-label" for="editIsActive">
-                            Активен (получает уведомления)
-                        </label>
-                        <div class="form-text">
-                            Снимите галочку для временной деактивации (выходные, отпуск, больничный)
-                        </div>
+                        <label class="form-check-label" for="editIsActive">Активен</label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="editIsAdmin">
-                        <label class="form-check-label" for="editIsAdmin">
-                            Права администратора
-                        </label>
+                        <label class="form-check-label" for="editIsAdmin">Права администратора</label>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -140,74 +371,313 @@
     }
     
     let employees = [];
+    let filteredEmployees = [];
+    let currentEmployeeId = null;
+    let currentPeriod = 'today';
     
-    // Load employees
+    // Инициализация аватаров
+    function getInitials(fullName) {
+        return fullName.split(' ').map(n => n[0]).join('').toUpperCase();
+    }
+    
+    // Загрузка сотрудников
     async function loadEmployees() {
         try {
             const response = await axios.get('/api/employees/');
             employees = response.data;
-            renderEmployeesTable();
+            filteredEmployees = [...employees];
+            renderEmployees();
         } catch (error) {
             console.error('Error loading employees:', error);
             showAlert('Ошибка при загрузке списка сотрудников', 'danger');
         }
     }
     
-    // Render employees table
-    function renderEmployeesTable() {
-        const tbody = document.getElementById('employeesTableBody');
+    // Отображение сотрудников
+    function renderEmployees() {
+        const container = document.getElementById('employeesContainer');
         
-        if (employees.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center">Нет сотрудников</td></tr>';
+        if (filteredEmployees.length === 0) {
+            container.innerHTML = `
+                <div class="col-12 text-center">
+                    <p class="text-muted">Нет сотрудников для отображения</p>
+                </div>
+            `;
             return;
         }
         
-        tbody.innerHTML = employees.map(emp => {
-            let statusBadge, statusText;
-            if (emp.is_active) {
-                statusBadge = 'bg-success';
-                statusText = 'Активен';
-            } else {
-                statusBadge = 'bg-warning text-dark';
-                statusText = emp.is_admin ? 'Деактивирован (админ)' : 'Деактивирован';
-            }
+        const employeeCards = filteredEmployees.map(emp => {
+            const statusClass = emp.is_active ? 'status-active' : 'status-inactive';
+            const roleIcon = emp.is_admin ? 'fa-crown' : 'fa-user';
             
             return `
-            <tr>
-                <td>${emp.id}</td>
-                <td>${emp.full_name}</td>
-                <td>${emp.telegram_id}</td>
-                <td>${emp.telegram_username ? '@' + emp.telegram_username : '-'}</td>
-                <td>
-                    <span class="badge ${statusBadge}">
-                        ${statusText}
-                    </span>
-                </td>
-                <td>
-                    <span class="badge ${emp.is_admin ? 'bg-primary' : 'bg-secondary'}">
-                        ${emp.is_admin ? 'Админ' : 'Сотрудник'}
-                    </span>
-                </td>
-                <td>${new Date(emp.created_at).toLocaleDateString('ru-RU')}</td>
-                <td>
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-primary" onclick="editEmployee(${emp.id})" title="Редактировать">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-outline-warning" onclick="toggleEmployeeStatus(${emp.id})" 
-                                title="${emp.is_active ? 'Деактивировать' : 'Активировать'}">
-                            <i class="bi bi-toggle-${emp.is_active ? 'on' : 'off'}"></i>
-                        </button>
-                        <button class="btn btn-outline-danger" onclick="deleteEmployee(${emp.id})" title="Удалить" ${emp.id === userInfo.id ? 'disabled' : ''}>
-                            <i class="bi bi-trash"></i>
-                        </button>
+                <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
+                    <div class="card employee-card" onclick="openEmployeeStats(${emp.id})" data-employee-id="${emp.id}">
+                        <div class="position-relative">
+                            ${emp.is_admin ? `<i class="fas fa-crown employee-role" title="Администратор"></i>` : ''}
+                            <div class="employee-status ${statusClass}" title="${emp.is_active ? 'Активен' : 'Неактивен'}"></div>
+                            
+                            <div class="employee-avatar">
+                                ${getInitials(emp.full_name)}
+                            </div>
+                            
+                            <div class="text-center">
+                                <h5 class="card-title mb-2">${emp.full_name}</h5>
+                                <p class="text-muted mb-1">
+                                    <i class="fas fa-hashtag me-1"></i>${emp.telegram_id}
+                                </p>
+                                ${emp.telegram_username ? `
+                                    <p class="text-muted mb-2">
+                                        <i class="fas fa-at me-1"></i>${emp.telegram_username}
+                                    </p>
+                                ` : ''}
+                                
+                                <div class="d-flex justify-content-center gap-2 mt-3">
+                                    <span class="badge ${emp.is_active ? 'bg-success' : 'bg-warning text-dark'}">
+                                        ${emp.is_active ? 'Активен' : 'Неактивен'}
+                                    </span>
+                                    <span class="badge ${emp.is_admin ? 'bg-primary' : 'bg-secondary'}">
+                                        ${emp.is_admin ? 'Админ' : 'Сотрудник'}
+                                    </span>
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar me-1"></i>
+                                        ${new Date(emp.created_at).toLocaleDateString('ru-RU')}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </td>
-            </tr>
-        `}).join('');
+                </div>
+            `;
+        });
+        
+        // Добавляем карточку "Добавить сотрудника"
+        const addCard = `
+            <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
+                <div class="add-employee-card h-100 d-flex align-items-center justify-content-center" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+                    <div>
+                        <i class="fas fa-plus fa-3x mb-3"></i>
+                        <h5>Добавить сотрудника</h5>
+                        <p class="mb-0">Нажмите чтобы добавить нового сотрудника</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.innerHTML = employeeCards.join('') + addCard;
     }
     
-    // Add employee form handler
+    // Открытие статистики сотрудника
+    async function openEmployeeStats(employeeId) {
+        currentEmployeeId = employeeId;
+        const employee = employees.find(e => e.id === employeeId);
+        
+        if (!employee) return;
+        
+        // Обновляем информацию в заголовке
+        document.getElementById('statsEmployeeName').textContent = employee.full_name;
+        document.getElementById('statsEmployeeInfo').textContent = 
+            `@${employee.telegram_username || employee.telegram_id} • ${employee.is_admin ? 'Администратор' : 'Сотрудник'}`;
+        
+        // Показываем боковую панель
+        document.getElementById('sidebarOverlay').classList.add('show');
+        document.getElementById('statsSidebar').classList.add('open');
+        
+        // Выделяем выбранную карточку
+        document.querySelectorAll('.employee-card').forEach(card => card.classList.remove('selected'));
+        document.querySelector(`[data-employee-id="${employeeId}"]`).classList.add('selected');
+        
+        // Загружаем статистику
+        await loadEmployeeStats('today');
+    }
+    
+    // Закрытие боковой панели
+    function closeSidebar() {
+        document.getElementById('sidebarOverlay').classList.remove('show');
+        document.getElementById('statsSidebar').classList.remove('open');
+        document.querySelectorAll('.employee-card').forEach(card => card.classList.remove('selected'));
+        currentEmployeeId = null;
+    }
+    
+    // Загрузка статистики сотрудника
+    async function loadEmployeeStats(period) {
+        if (!currentEmployeeId) return;
+        
+        currentPeriod = period;
+        
+        // Обновляем активную кнопку периода
+        document.querySelectorAll('.stats-content .btn-group button').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.textContent.toLowerCase().includes(period === 'today' ? 'сегодня' : period === 'week' ? 'неделя' : 'месяц')) {
+                btn.classList.add('active');
+            }
+        });
+        
+        // Показываем загрузку
+        document.getElementById('statsLoading').style.display = 'block';
+        document.getElementById('statsData').style.display = 'none';
+        
+        try {
+            const response = await axios.get(`/api/employees/${currentEmployeeId}/statistics?period=${period}`);
+            const stats = response.data;
+            
+            // Обновляем статистику
+            document.getElementById('statsTotalMessages').textContent = stats.total_messages || 0;
+            document.getElementById('statsResponded').textContent = stats.responded_messages || 0;
+            document.getElementById('statsMissed').textContent = stats.missed_messages || 0;
+            document.getElementById('statsAvgTime').textContent = Math.round(stats.avg_response_time || 0);
+            
+            // Рассчитываем эффективность
+            const efficiency = stats.total_messages > 0 ? 
+                Math.round((stats.responded_messages / stats.total_messages) * 100) : 0;
+            
+            const progressBar = document.getElementById('statsEfficiency');
+            const badge = document.getElementById('statsEfficiencyBadge');
+            
+            progressBar.style.width = `${efficiency}%`;
+            badge.textContent = `${efficiency}%`;
+            
+            // Цвет эффективности
+            progressBar.className = 'progress-bar';
+            badge.className = 'badge performance-badge';
+            
+            if (efficiency >= 80) {
+                progressBar.classList.add('bg-success');
+                badge.classList.add('bg-success');
+            } else if (efficiency >= 60) {
+                progressBar.classList.add('bg-warning');
+                badge.classList.add('bg-warning', 'text-dark');
+            } else {
+                progressBar.classList.add('bg-danger');
+                badge.classList.add('bg-danger');
+            }
+            
+            // Скрываем загрузку и показываем данные
+            document.getElementById('statsLoading').style.display = 'none';
+            document.getElementById('statsData').style.display = 'block';
+            
+        } catch (error) {
+            console.error('Error loading employee stats:', error);
+            showAlert('Ошибка при загрузке статистики сотрудника', 'danger');
+        }
+    }
+    
+    // Поиск сотрудников
+    function filterEmployees() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const filterType = document.getElementById('filterSelect').value;
+        
+        filteredEmployees = employees.filter(emp => {
+            // Поиск по тексту
+            const matchesSearch = !searchTerm || 
+                emp.full_name.toLowerCase().includes(searchTerm) ||
+                (emp.telegram_username && emp.telegram_username.toLowerCase().includes(searchTerm)) ||
+                emp.telegram_id.toString().includes(searchTerm);
+            
+            // Фильтр по типу
+            let matchesFilter = true;
+            switch (filterType) {
+                case 'active':
+                    matchesFilter = emp.is_active;
+                    break;
+                case 'inactive':
+                    matchesFilter = !emp.is_active;
+                    break;
+                case 'admin':
+                    matchesFilter = emp.is_admin;
+                    break;
+            }
+            
+            return matchesSearch && matchesFilter;
+        });
+        
+        renderEmployees();
+    }
+    
+    // Очистка фильтров
+    function clearFilters() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('filterSelect').value = 'all';
+        filterEmployees();
+    }
+    
+    // Действия из боковой панели
+    function editEmployeeFromStats() {
+        if (!currentEmployeeId) return;
+        editEmployee(currentEmployeeId);
+        closeSidebar();
+    }
+    
+    function toggleEmployeeFromStats() {
+        if (!currentEmployeeId) return;
+        toggleEmployeeStatus(currentEmployeeId);
+    }
+    
+    function deleteEmployeeFromStats() {
+        if (!currentEmployeeId) return;
+        deleteEmployee(currentEmployeeId);
+    }
+    
+    // Редактирование сотрудника
+    function editEmployee(id) {
+        const employee = employees.find(e => e.id === id);
+        if (!employee) return;
+        
+        document.getElementById('editEmployeeId').value = employee.id;
+        document.getElementById('editFullName').value = employee.full_name;
+        document.getElementById('editIsActive').checked = employee.is_active;
+        document.getElementById('editIsAdmin').checked = employee.is_admin;
+        
+        new bootstrap.Modal(document.getElementById('editEmployeeModal')).show();
+    }
+    
+    // Изменение статуса сотрудника
+    async function toggleEmployeeStatus(id) {
+        const employee = employees.find(e => e.id === id);
+        const action = employee.is_active ? 'деактивировать' : 'активировать';
+        
+        if (!confirm(`Вы уверены, что хотите ${action} сотрудника ${employee.full_name}?`)) {
+            return;
+        }
+        
+        try {
+            const response = await axios.post(`/api/employees/${id}/toggle-active`);
+            showAlert(response.data.message, 'success');
+            loadEmployees();
+            
+            // Если боковая панель открыта, обновляем статистику
+            if (currentEmployeeId === id) {
+                setTimeout(() => loadEmployeeStats(currentPeriod), 500);
+            }
+        } catch (error) {
+            console.error('Error toggling status:', error);
+            showAlert('Ошибка при изменении статуса', 'danger');
+        }
+    }
+    
+    // Удаление сотрудника
+    async function deleteEmployee(id) {
+        const employee = employees.find(e => e.id === id);
+        
+        if (!confirm(`Вы уверены, что хотите удалить сотрудника ${employee.full_name}?\nЭто действие нельзя отменить.`)) {
+            return;
+        }
+        
+        try {
+            await axios.delete(`/api/employees/${id}`);
+            showAlert('Сотрудник успешно удален', 'success');
+            loadEmployees();
+            closeSidebar();
+        } catch (error) {
+            console.error('Error deleting employee:', error);
+            showAlert(error.response?.data?.detail || 'Ошибка при удалении сотрудника', 'danger');
+        }
+    }
+    
+    // Добавление сотрудника
     document.getElementById('addEmployeeForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -223,7 +693,6 @@
             showAlert('Сотрудник успешно добавлен', 'success');
             bootstrap.Modal.getInstance(document.getElementById('addEmployeeModal')).hide();
             loadEmployees();
-            // Reset form
             e.target.reset();
         } catch (error) {
             console.error('Error adding employee:', error);
@@ -231,20 +700,7 @@
         }
     });
     
-    // Edit employee
-    function editEmployee(id) {
-        const employee = employees.find(e => e.id === id);
-        if (!employee) return;
-        
-        document.getElementById('editEmployeeId').value = employee.id;
-        document.getElementById('editFullName').value = employee.full_name;
-        document.getElementById('editIsActive').checked = employee.is_active;
-        document.getElementById('editIsAdmin').checked = employee.is_admin;
-        
-        new bootstrap.Modal(document.getElementById('editEmployeeModal')).show();
-    }
-    
-    // Edit employee form handler
+    // Редактирование сотрудника
     document.getElementById('editEmployeeForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -260,68 +716,49 @@
             showAlert('Сотрудник успешно обновлен', 'success');
             bootstrap.Modal.getInstance(document.getElementById('editEmployeeModal')).hide();
             loadEmployees();
+            
+            // Если боковая панель открыта, обновляем статистику
+            if (currentEmployeeId == id) {
+                setTimeout(() => loadEmployeeStats(currentPeriod), 500);
+            }
         } catch (error) {
             console.error('Error updating employee:', error);
             showAlert(error.response?.data?.detail || 'Ошибка при обновлении сотрудника', 'danger');
         }
     });
     
-    // Toggle employee status
-    async function toggleEmployeeStatus(id) {
-        const employee = employees.find(e => e.id === id);
-        const action = employee.is_active ? 'деактивировать' : 'активировать';
-        const actionDesc = employee.is_active ? 
-            'Сотрудник не будет получать уведомления (выходной/отпуск)' : 
-            'Сотрудник снова будет получать уведомления';
-        
-        if (!confirm(`Вы уверены, что хотите ${action} сотрудника?\n${actionDesc}`)) {
-            return;
-        }
-        
-        try {
-            const response = await axios.post(`/api/employees/${id}/toggle-active`);
-            showAlert(response.data.message, 'success');
-            loadEmployees();
-        } catch (error) {
-            console.error('Error toggling status:', error);
-            showAlert('Ошибка при изменении статуса', 'danger');
-        }
-    }
-    
-    // Delete employee
-    async function deleteEmployee(id) {
-        if (!confirm('Вы уверены, что хотите удалить этого сотрудника?')) {
-            return;
-        }
-        
-        try {
-            await axios.delete(`/api/employees/${id}`);
-            showAlert('Сотрудник успешно удален', 'success');
-            loadEmployees();
-        } catch (error) {
-            console.error('Error deleting employee:', error);
-            showAlert(error.response?.data?.detail || 'Ошибка при удалении сотрудника', 'danger');
-        }
-    }
-    
-    // Show alert
+    // Показать уведомление
     function showAlert(message, type) {
         const alert = document.createElement('div');
-        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.className = `alert alert-${type} alert-dismissible fade show notification`;
         alert.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
         document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.container-fluid').firstChild);
         
         setTimeout(() => {
-            alert.remove();
+            if (alert.parentNode) {
+                alert.remove();
+            }
         }, 5000);
     }
     
-    // Initialize
+    // Инициализация
     document.addEventListener('DOMContentLoaded', () => {
         loadEmployees();
+        
+        // Поиск в реальном времени
+        document.getElementById('searchInput').addEventListener('input', filterEmployees);
+        document.getElementById('filterSelect').addEventListener('change', filterEmployees);
+        
+        // Закрытие боковой панели по Escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeSidebar();
+            }
+        });
     });
 </script>
 {% endblock %} 
