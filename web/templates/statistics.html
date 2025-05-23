@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}Статистика - Employee Activity Tracker{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">Статистика</h1>
+        <div>
+            <select class="form-select form-select-sm d-inline-block w-auto me-2" id="periodSelect">
+                <option value="daily">Ежедневная</option>
+                <option value="weekly">Еженедельная</option>
+                <option value="monthly">Ежемесячная</option>
+            </select>
+            <input type="date" class="form-control form-control-sm d-inline-block w-auto me-2" id="startDate">
+            <input type="date" class="form-control form-control-sm d-inline-block w-auto" id="endDate">
+            <button class="btn btn-primary btn-sm" onclick="loadStatistics()">
+                <i class="bi bi-arrow-clockwise"></i> Обновить
+            </button>
+        </div>
+    </div>
+    
+    <!-- Summary cards -->
+    <div class="row mb-4" id="summaryCards">
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-muted">Всего сообщений</h5>
+                    <p class="display-6" id="totalMessages">0</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-muted">Отвечено</h5>
+                    <p class="display-6 text-success" id="respondedMessages">0</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-muted">Пропущено</h5>
+                    <p class="display-6 text-danger" id="missedMessages">0</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <h5 class="card-title text-muted">Эффективность</h5>
+                    <p class="display-6 text-info"><span id="efficiency">0</span>%</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Time violations -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Превышения времени ответа</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 text-center">
+                            <h6 class="text-warning">Более 15 минут</h6>
+                            <p class="h3" id="exceeded15">0</p>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <h6 class="text-warning">Более 30 минут</h6>
+                            <p class="h3" id="exceeded30">0</p>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <h6 class="text-danger">Более 1 часа</h6>
+                            <p class="h3" id="exceeded60">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Statistics table -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Детальная статистика</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="statisticsTable">
+                    <thead>
+                        <tr>
+                            <th>Дата</th>
+                            <th id="employeeColumn">Сотрудник</th>
+                            <th>Всего</th>
+                            <th>Отвечено</th>
+                            <th>Пропущено</th>
+                            <th>Ср. время (мин)</th>
+                            <th>&gt;15 мин</th>
+                            <th>&gt;30 мин</th>
+                            <th>&gt;60 мин</th>
+                            <th>Эффективность</th>
+                        </tr>
+                    </thead>
+                    <tbody id="statisticsTableBody">
+                        <tr>
+                            <td colspan="10" class="text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Загрузка...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Chart -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5 class="mb-0">График эффективности</h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-container" style="height: 400px;">
+                <canvas id="efficiencyChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let statisticsData = [];
+    let efficiencyChart = null;
+    
+    // Set default dates
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    document.getElementById('startDate').value = startOfMonth.toISOString().split('T')[0];
+    document.getElementById('endDate').value = today.toISOString().split('T')[0];
+    
+    // Load statistics
+    async function loadStatistics() {
+        const periodType = document.getElementById('periodSelect').value;
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        
+        try {
+            // Load summary first
+            const summaryResponse = await axios.get(`/api/statistics/summary?period=month`);
+            const summary = summaryResponse.data;
+            
+            // Update summary cards
+            document.getElementById('totalMessages').textContent = summary.total_messages;
+            document.getElementById('respondedMessages').textContent = summary.responded_messages;
+            document.getElementById('missedMessages').textContent = summary.missed_messages;
+            document.getElementById('efficiency').textContent = summary.efficiency_percent;
+            document.getElementById('exceeded15').textContent = summary.exceeded_15_min;
+            document.getElementById('exceeded30').textContent = summary.exceeded_30_min;
+            document.getElementById('exceeded60').textContent = summary.exceeded_60_min;
+            
+            // Load detailed statistics
+            let url = `/api/statistics/${userInfo.is_admin ? 'all' : 'my'}?period_type=${periodType}`;
+            if (startDate) url += `&start_date=${startDate}`;
+            if (endDate) url += `&end_date=${endDate}`;
+            
+            const response = await axios.get(url);
+            statisticsData = response.data;
+            
+            renderStatisticsTable();
+            renderEfficiencyChart();
+            
+        } catch (error) {
+            console.error('Error loading statistics:', error);
+            showAlert('Ошибка при загрузке статистики', 'danger');
+        }
+    }
+    
+    // Render statistics table
+    function renderStatisticsTable() {
+        const tbody = document.getElementById('statisticsTableBody');
+        
+        // Hide employee column for non-admins
+        if (!userInfo.is_admin) {
+            document.getElementById('employeeColumn').style.display = 'none';
+        }
+        
+        if (statisticsData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center">Нет данных за выбранный период</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = statisticsData.map(stat => `
+            <tr>
+                <td>${new Date(stat.date).toLocaleDateString('ru-RU')}</td>
+                ${userInfo.is_admin ? `<td>${stat.employee_name}</td>` : ''}
+                <td>${stat.total_messages}</td>
+                <td class="text-success">${stat.responded_messages}</td>
+                <td class="text-danger">${stat.missed_messages}</td>
+                <td>${stat.avg_response_time ? stat.avg_response_time.toFixed(1) : '-'}</td>
+                <td class="text-warning">${stat.exceeded_15_min}</td>
+                <td class="text-warning">${stat.exceeded_30_min}</td>
+                <td class="text-danger">${stat.exceeded_60_min}</td>
+                <td>
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar ${getEfficiencyClass(stat.efficiency_percent)}" 
+                             style="width: ${stat.efficiency_percent || 0}%">
+                            ${stat.efficiency_percent ? stat.efficiency_percent.toFixed(1) : 0}%
+                        </div>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    // Get efficiency class
+    function getEfficiencyClass(efficiency) {
+        if (efficiency >= 90) return 'bg-success';
+        if (efficiency >= 70) return 'bg-warning';
+        return 'bg-danger';
+    }
+    
+    // Render efficiency chart
+    function renderEfficiencyChart() {
+        const ctx = document.getElementById('efficiencyChart').getContext('2d');
+        
+        if (efficiencyChart) {
+            efficiencyChart.destroy();
+        }
+        
+        // Group data by date for chart
+        const chartData = {};
+        statisticsData.forEach(stat => {
+            const date = new Date(stat.date).toLocaleDateString('ru-RU');
+            if (!chartData[date]) {
+                chartData[date] = {
+                    total: 0,
+                    responded: 0
+                };
+            }
+            chartData[date].total += stat.total_messages;
+            chartData[date].responded += stat.responded_messages;
+        });
+        
+        const labels = Object.keys(chartData);
+        const efficiencyData = labels.map(date => {
+            const data = chartData[date];
+            return data.total > 0 ? (data.responded / data.total * 100).toFixed(1) : 0;
+        });
+        
+        efficiencyChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Эффективность (%)',
+                    data: efficiencyData,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                    tension: 0.1,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + context.parsed.y + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Show alert
+    function showAlert(message, type) {
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.container-fluid').firstChild);
+        
+        setTimeout(() => {
+            alert.remove();
+        }, 5000);
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        loadStatistics();
+    });
+</script>
+{% endblock %} 

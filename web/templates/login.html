@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход - Employee Activity Tracker</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="login-container">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-5">
+                <div class="card login-card shadow-lg">
+                    <div class="card-body">
+                        <div class="text-center mb-4">
+                            <i class="bi bi-graph-up-arrow text-primary" style="font-size: 3rem;"></i>
+                            <h3 class="mt-3">Вход в систему</h3>
+                            <p class="text-muted">Employee Activity Tracker</p>
+                        </div>
+                        
+                        <div class="alert alert-info" role="alert">
+                            <i class="bi bi-info-circle"></i> Для входа используйте ваш Telegram ID
+                        </div>
+                        
+                        <form id="loginForm">
+                            <div class="mb-4">
+                                <label for="telegramId" class="form-label">Telegram ID</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="bi bi-telegram"></i>
+                                    </span>
+                                    <input type="number" class="form-control" id="telegramId" 
+                                           placeholder="Введите ваш Telegram ID" required>
+                                </div>
+                                <div class="form-text">
+                                    Не знаете свой ID? Напишите боту <a href="https://t.me/userinfobot" target="_blank">@userinfobot</a>
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100" id="loginBtn">
+                                <i class="bi bi-box-arrow-in-right"></i> Войти
+                            </button>
+                        </form>
+                        
+                        <div class="mt-4 text-center">
+                            <small class="text-muted">
+                                Нет доступа? Обратитесь к администратору для регистрации
+                            </small>
+                        </div>
+                        
+                        <!-- Alternative login via Telegram widget -->
+                        <hr class="my-4">
+                        <div class="text-center">
+                            <p class="text-muted mb-3">Или войдите через Telegram</p>
+                            <script async src="https://telegram.org/js/telegram-widget.js?22" 
+                                    data-telegram-login="YourBotUsername" 
+                                    data-size="large" 
+                                    data-auth-url="/api/auth/telegram/callback"
+                                    data-request-access="write"></script>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-3">
+                    <a href="/" class="text-white text-decoration-none">
+                        <i class="bi bi-arrow-left"></i> Вернуться на главную
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Axios -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Check if already logged in
+        const token = localStorage.getItem('access_token');
+        if (token) {
+            window.location.href = '/dashboard';
+        }
+        
+        // Handle login form
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const telegramId = document.getElementById('telegramId').value;
+            const loginBtn = document.getElementById('loginBtn');
+            
+            // Disable button
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Вход...';
+            
+            try {
+                const response = await axios.post('/api/auth/telegram', {
+                    telegram_id: parseInt(telegramId)
+                });
+                
+                // Save token and user info
+                localStorage.setItem('access_token', response.data.access_token);
+                localStorage.setItem('user_info', JSON.stringify(response.data.user_info));
+                
+                // Show success message
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-success mt-3';
+                alert.innerHTML = '<i class="bi bi-check-circle"></i> Вход выполнен успешно! Перенаправление...';
+                document.getElementById('loginForm').appendChild(alert);
+                
+                // Redirect to dashboard
+                setTimeout(() => {
+                    window.location.href = '/dashboard';
+                }, 1000);
+                
+            } catch (error) {
+                // Show error message
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-danger mt-3';
+                
+                if (error.response && error.response.data.detail) {
+                    alert.innerHTML = `<i class="bi bi-x-circle"></i> ${error.response.data.detail}`;
+                } else {
+                    alert.innerHTML = '<i class="bi bi-x-circle"></i> Ошибка при входе. Попробуйте еще раз.';
+                }
+                
+                document.getElementById('loginForm').appendChild(alert);
+                
+                // Remove alert after 5 seconds
+                setTimeout(() => {
+                    alert.remove();
+                }, 5000);
+                
+            } finally {
+                // Enable button
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Войти';
+            }
+        });
+    </script>
+</body>
+</html> 

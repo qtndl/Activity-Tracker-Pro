@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}Управление сотрудниками - Employee Activity Tracker{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">Управление сотрудниками</h1>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+            <i class="bi bi-person-plus"></i> Добавить сотрудника
+        </button>
+    </div>
+    
+    <!-- Info about deactivation -->
+    <div class="alert alert-info mb-4">
+        <i class="bi bi-info-circle"></i>
+        <strong>О деактивации:</strong> Деактивированные сотрудники не получают уведомления от бота (выходные, отпуск, больничный), 
+        но их статистика продолжает учитываться. Администраторы всегда могут войти в веб-панель.
+    </div>
+    
+    <!-- Employees table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="employeesTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Имя</th>
+                            <th>Telegram ID</th>
+                            <th>Username</th>
+                            <th>Статус</th>
+                            <th>Роль</th>
+                            <th>Дата регистрации</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="employeesTableBody">
+                        <tr>
+                            <td colspan="8" class="text-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Загрузка...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Employee Modal -->
+<div class="modal fade" id="addEmployeeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Добавить сотрудника</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addEmployeeForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="telegramId" class="form-label">Telegram ID</label>
+                        <input type="number" class="form-control" id="telegramId" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="telegramUsername" class="form-label">Telegram Username (опционально)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">@</span>
+                            <input type="text" class="form-control" id="telegramUsername">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fullName" class="form-label">Полное имя</label>
+                        <input type="text" class="form-control" id="fullName" required>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="isAdmin">
+                        <label class="form-check-label" for="isAdmin">
+                            Права администратора
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Добавить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Employee Modal -->
+<div class="modal fade" id="editEmployeeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Редактировать сотрудника</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editEmployeeForm">
+                <input type="hidden" id="editEmployeeId">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="editFullName" class="form-label">Полное имя</label>
+                        <input type="text" class="form-control" id="editFullName" required>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="editIsActive">
+                        <label class="form-check-label" for="editIsActive">
+                            Активен (получает уведомления)
+                        </label>
+                        <div class="form-text">
+                            Снимите галочку для временной деактивации (выходные, отпуск, больничный)
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="editIsAdmin">
+                        <label class="form-check-label" for="editIsAdmin">
+                            Права администратора
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Check if admin
+    if (!userInfo.is_admin) {
+        window.location.href = '/dashboard';
+    }
+    
+    let employees = [];
+    
+    // Load employees
+    async function loadEmployees() {
+        try {
+            const response = await axios.get('/api/employees/');
+            employees = response.data;
+            renderEmployeesTable();
+        } catch (error) {
+            console.error('Error loading employees:', error);
+            showAlert('Ошибка при загрузке списка сотрудников', 'danger');
+        }
+    }
+    
+    // Render employees table
+    function renderEmployeesTable() {
+        const tbody = document.getElementById('employeesTableBody');
+        
+        if (employees.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center">Нет сотрудников</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = employees.map(emp => {
+            let statusBadge, statusText;
+            if (emp.is_active) {
+                statusBadge = 'bg-success';
+                statusText = 'Активен';
+            } else {
+                statusBadge = 'bg-warning text-dark';
+                statusText = emp.is_admin ? 'Деактивирован (админ)' : 'Деактивирован';
+            }
+            
+            return `
+            <tr>
+                <td>${emp.id}</td>
+                <td>${emp.full_name}</td>
+                <td>${emp.telegram_id}</td>
+                <td>${emp.telegram_username ? '@' + emp.telegram_username : '-'}</td>
+                <td>
+                    <span class="badge ${statusBadge}">
+                        ${statusText}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge ${emp.is_admin ? 'bg-primary' : 'bg-secondary'}">
+                        ${emp.is_admin ? 'Админ' : 'Сотрудник'}
+                    </span>
+                </td>
+                <td>${new Date(emp.created_at).toLocaleDateString('ru-RU')}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="editEmployee(${emp.id})" title="Редактировать">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-warning" onclick="toggleEmployeeStatus(${emp.id})" 
+                                title="${emp.is_active ? 'Деактивировать' : 'Активировать'}">
+                            <i class="bi bi-toggle-${emp.is_active ? 'on' : 'off'}"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="deleteEmployee(${emp.id})" title="Удалить" ${emp.id === userInfo.id ? 'disabled' : ''}>
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `}).join('');
+    }
+    
+    // Add employee form handler
+    document.getElementById('addEmployeeForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const data = {
+            telegram_id: parseInt(document.getElementById('telegramId').value),
+            telegram_username: document.getElementById('telegramUsername').value || null,
+            full_name: document.getElementById('fullName').value,
+            is_admin: document.getElementById('isAdmin').checked
+        };
+        
+        try {
+            await axios.post('/api/employees/', data);
+            showAlert('Сотрудник успешно добавлен', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('addEmployeeModal')).hide();
+            loadEmployees();
+            // Reset form
+            e.target.reset();
+        } catch (error) {
+            console.error('Error adding employee:', error);
+            showAlert(error.response?.data?.detail || 'Ошибка при добавлении сотрудника', 'danger');
+        }
+    });
+    
+    // Edit employee
+    function editEmployee(id) {
+        const employee = employees.find(e => e.id === id);
+        if (!employee) return;
+        
+        document.getElementById('editEmployeeId').value = employee.id;
+        document.getElementById('editFullName').value = employee.full_name;
+        document.getElementById('editIsActive').checked = employee.is_active;
+        document.getElementById('editIsAdmin').checked = employee.is_admin;
+        
+        new bootstrap.Modal(document.getElementById('editEmployeeModal')).show();
+    }
+    
+    // Edit employee form handler
+    document.getElementById('editEmployeeForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const id = document.getElementById('editEmployeeId').value;
+        const data = {
+            full_name: document.getElementById('editFullName').value,
+            is_active: document.getElementById('editIsActive').checked,
+            is_admin: document.getElementById('editIsAdmin').checked
+        };
+        
+        try {
+            await axios.put(`/api/employees/${id}`, data);
+            showAlert('Сотрудник успешно обновлен', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('editEmployeeModal')).hide();
+            loadEmployees();
+        } catch (error) {
+            console.error('Error updating employee:', error);
+            showAlert(error.response?.data?.detail || 'Ошибка при обновлении сотрудника', 'danger');
+        }
+    });
+    
+    // Toggle employee status
+    async function toggleEmployeeStatus(id) {
+        const employee = employees.find(e => e.id === id);
+        const action = employee.is_active ? 'деактивировать' : 'активировать';
+        const actionDesc = employee.is_active ? 
+            'Сотрудник не будет получать уведомления (выходной/отпуск)' : 
+            'Сотрудник снова будет получать уведомления';
+        
+        if (!confirm(`Вы уверены, что хотите ${action} сотрудника?\n${actionDesc}`)) {
+            return;
+        }
+        
+        try {
+            const response = await axios.post(`/api/employees/${id}/toggle-active`);
+            showAlert(response.data.message, 'success');
+            loadEmployees();
+        } catch (error) {
+            console.error('Error toggling status:', error);
+            showAlert('Ошибка при изменении статуса', 'danger');
+        }
+    }
+    
+    // Delete employee
+    async function deleteEmployee(id) {
+        if (!confirm('Вы уверены, что хотите удалить этого сотрудника?')) {
+            return;
+        }
+        
+        try {
+            await axios.delete(`/api/employees/${id}`);
+            showAlert('Сотрудник успешно удален', 'success');
+            loadEmployees();
+        } catch (error) {
+            console.error('Error deleting employee:', error);
+            showAlert(error.response?.data?.detail || 'Ошибка при удалении сотрудника', 'danger');
+        }
+    }
+    
+    // Show alert
+    function showAlert(message, type) {
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.container-fluid').firstChild);
+        
+        setTimeout(() => {
+            alert.remove();
+        }, 5000);
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        loadEmployees();
+    });
+</script>
+{% endblock %} 

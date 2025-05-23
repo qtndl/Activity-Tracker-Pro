@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+
+{% block title %}Дашборд - Employee Activity Tracker{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">Дашборд</h1>
+        <div class="btn-group" role="group">
+            <button type="button" class="btn btn-outline-primary active" onclick="loadDashboard('today')">Сегодня</button>
+            <button type="button" class="btn btn-outline-primary" onclick="loadDashboard('week')">Неделя</button>
+            <button type="button" class="btn btn-outline-primary" onclick="loadDashboard('month')">Месяц</button>
+        </div>
+    </div>
+    
+    <!-- Loading spinner -->
+    <div id="loadingSpinner" class="spinner-container">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Загрузка...</span>
+        </div>
+    </div>
+    
+    <!-- Admin dashboard -->
+    <div id="adminDashboard" style="display: none;">
+        <!-- Stats cards -->
+        <div class="row mb-4">
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stat-card bg-primary text-white h-100">
+                    <div class="card-body">
+                        <i class="bi bi-people stat-icon"></i>
+                        <p class="stat-label">Активные сотрудники</p>
+                        <p class="stat-value" id="activeEmployees">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stat-card bg-info text-white h-100">
+                    <div class="card-body">
+                        <i class="bi bi-envelope stat-icon"></i>
+                        <p class="stat-label">Сообщений сегодня</p>
+                        <p class="stat-value" id="totalMessagesToday">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stat-card bg-success text-white h-100">
+                    <div class="card-body">
+                        <i class="bi bi-check-circle stat-icon"></i>
+                        <p class="stat-label">Отвечено</p>
+                        <p class="stat-value" id="respondedToday">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card stat-card bg-danger text-white h-100">
+                    <div class="card-body">
+                        <i class="bi bi-exclamation-triangle stat-icon"></i>
+                        <p class="stat-label">Срочные сообщения</p>
+                        <p class="stat-value" id="urgentMessages">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Additional stats -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Среднее время ответа</h5>
+                        <p class="display-4 text-primary"><span id="avgResponseTime">0</span> мин</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Эффективность</h5>
+                        <p class="display-4 text-success"><span id="efficiencyToday">0</span>%</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Пропущено</h5>
+                        <p class="display-4 text-danger" id="missedToday">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Google Sheets export -->
+        <div class="row mb-4" id="googleSheetsSection" style="display: none;">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-table"></i> Экспорт в Google Sheets
+                        </h5>
+                        <p class="card-text">Выгрузите текущую статистику в Google Таблицы для дополнительного анализа</p>
+                        <button class="btn btn-success" onclick="exportToGoogleSheets()">
+                            <i class="bi bi-cloud-upload"></i> Экспортировать
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Employee dashboard -->
+    <div id="employeeDashboard" style="display: none;">
+        <div class="row mb-4">
+            <div class="col-md-6 mb-4">
+                <div class="card stat-card bg-info text-white h-100">
+                    <div class="card-body">
+                        <i class="bi bi-envelope stat-icon"></i>
+                        <p class="stat-label">Сообщений сегодня</p>
+                        <p class="stat-value" id="myTotalMessages">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-4">
+                <div class="card stat-card bg-warning text-white h-100">
+                    <div class="card-body">
+                        <i class="bi bi-hourglass-split stat-icon"></i>
+                        <p class="stat-label">Неотвеченные</p>
+                        <p class="stat-value" id="myUnanswered">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Отвечено</h5>
+                        <p class="display-4 text-success" id="myResponded">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Среднее время</h5>
+                        <p class="display-4 text-primary"><span id="myAvgTime">0</span> мин</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Эффективность</h5>
+                        <p class="display-4 text-info"><span id="myEfficiency">0</span>%</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Charts -->
+    <div class="row" id="chartsSection" style="display: none;">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">График времени ответа</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="responseTimeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Распределение сообщений</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="messagesPieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentPeriod = 'today';
+    let responseTimeChart = null;
+    let pieChart = null;
+    
+    // Load dashboard data
+    async function loadDashboard(period = 'today') {
+        currentPeriod = period;
+        
+        // Update active button
+        document.querySelectorAll('.btn-group button').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.textContent.toLowerCase().includes(period)) {
+                btn.classList.add('active');
+            }
+        });
+        
+        try {
+            const response = await axios.get('/api/dashboard/overview');
+            const data = response.data;
+            
+            // Hide spinner
+            document.getElementById('loadingSpinner').style.display = 'none';
+            
+            // Check if admin
+            if (userInfo.is_admin) {
+                // Show admin dashboard
+                document.getElementById('adminDashboard').style.display = 'block';
+                document.getElementById('employeeDashboard').style.display = 'none';
+                
+                // Update stats
+                document.getElementById('activeEmployees').textContent = data.active_employees || 0;
+                document.getElementById('totalMessagesToday').textContent = data.total_messages_today || 0;
+                document.getElementById('respondedToday').textContent = data.responded_today || 0;
+                document.getElementById('urgentMessages').textContent = data.urgent_messages || 0;
+                document.getElementById('avgResponseTime').textContent = data.avg_response_time || 0;
+                document.getElementById('efficiencyToday').textContent = data.efficiency_today || 0;
+                document.getElementById('missedToday').textContent = data.missed_today || 0;
+                
+                // Check Google Sheets settings
+                checkGoogleSheetsSettings();
+            } else {
+                // Show employee dashboard
+                document.getElementById('adminDashboard').style.display = 'none';
+                document.getElementById('employeeDashboard').style.display = 'block';
+                
+                // Update stats
+                document.getElementById('myTotalMessages').textContent = data.total_messages_today || 0;
+                document.getElementById('myUnanswered').textContent = data.unanswered_messages || 0;
+                document.getElementById('myResponded').textContent = data.responded_today || 0;
+                document.getElementById('myAvgTime').textContent = data.avg_response_time || 0;
+                document.getElementById('myEfficiency').textContent = data.efficiency_today || 0;
+            }
+            
+            // Load charts
+            await loadCharts();
+            
+        } catch (error) {
+            console.error('Error loading dashboard:', error);
+            showAlert('Ошибка при загрузке дашборда', 'danger');
+        }
+    }
+    
+    // Load charts
+    async function loadCharts() {
+        try {
+            const response = await axios.get(`/api/statistics/charts/response-time?period=${currentPeriod === 'today' ? 'week' : 'month'}`);
+            const data = response.data;
+            
+            // Show charts section
+            document.getElementById('chartsSection').style.display = 'flex';
+            
+            // Response time chart
+            const ctx1 = document.getElementById('responseTimeChart').getContext('2d');
+            if (responseTimeChart) {
+                responseTimeChart.destroy();
+            }
+            
+            responseTimeChart = new Chart(ctx1, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'Среднее время ответа (мин)',
+                        data: data.data,
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+            // Pie chart for message distribution
+            const summaryResponse = await axios.get(`/api/statistics/summary?period=${currentPeriod}`);
+            const summary = summaryResponse.data;
+            
+            const ctx2 = document.getElementById('messagesPieChart').getContext('2d');
+            if (pieChart) {
+                pieChart.destroy();
+            }
+            
+            pieChart = new Chart(ctx2, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Отвечено', 'Пропущено'],
+                    datasets: [{
+                        data: [summary.responded_messages, summary.missed_messages],
+                        backgroundColor: [
+                            'rgba(75, 192, 192, 0.8)',
+                            'rgba(255, 99, 132, 0.8)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error loading charts:', error);
+        }
+    }
+    
+    // Check Google Sheets settings
+    async function checkGoogleSheetsSettings() {
+        if (userInfo.is_admin) {
+            try {
+                const response = await axios.get('/api/dashboard/settings');
+                if (response.data.google_sheets_enabled) {
+                    document.getElementById('googleSheetsSection').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error checking settings:', error);
+            }
+        }
+    }
+    
+    // Export to Google Sheets
+    async function exportToGoogleSheets() {
+        const btn = event.target;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Экспорт...';
+        
+        try {
+            const response = await axios.post(`/api/dashboard/export/google-sheets?period=${currentPeriod}`);
+            showAlert('Данные успешно экспортированы!', 'success');
+            
+            if (response.data.sheet_url) {
+                window.open(response.data.sheet_url, '_blank');
+            }
+        } catch (error) {
+            console.error('Error exporting:', error);
+            showAlert(error.response?.data?.detail || 'Ошибка при экспорте', 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-cloud-upload"></i> Экспортировать';
+        }
+    }
+    
+    // Show alert
+    function showAlert(message, type) {
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show notification`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.container-fluid').firstChild);
+        
+        setTimeout(() => {
+            alert.remove();
+        }, 5000);
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        loadDashboard();
+    });
+</script>
+{% endblock %} 

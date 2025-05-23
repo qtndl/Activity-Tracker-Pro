@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block title %}Профиль - Employee Activity Tracker{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <h1 class="h3 mb-4">Личный кабинет</h1>
+            
+            <!-- Profile info -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Информация о профиле</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Имя:</strong> <span id="profileName">-</span></p>
+                            <p><strong>Telegram ID:</strong> <span id="profileTelegramId">-</span></p>
+                            <p><strong>Username:</strong> <span id="profileUsername">-</span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Роль:</strong> <span id="profileRole">-</span></p>
+                            <p><strong>Статус:</strong> <span id="profileStatus">-</span></p>
+                            <p><strong>Дата регистрации:</strong> <span id="profileCreated">-</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Today's performance -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Сегодняшние показатели</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3 mb-3">
+                            <h6 class="text-muted">Сообщений</h6>
+                            <p class="h4" id="todayMessages">0</p>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <h6 class="text-muted">Отвечено</h6>
+                            <p class="h4 text-success" id="todayResponded">0</p>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <h6 class="text-muted">Ср. время</h6>
+                            <p class="h4 text-primary"><span id="todayAvgTime">0</span> мин</p>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <h6 class="text-muted">Эффективность</h6>
+                            <p class="h4 text-info"><span id="todayEfficiency">0</span>%</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent messages -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Последние сообщения</h5>
+                    <button class="btn btn-sm btn-primary" onclick="loadRecentMessages()">
+                        <i class="bi bi-arrow-clockwise"></i> Обновить
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Время</th>
+                                    <th>Клиент</th>
+                                    <th>Сообщение</th>
+                                    <th>Время ответа</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentMessagesBody">
+                                <tr>
+                                    <td colspan="5" class="text-center">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                            <span class="visually-hidden">Загрузка...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Performance chart -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">График производительности за неделю</h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="height: 300px;">
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let performanceChart = null;
+    
+    // Load profile data
+    async function loadProfile() {
+        try {
+            // Get employee info
+            const response = await axios.get('/api/employees/me');
+            const employee = response.data;
+            
+            // Update profile info
+            document.getElementById('profileName').textContent = employee.full_name;
+            document.getElementById('profileTelegramId').textContent = employee.telegram_id;
+            document.getElementById('profileUsername').textContent = employee.telegram_username ? '@' + employee.telegram_username : '-';
+            document.getElementById('profileRole').innerHTML = employee.is_admin ? 
+                '<span class="badge bg-primary">Администратор</span>' : 
+                '<span class="badge bg-secondary">Сотрудник</span>';
+            document.getElementById('profileStatus').innerHTML = employee.is_active ? 
+                '<span class="badge bg-success">Активен</span>' : 
+                '<span class="badge bg-danger">Неактивен</span>';
+            document.getElementById('profileCreated').textContent = new Date(employee.created_at).toLocaleDateString('ru-RU');
+            
+            // Load today's stats
+            await loadTodayStats();
+            
+            // Load recent messages
+            await loadRecentMessages();
+            
+            // Load performance chart
+            await loadPerformanceChart();
+            
+        } catch (error) {
+            console.error('Error loading profile:', error);
+            showAlert('Ошибка при загрузке профиля', 'danger');
+        }
+    }
+    
+    // Load today's statistics
+    async function loadTodayStats() {
+        try {
+            const response = await axios.get('/api/statistics/summary?period=today');
+            const stats = response.data;
+            
+            document.getElementById('todayMessages').textContent = stats.total_messages;
+            document.getElementById('todayResponded').textContent = stats.responded_messages;
+            document.getElementById('todayAvgTime').textContent = stats.avg_response_time;
+            document.getElementById('todayEfficiency').textContent = stats.efficiency_percent;
+            
+        } catch (error) {
+            console.error('Error loading today stats:', error);
+        }
+    }
+    
+    // Load recent messages
+    async function loadRecentMessages() {
+        try {
+            const response = await axios.get('/api/statistics/messages?limit=10');
+            const messages = response.data;
+            
+            const tbody = document.getElementById('recentMessagesBody');
+            
+            if (messages.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">Нет сообщений</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = messages.map(msg => `
+                <tr>
+                    <td>${new Date(msg.received_at).toLocaleString('ru-RU', { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        day: '2-digit',
+                        month: '2-digit'
+                    })}</td>
+                    <td>${msg.client_username ? '@' + msg.client_username : msg.client_name || 'Неизвестный'}</td>
+                    <td class="text-truncate" style="max-width: 200px;" title="${msg.message_text || ''}">
+                        ${msg.message_text ? msg.message_text.substring(0, 50) + '...' : '-'}
+                    </td>
+                    <td>
+                        ${msg.response_time_minutes ? 
+                            `<span class="${getResponseTimeClass(msg.response_time_minutes)}">${msg.response_time_minutes.toFixed(1)} мин</span>` : 
+                            '-'}
+                    </td>
+                    <td>
+                        ${msg.responded_at ? 
+                            '<span class="badge bg-success">Отвечено</span>' : 
+                            (msg.is_missed ? 
+                                '<span class="badge bg-danger">Пропущено</span>' : 
+                                '<span class="badge bg-warning">Ожидает</span>')}
+                    </td>
+                </tr>
+            `).join('');
+            
+        } catch (error) {
+            console.error('Error loading messages:', error);
+            document.getElementById('recentMessagesBody').innerHTML = 
+                '<tr><td colspan="5" class="text-center text-danger">Ошибка загрузки</td></tr>';
+        }
+    }
+    
+    // Get response time class
+    function getResponseTimeClass(minutes) {
+        if (minutes <= 15) return 'text-success';
+        if (minutes <= 30) return 'text-warning';
+        return 'text-danger';
+    }
+    
+    // Load performance chart
+    async function loadPerformanceChart() {
+        try {
+            const response = await axios.get('/api/statistics/charts/response-time?period=week');
+            const data = response.data;
+            
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            
+            if (performanceChart) {
+                performanceChart.destroy();
+            }
+            
+            performanceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'Среднее время ответа (мин)',
+                        data: data.data,
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Минуты'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error loading chart:', error);
+        }
+    }
+    
+    // Show alert
+    function showAlert(message, type) {
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} alert-dismissible fade show`;
+        alert.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.container-fluid').firstChild);
+        
+        setTimeout(() => {
+            alert.remove();
+        }, 5000);
+    }
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        loadProfile();
+    });
+</script>
+{% endblock %} 
