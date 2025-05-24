@@ -37,16 +37,20 @@ class AnalyticsService:
             # Считаем статистику
             total_messages = len(messages)
             responded_messages = sum(1 for m in messages if m.responded_at is not None)
-            missed_messages = total_messages - responded_messages
             
-            # Считаем уникальных клиентов
+            # Удаленные сообщения не считаются пропущенными
+            deleted_messages = sum(1 for m in messages if m.is_deleted)
+            # Пропущенные = всего - отвечено - удалено
+            missed_messages = total_messages - responded_messages - deleted_messages
+            
+            # Считаем уникальных клиентов (включая клиентов удаленных сообщений)
             unique_client_ids = set()
             for message in messages:
                 if message.client_telegram_id is not None:
                     unique_client_ids.add(message.client_telegram_id)
             unique_clients = len(unique_client_ids)
             
-            # Считаем среднее время ответа
+            # Считаем среднее время ответа (только для отвеченных сообщений)
             response_times = [
                 m.response_time_minutes 
                 for m in messages 
@@ -54,7 +58,7 @@ class AnalyticsService:
             ]
             avg_response_time = sum(response_times) / len(response_times) if response_times else 0
             
-            # Считаем превышения времени
+            # Считаем превышения времени (только для отвеченных сообщений)
             exceeded_15_min = sum(1 for m in messages if m.response_time_minutes and m.response_time_minutes > 15)
             exceeded_30_min = sum(1 for m in messages if m.response_time_minutes and m.response_time_minutes > 30)
             exceeded_60_min = sum(1 for m in messages if m.response_time_minutes and m.response_time_minutes > 60)
@@ -63,6 +67,7 @@ class AnalyticsService:
                 'total_messages': total_messages,
                 'responded_messages': responded_messages,
                 'missed_messages': missed_messages,
+                'deleted_messages': deleted_messages,  # Добавляем информацию об удаленных
                 'unique_clients': unique_clients,
                 'avg_response_time': avg_response_time,
                 'exceeded_15_min': exceeded_15_min,

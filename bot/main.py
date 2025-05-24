@@ -94,6 +94,38 @@ class MessageTracker:
                     # Отменяем запланированные уведомления
                     await self.notifications.cancel_notifications(msg_id)
     
+    async def mark_as_deleted(self, chat_id: int, message_id: int):
+        """Отметка сообщения как удаленного"""
+        logger.info(f"🗑 Сообщение {message_id} удалено в чате {chat_id}")
+        
+        # Обновляем в БД
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(DBMessage).where(
+                    and_(
+                        DBMessage.chat_id == chat_id,
+                        DBMessage.message_id == message_id
+                    )
+                )
+            )
+            db_messages = result.scalars().all()
+            
+            for db_message in db_messages:
+                if not db_message.is_deleted:  # Если еще не помечено как удаленное
+                    db_message.is_deleted = True
+                    db_message.deleted_at = datetime.utcnow()
+                    
+                    # Отменяем уведомления для удаленного сообщения
+                    await self.notifications.cancel_notifications(db_message.id)
+                    
+                    logger.info(f"✅ Сообщение {message_id} помечено как удаленное для сотрудника {db_message.employee_id}")
+            
+            await session.commit()
+        
+        # Удаляем из отслеживаемых
+        if chat_id in self.pending_messages and message_id in self.pending_messages[chat_id]:
+            del self.pending_messages[chat_id][message_id]
+    
     async def schedule_notifications(self, message_id: int, employee_id: int, chat_id: int):
         """Планирование уведомлений"""
         await self.notifications.schedule_warning(
@@ -155,15 +187,24 @@ async def stats_command(message: Message):
             text += f"📨 Всего сообщений: {stats['total_messages']}\n"
             text += f"✅ Отвечено: {stats['responded_messages']}\n"
             text += f"❌ Пропущено: {stats['missed_messages']}\n"
+            
+            # Добавляем информацию об удаленных сообщениях если они есть
+            if stats.get('deleted_messages', 0) > 0:
+                text += f"🗑 Удалено клиентами: {stats['deleted_messages']}\n"
+            
             text += f"👥 Уникальных клиентов: {stats['unique_clients']}\n"
             text += f"⏱ Среднее время ответа: {stats['avg_response_time']:.1f} мин\n"
             text += f"⚠️ Ответов > 15 мин: {stats['exceeded_15_min']}\n"
             text += f"⚠️ Ответов > 30 мин: {stats['exceeded_30_min']}\n"
             text += f"⚠️ Ответов > 60 мин: {stats['exceeded_60_min']}"
+            
+            # Добавляем примечание об удаленных сообщениях
+            if stats.get('deleted_messages', 0) > 0:
+                text += f"\n\n💡 <i>Удаленные клиентами сообщения не считаются пропущенными</i>"
         else:
             text = "📊 Статистика за сегодня пока отсутствует"
         
-        await message.answer(text)
+        await message.answer(text, parse_mode="HTML")
 
 
 @dp.message(F.chat.type.in_(['group', 'supergroup']))

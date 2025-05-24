@@ -40,6 +40,8 @@ class Message(Base):
     responded_at = Column(DateTime, nullable=True)
     response_time_minutes = Column(Float, nullable=True)
     is_missed = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False)
+    deleted_at = Column(DateTime, nullable=True)
     
     # Relationships
     employee = relationship("Employee", back_populates="messages")

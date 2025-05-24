@@ -13,6 +13,16 @@ def register_handlers(dp: Dispatcher, message_tracker):
     @dp.message(Command("help"))
     async def help_command(message: Message):
         """Помощь по командам"""
+        
+        # Проверяем является ли пользователь админом
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(Employee).where(Employee.telegram_id == message.from_user.id)
+            )
+            employee = result.scalar_one_or_none()
+            
+            is_admin = employee and employee.is_admin if employee else False
+        
         help_text = """
 🤖 <b>Доступные команды:</b>
 
@@ -27,10 +37,20 @@ def register_handlers(dp: Dispatcher, message_tracker):
 • Отправляет уведомления при долгом отсутствии ответа
 • Собирает статистику по времени ответов
 • Формирует отчеты для анализа работы
+• Удаленные клиентами сообщения не считаются пропущенными
 
 <b>Веб-панель:</b>
 Используйте /start для получения ссылки на вход
         """
+        
+        # Добавляем админские команды
+        if is_admin:
+            help_text += """
+<b>👑 Команды администратора:</b>
+/admin_stats - Общая статистика по всем сотрудникам
+/mark_deleted - Пометить сообщение как удаленное
+            """
+        
         await message.answer(help_text, parse_mode="HTML")
     
     @dp.message(Command("report_weekly"))
@@ -137,35 +157,90 @@ def register_handlers(dp: Dispatcher, message_tracker):
             total_messages = 0
             total_responded = 0
             total_missed = 0
+            total_deleted = 0
             
             for employee in employees:
                 stats = await message_tracker.analytics.get_employee_stats(employee.id, 'daily')
                 
                 if stats:
                     text += f"👤 <b>{employee.full_name}</b>\n"
-                    text += f"  📨 Сообщений: {stats.total_messages}\n"
-                    text += f"  ✅ Отвечено: {stats.responded_messages}\n"
-                    text += f"  ❌ Пропущено: {stats.missed_messages}\n"
+                    text += f"  📨 Сообщений: {stats['total_messages']}\n"
+                    text += f"  ✅ Отвечено: {stats['responded_messages']}\n"
+                    text += f"  ❌ Пропущено: {stats['missed_messages']}\n"
                     
-                    if stats.responded_messages > 0:
-                        text += f"  ⏱ Среднее время: {stats.avg_response_time:.1f} мин\n"
+                    if stats.get('deleted_messages', 0) > 0:
+                        text += f"  🗑 Удалено: {stats['deleted_messages']}\n"
+                    
+                    if stats['responded_messages'] > 0:
+                        text += f"  ⏱ Среднее время: {stats['avg_response_time']:.1f} мин\n"
                     
                     text += "\n"
                     
-                    total_messages += stats.total_messages
-                    total_responded += stats.responded_messages
-                    total_missed += stats.missed_messages
+                    total_messages += stats['total_messages']
+                    total_responded += stats['responded_messages']
+                    total_missed += stats['missed_messages']
+                    total_deleted += stats.get('deleted_messages', 0)
             
             text += f"\n📊 <b>Итого:</b>\n"
             text += f"📨 Всего сообщений: {total_messages}\n"
             text += f"✅ Отвечено: {total_responded}\n"
             text += f"❌ Пропущено: {total_missed}\n"
             
+            if total_deleted > 0:
+                text += f"🗑 Удалено: {total_deleted}\n"
+            
             if total_messages > 0:
-                overall_efficiency = (total_responded / total_messages) * 100
+                overall_efficiency = ((total_responded + total_deleted) / total_messages) * 100
                 text += f"📈 Общая эффективность: {overall_efficiency:.1f}%"
             
             await message.answer(text, parse_mode="HTML")
+    
+    @dp.message(Command("mark_deleted"))
+    async def mark_deleted_command(message: Message):
+        """Пометить сообщение как удаленное (только для админов)"""
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(Employee).where(
+                    Employee.telegram_id == message.from_user.id,
+                    Employee.is_admin == True
+                )
+            )
+            admin = result.scalar_one_or_none()
+            
+            if not admin:
+                await message.answer("❌ У вас нет прав администратора")
+                return
+            
+            # Парсим аргументы команды
+            args = message.text.split()[1:] if len(message.text.split()) > 1 else []
+            
+            if len(args) < 2:
+                await message.answer(
+                    "ℹ️ <b>Использование:</b>\n"
+                    "<code>/mark_deleted CHAT_ID MESSAGE_ID</code>\n\n"
+                    "<b>Пример:</b>\n"
+                    "<code>/mark_deleted -1001234567890 123</code>\n\n"
+                    "Эта команда пометит сообщение как удаленное клиентом. "
+                    "Такие сообщения не будут считаться пропущенными.",
+                    parse_mode="HTML"
+                )
+                return
+            
+            try:
+                chat_id = int(args[0])
+                msg_id = int(args[1])
+            except ValueError:
+                await message.answer("❌ Неправильный формат. Chat ID и Message ID должны быть числами.")
+                return
+            
+            # Используем метод message_tracker для пометки удаленного сообщения
+            await message_tracker.mark_as_deleted(chat_id, msg_id)
+            
+            await message.answer(
+                f"✅ Сообщение {msg_id} в чате {chat_id} помечено как удаленное.\n\n"
+                "Оно больше не будет учитываться как пропущенное в статистике.",
+                parse_mode="HTML"
+            )
 
 
 async def register_handlers_and_scheduler(dp: Dispatcher, message_tracker):

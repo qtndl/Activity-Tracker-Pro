@@ -76,6 +76,14 @@ async def update_settings(
     if settings_data.notification_delay_3 <= settings_data.notification_delay_2 or settings_data.notification_delay_3 > 300:
         raise HTTPException(status_code=400, detail="Третье уведомление должно быть больше второго и не более 300 минут")
     
+    # Проверяем, изменилось ли время отчетов
+    result = await db.execute(
+        select(SystemSettings).where(SystemSettings.key == "daily_reports_time")
+    )
+    old_time_setting = result.scalar_one_or_none()
+    old_time = old_time_setting.value if old_time_setting else "18:00"
+    time_changed = old_time != settings_data.daily_reports_time
+    
     # Формируем данные для обновления
     settings_to_update = {
         "notification_delay_1": str(settings_data.notification_delay_1),
@@ -100,6 +108,23 @@ async def update_settings(
             db.add(setting)
     
     await db.commit()
+    
+    # Очищаем кеш настроек для немедленного применения изменений
+    try:
+        from bot.settings_manager import settings_manager
+        settings_manager.clear_cache()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Не удалось очистить кеш настроек: {e}")
+    
+    # Если время отчетов изменилось, обновляем планировщик
+    if time_changed:
+        try:
+            from bot.scheduler import update_daily_reports_time
+            await update_daily_reports_time()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Не удалось обновить планировщик: {e}")
     
     return {"message": "Настройки успешно обновлены"}
 
@@ -133,6 +158,22 @@ async def reset_settings(
             db.add(setting)
     
     await db.commit()
+    
+    # Очищаем кеш настроек для немедленного применения изменений
+    try:
+        from bot.settings_manager import settings_manager
+        settings_manager.clear_cache()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Не удалось очистить кеш настроек: {e}")
+    
+    # Обновляем планировщик с новым временем (18:00 по умолчанию)
+    try:
+        from bot.scheduler import update_daily_reports_time
+        await update_daily_reports_time()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Не удалось обновить планировщик: {e}")
     
     return {"message": "Настройки сброшены к значениям по умолчанию"}
 

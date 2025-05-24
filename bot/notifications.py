@@ -202,6 +202,16 @@ class NotificationService:
             text += f"📨 Всего сообщений: {total_messages}\n"
             text += f"✅ Отвечено: {responded_messages}\n"
             text += f"❌ Пропущено: {missed_messages}\n"
+            
+            # Показываем удаленные сообщения если они есть
+            if isinstance(stats, dict):
+                deleted_messages = stats.get('deleted_messages', 0)
+            else:
+                deleted_messages = getattr(stats, 'deleted_messages', 0)
+            
+            if deleted_messages > 0:
+                text += f"🗑 Удалено клиентами: {deleted_messages}\n"
+            
             text += f"👥 Уникальных клиентов: {unique_clients}\n"
             
             if responded_messages > 0:
@@ -218,6 +228,10 @@ class NotificationService:
                 text += "\n🌟 Отличная работа! Продолжайте в том же духе!"
             elif missed_messages > 0:
                 text += f"\n⚠️ Обратите внимание на пропущенные сообщения!"
+            
+            # Добавляем примечание об удаленных сообщениях
+            if deleted_messages > 0:
+                text += f"\n\n💡 <i>Удаленные клиентами сообщения не считаются пропущенными</i>"
             
             try:
                 await self.bot.send_message(
