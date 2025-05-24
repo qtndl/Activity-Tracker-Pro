@@ -21,6 +21,7 @@ class DashboardSettings(BaseModel):
     
 @router.get("/overview")
 async def get_dashboard_overview(
+    period: str = Query("today", regex="^(today|week|month)$"),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -31,7 +32,8 @@ async def get_dashboard_overview(
     
     return await stats_service.get_dashboard_overview(
         user_id=current_user.get('employee_id'),
-        is_admin=current_user.get('is_admin', False)
+        is_admin=current_user.get('is_admin', False),
+        period=period
     )
 
 

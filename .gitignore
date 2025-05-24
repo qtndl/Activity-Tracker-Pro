@@ -182,4 +182,7 @@ docs/_build/
 # Специфичные для проекта
 debug_*.py
 test_*.py
-monitor_messages.py 
+monitor_messages.py
+
+# Google Sheets credentials
+credentials.json 

@@ -127,16 +127,12 @@ class StatisticsService:
         
         return all_stats
     
-    async def get_dashboard_overview(self, user_id: int, is_admin: bool) -> Dict[str, Any]:
+    async def get_dashboard_overview(self, user_id: int, is_admin: bool, period: str = "today") -> Dict[str, Any]:
         """Получить данные для дашборда"""
-        
-        today = datetime.utcnow().date()
-        start_of_day = datetime.combine(today, datetime.min.time())
-        end_of_day = datetime.combine(today, datetime.max.time())
         
         if is_admin:
             # Админ видит общую статистику
-            all_stats = await self.get_all_employees_stats("today")
+            all_stats = await self.get_all_employees_stats(period)
             
             # Считаем общие показатели
             total_messages = sum(s.total_messages for s in all_stats)
@@ -150,7 +146,7 @@ class StatisticsService:
             # Количество активных сотрудников
             active_employees = len([s for s in all_stats if s.is_active])
             
-            # Срочные сообщения (без ответа более 30 минут)
+            # Срочные сообщения (без ответа более 30 минут) - всегда актуальные
             urgent_messages = await self._get_urgent_messages_count()
             
             return {
@@ -164,7 +160,7 @@ class StatisticsService:
             }
         else:
             # Сотрудник видит только свою статистику
-            user_stats = await self.get_employee_stats(user_id, "today")
+            user_stats = await self.get_employee_stats(user_id, period)
             
             # Количество неотвеченных сообщений
             unanswered = await self._get_unanswered_messages_count(user_id)

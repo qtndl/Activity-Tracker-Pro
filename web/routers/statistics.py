@@ -2,13 +2,15 @@ from typing import List, Dict, Optional
 from datetime import datetime, date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, desc
+from sqlalchemy import select, func, and_, desc, delete
 from pydantic import BaseModel
+from fastapi.responses import JSONResponse
 
 from database.database import get_db
-from database.models import Employee, Message
+from database.models import Employee, Message, SystemSettings
 from web.auth import get_current_user, get_current_admin
 from web.services.statistics_service import StatisticsService, EmployeeStats
+from web.services.google_sheets import GoogleSheetsService
 
 router = APIRouter()
 
@@ -400,4 +402,160 @@ def _group_messages_by_period(messages: List[Message], period_type: str, employe
             efficiency_percent=efficiency
         ))
     
-    return sorted(result, key=lambda x: x.date, reverse=True) 
+    return sorted(result, key=lambda x: x.date, reverse=True)
+
+
+@router.post("/export-to-sheets")
+async def export_statistics_to_sheets(
+    period: str = "today",
+    employee_id: Optional[int] = None,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Экспорт статистики в Google Sheets"""
+    print(f"🔍 [EXPORT DEBUG] Начало экспорта:")
+    print(f"   - period: {period}")
+    print(f"   - employee_id: {employee_id}")
+    print(f"   - current_user: {current_user}")
+    
+    try:
+        # Проверяем права доступа
+        if not current_user.get("is_admin") and employee_id and employee_id != current_user.get("employee_id"):
+            print(f"❌ [EXPORT DEBUG] Недостаточно прав")
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+        
+        print(f"✅ [EXPORT DEBUG] Права проверены")
+        
+        # Инициализируем сервисы
+        print(f"🔧 [EXPORT DEBUG] Инициализация сервисов...")
+        stats_service = StatisticsService(db)
+        
+        try:
+            sheets_service = GoogleSheetsService()
+            print(f"✅ [EXPORT DEBUG] Google Sheets сервис инициализирован")
+        except Exception as e:
+            print(f"❌ [EXPORT DEBUG] Ошибка инициализации Google Sheets: {e}")
+            raise e
+        
+        if employee_id:
+            print(f"📊 [EXPORT DEBUG] Экспорт для сотрудника {employee_id}")
+            # Экспорт для конкретного сотрудника
+            employee_stats = await stats_service.get_employee_stats(employee_id, period)
+            
+            # Получаем последние сообщения для детального отчета
+            messages_result = await db.execute(
+                select(Message).where(
+                    and_(
+                        Message.employee_id == employee_id,
+                        Message.message_type == "client"
+                    )
+                ).order_by(Message.received_at.desc()).limit(50)
+            )
+            messages = messages_result.scalars().all()
+            
+            print(f"📄 [EXPORT DEBUG] Найдено {len(messages)} сообщений")
+            
+            url = await sheets_service.export_detailed_employee_report(employee_stats, messages)
+            
+            return {
+                "success": True,
+                "message": f"Детальный отчет по сотруднику {employee_stats.employee_name} экспортирован",
+                "url": url,
+                "sheet_name": f"Отчет_{employee_stats.employee_name}_{period}"
+            }
+        else:
+            print(f"👥 [EXPORT DEBUG] Экспорт всех сотрудников")
+            # Экспорт статистики всех сотрудников
+            all_stats = await stats_service.get_all_employees_stats(period)
+            
+            print(f"📊 [EXPORT DEBUG] Найдено {len(all_stats)} сотрудников")
+            print(f"📋 [EXPORT DEBUG] Статистика первого сотрудника: {all_stats[0].__dict__ if all_stats else 'Нет данных'}")
+            
+            url = await sheets_service.export_employees_statistics(all_stats, period)
+            
+            print(f"✅ [EXPORT DEBUG] Экспорт завершен, URL: {url}")
+            
+            return {
+                "success": True,
+                "message": f"Статистика всех сотрудников за {period} экспортирована",
+                "url": url,
+                "sheet_name": f"Статистика_сотрудников_{period}",
+                "total_employees": len(all_stats)
+            }
+            
+    except HTTPException as e:
+        print(f"❌ [EXPORT DEBUG] HTTP исключение: {e.detail}")
+        raise e
+    except Exception as e:
+        print(f"❌ [EXPORT DEBUG] Общая ошибка: {e}")
+        print(f"❌ [EXPORT DEBUG] Тип ошибки: {type(e)}")
+        import traceback
+        print(f"❌ [EXPORT DEBUG] Traceback: {traceback.format_exc()}")
+        
+        if "Google Sheets" in str(e):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": str(e),
+                    "help": "Проверьте настройки Google Sheets API и доступ к таблице"
+                }
+            )
+        else:
+            raise HTTPException(status_code=500, detail=f"Ошибка экспорта: {str(e)}")
+
+
+@router.post("/auto-export")
+async def setup_auto_export(
+    enabled: bool,
+    schedule: str = "daily",  # daily, weekly, monthly
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Настройка автоматического экспорта"""
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Только для администраторов")
+    
+    try:
+        # Сохраняем настройки в базу данных
+        from database.models import SystemSettings
+        
+        # Удаляем старые настройки автоэкспорта
+        await db.execute(
+            delete(SystemSettings).where(SystemSettings.key.like("auto_export_%"))
+        )
+        
+        if enabled:
+            # Добавляем новые настройки
+            settings_list = [
+                SystemSettings(
+                    key="auto_export_enabled",
+                    value="true",
+                    description="Автоматический экспорт включен"
+                ),
+                SystemSettings(
+                    key="auto_export_schedule",
+                    value=schedule,
+                    description="Расписание автоэкспорта"
+                ),
+                SystemSettings(
+                    key="auto_export_last_run",
+                    value="",
+                    description="Время последнего автоэкспорта"
+                )
+            ]
+            
+            for setting in settings_list:
+                db.add(setting)
+        
+        await db.commit()
+        
+        return {
+            "success": True,
+            "message": f"Автоэкспорт {'включен' if enabled else 'отключен'}",
+            "schedule": schedule if enabled else None
+        }
+        
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка настройки автоэкспорта: {str(e)}") 

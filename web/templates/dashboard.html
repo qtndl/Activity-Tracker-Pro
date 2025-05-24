@@ -441,13 +441,13 @@
                 </div>
                 <div class="col-lg-4 text-end">
                     <div class="period-selector">
-                        <button class="period-btn active" onclick="loadDashboard('today')">
+                        <button class="period-btn active" onclick="changePeriod('today')">
                             <i class="fas fa-calendar-day me-2"></i>Сегодня
                         </button>
-                        <button class="period-btn" onclick="loadDashboard('week')">
+                        <button class="period-btn" onclick="changePeriod('week')">
                             <i class="fas fa-calendar-week me-2"></i>Неделя
                         </button>
-                        <button class="period-btn" onclick="loadDashboard('month')">
+                        <button class="period-btn" onclick="changePeriod('month')">
                             <i class="fas fa-calendar-alt me-2"></i>Месяц
                         </button>
                     </div>
@@ -669,6 +669,11 @@
         document.getElementById('current-time').textContent = `Обновлено в ${timeString}`;
     }
 
+    // Change period
+    function changePeriod(period) {
+        loadDashboard(period);
+    }
+
     // Set progress ring
     function setProgressRing(elementId, percentage) {
         const circle = document.getElementById(elementId);
@@ -682,75 +687,174 @@
 
     // Load dashboard data
     async function loadDashboard(period = 'today') {
+        console.log('🔄 Loading dashboard data for period:', period);
         currentPeriod = period;
         
         // Update active button
         document.querySelectorAll('.period-btn').forEach(btn => {
             btn.classList.remove('active');
         });
-        event?.target?.classList.add('active');
+        
+        // Find and activate correct button
+        const buttons = document.querySelectorAll('.period-btn');
+        buttons.forEach(btn => {
+            if ((period === 'today' && btn.textContent.includes('Сегодня')) ||
+                (period === 'week' && btn.textContent.includes('Неделя')) ||
+                (period === 'month' && btn.textContent.includes('Месяц'))) {
+                btn.classList.add('active');
+            }
+        });
         
         try {
-            showToast('Обновление данных...', 'info', 2000);
+            // Show loading state
+            console.log('🔄 Showing loading state');
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('dashboardContent').style.display = 'none';
             
-            const response = await axios.get('/api/dashboard/overview');
+            console.log('📡 Making API request to /api/dashboard/overview with period:', period);
+            const response = await axios.get(`/api/dashboard/overview?period=${period}`);
+            console.log('✅ API response received:', response.data);
             const data = response.data;
             
-            // Hide loading
+            // Детальное логирование получаемых данных
+            console.log('📊 Received data breakdown:');
+            console.log('  - active_employees:', data.active_employees);
+            console.log('  - total_messages_today:', data.total_messages_today);
+            console.log('  - responded_today:', data.responded_today);
+            console.log('  - urgent_messages:', data.urgent_messages);
+            console.log('  - avg_response_time:', data.avg_response_time);
+            console.log('  - efficiency_today:', data.efficiency_today);
+            console.log('  - missed_today:', data.missed_today);
+            
+            // Hide loading and show content
+            console.log('✅ Hiding loading, showing content');
             document.getElementById('loadingSpinner').style.display = 'none';
             document.getElementById('dashboardContent').style.display = 'block';
             
-            // Update stats with animations
+            // Update stats with animations - с проверкой элементов
+            console.log('🎬 Starting number animations');
+            
+            // Проверяем наличие элементов и их текущие значения
+            const elements = [
+                'activeEmployees', 'totalMessagesToday', 'respondedToday', 
+                'urgentMessages', 'avgResponseTime', 'efficiencyToday', 'missedToday'
+            ];
+            
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    console.log(`  Element ${id}: found, current value = ${element.textContent}`);
+                } else {
+                    console.error(`  Element ${id}: NOT FOUND!`);
+                }
+            });
+            
+            // Анимируем числа с логированием
+            console.log('🔢 Animating numbers:');
+            console.log('  - activeEmployees:', data.active_employees || 0);
             animateNumber('activeEmployees', data.active_employees || 0);
+            
+            console.log('  - totalMessagesToday:', data.total_messages_today || 0);
             animateNumber('totalMessagesToday', data.total_messages_today || 0);
+            
+            console.log('  - respondedToday:', data.responded_today || 0);
             animateNumber('respondedToday', data.responded_today || 0);
+            
+            console.log('  - urgentMessages:', data.urgent_messages || 0);
             animateNumber('urgentMessages', data.urgent_messages || 0);
+            
+            console.log('  - avgResponseTime:', data.avg_response_time || 0);
             animateNumber('avgResponseTime', data.avg_response_time || 0);
+            
+            console.log('  - efficiencyToday:', data.efficiency_today || 0);
             animateNumber('efficiencyToday', data.efficiency_today || 0);
+            
+            console.log('  - missedToday:', data.missed_today || 0);
             animateNumber('missedToday', data.missed_today || 0);
             
             // Update progress rings
             setTimeout(() => {
+                console.log('⭕ Updating progress rings');
                 const maxTime = 60; // Max expected response time
                 const timePercentage = Math.min((data.avg_response_time || 0) / maxTime * 100, 100);
+                console.log('  - timeProgress percentage:', timePercentage);
                 setProgressRing('timeProgress', timePercentage);
+                
+                console.log('  - efficiencyProgress percentage:', data.efficiency_today || 0);
                 setProgressRing('efficiencyProgress', data.efficiency_today || 0);
                 
                 const totalMessages = data.total_messages_today || 1;
                 const missedPercentage = (data.missed_today || 0) / totalMessages * 100;
+                console.log('  - missedProgress percentage:', missedPercentage);
                 setProgressRing('missedProgress', missedPercentage);
             }, 1000);
             
             // Update urgent status
             const urgentStatus = document.getElementById('urgentStatus');
-            if (data.urgent_messages > 0) {
-                urgentStatus.className = 'stat-change text-danger';
-                urgentStatus.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>Требует действий!</span>';
+            if (urgentStatus) {
+                if (data.urgent_messages > 0) {
+                    urgentStatus.className = 'stat-change text-danger';
+                    urgentStatus.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>Требует действий!</span>';
+                    console.log('🚨 Urgent status: action required');
+                } else {
+                    urgentStatus.className = 'stat-change text-success';
+                    urgentStatus.innerHTML = '<i class="fas fa-check-circle"></i><span>Всё под контролем</span>';
+                    console.log('✅ Urgent status: all good');
+                }
             } else {
-                urgentStatus.className = 'stat-change text-success';
-                urgentStatus.innerHTML = '<i class="fas fa-check-circle"></i><span>Всё под контролем</span>';
+                console.error('❌ Element urgentStatus NOT FOUND!');
             }
             
             // Show export section for admins
             if (userInfo.is_admin) {
                 document.getElementById('exportSection').style.display = 'block';
+                console.log('👤 Admin user - showing export section');
             }
             
             // Load charts
+            console.log('📊 Loading charts');
             await loadCharts();
             
-            showToast('Данные успешно обновлены!', 'success');
+            console.log('✅ Dashboard loaded successfully');
             
         } catch (error) {
-            console.error('Error loading dashboard:', error);
-            showToast('Ошибка при загрузке данных', 'danger');
+            console.error('❌ Error loading dashboard:', error);
+            console.error('Error details:', error.response?.data || error.message);
+            
+            document.getElementById('loadingSpinner').style.display = 'none';
+            document.getElementById('dashboardContent').style.display = 'block';
+            
+            // Show fallback data
+            console.log('⚠️ Showing fallback data');
+            animateNumber('activeEmployees', 0);
+            animateNumber('totalMessagesToday', 0);
+            animateNumber('respondedToday', 0);
+            animateNumber('urgentMessages', 0);
+            animateNumber('avgResponseTime', 0);
+            animateNumber('efficiencyToday', 0);
+            animateNumber('missedToday', 0);
+            
         }
     }
 
     // Animate numbers
     function animateNumber(elementId, targetValue) {
         const element = document.getElementById(elementId);
+        if (!element) {
+            console.error(`❌ animateNumber: Element ${elementId} not found!`);
+            return;
+        }
+        
         const startValue = parseInt(element.textContent) || 0;
+        console.log(`🎯 animateNumber ${elementId}: ${startValue} → ${targetValue}`);
+        
+        // Если значения одинаковые, просто обновляем без анимации
+        if (startValue === targetValue) {
+            console.log(`⚡ animateNumber ${elementId}: values are the same, no animation needed`);
+            element.textContent = targetValue;
+            return;
+        }
+        
         const duration = 1000;
         const startTime = performance.now();
         
@@ -766,6 +870,8 @@
             
             if (progress < 1) {
                 requestAnimationFrame(updateNumber);
+            } else {
+                console.log(`✅ animateNumber ${elementId}: animation completed, final value = ${currentValue}`);
             }
         }
         
@@ -956,11 +1062,7 @@
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Экспорт...';
         
         try {
-            showToast('Подготовка данных для экспорта...', 'info');
-            
             const response = await axios.post(`/api/dashboard/export/google-sheets?period=${currentPeriod}`);
-            
-            showToast('Данные успешно экспортированы в Google Sheets!', 'success');
             
             if (response.data.sheet_url) {
                 setTimeout(() => {
@@ -970,7 +1072,6 @@
             
         } catch (error) {
             console.error('Error exporting:', error);
-            showToast(error.response?.data?.detail || 'Ошибка при экспорте данных', 'danger');
         } finally {
             btn.disabled = false;
             btn.innerHTML = originalText;
@@ -980,10 +1081,12 @@
     // Refresh dashboard
     function refreshDashboard() {
         const fab = document.querySelector('.fab');
+        const originalTransform = fab.style.transform;
+        
         fab.style.transform = 'scale(1.2) rotate(360deg)';
         
         setTimeout(() => {
-            fab.style.transform = '';
+            fab.style.transform = originalTransform;
             loadDashboard(currentPeriod);
         }, 300);
     }
@@ -997,10 +1100,20 @@
 
     // Initialize dashboard
     document.addEventListener('DOMContentLoaded', () => {
+        // Start time updates
         updateCurrentTime();
         setInterval(updateCurrentTime, 1000);
         
-        loadDashboard();
+        // Initial load - ensure dashboard content is hidden during loading
+        document.getElementById('loadingSpinner').style.display = 'block';
+        document.getElementById('dashboardContent').style.display = 'none';
+        
+        // Load dashboard data automatically
+        setTimeout(() => {
+            loadDashboard('today');
+        }, 100); // Small delay to ensure DOM is ready
+        
+        // Auto refresh every 5 minutes
         startAutoRefresh();
         
         // Add intersection observer for animations
@@ -1018,13 +1131,15 @@
             });
         }, observerOptions);
         
-        // Observe all cards
-        document.querySelectorAll('.stat-card, .metric-card, .chart-card').forEach(card => {
-            card.style.opacity = '0';
-            card.style.transform = 'translateY(30px)';
-            card.style.transition = 'all 0.6s ease';
-            observer.observe(card);
-        });
+        // Observe all cards (wait for them to be shown)
+        setTimeout(() => {
+            document.querySelectorAll('.stat-card, .metric-card, .chart-card').forEach(card => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(30px)';
+                card.style.transition = 'all 0.6s ease';
+                observer.observe(card);
+            });
+        }, 1000);
     });
 
     // Cleanup on page unload

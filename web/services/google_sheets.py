@@ -11,14 +11,25 @@ from config.config import settings
 
 class GoogleSheetsService:
     def __init__(self):
+        print(f"🔍 [SHEETS DEBUG] Инициализация GoogleSheetsService")
+        print(f"🔍 [SHEETS DEBUG] settings.google_sheets_enabled = {settings.google_sheets_enabled}")
+        print(f"🔍 [SHEETS DEBUG] Тип: {type(settings.google_sheets_enabled)}")
+        print(f"🔍 [SHEETS DEBUG] settings.google_sheets_credentials_file = {settings.google_sheets_credentials_file}")
+        print(f"🔍 [SHEETS DEBUG] settings.spreadsheet_id = {settings.spreadsheet_id}")
+        
         if not settings.google_sheets_enabled:
+            print(f"❌ [SHEETS DEBUG] Google Sheets интеграция отключена! Значение: {settings.google_sheets_enabled}")
             raise Exception("Google Sheets интеграция отключена")
         
         if not settings.google_sheets_credentials_file or not os.path.exists(settings.google_sheets_credentials_file):
+            print(f"❌ [SHEETS DEBUG] Файл credentials не найден: {settings.google_sheets_credentials_file}")
             raise Exception("Файл с учетными данными Google не найден")
         
         if not settings.spreadsheet_id:
+            print(f"❌ [SHEETS DEBUG] ID таблицы не указан: {settings.spreadsheet_id}")
             raise Exception("ID таблицы Google Sheets не указан")
+        
+        print(f"✅ [SHEETS DEBUG] Все проверки пройдены, инициализируем API...")
         
         # Инициализация сервиса
         self.creds = service_account.Credentials.from_service_account_file(
@@ -28,6 +39,8 @@ class GoogleSheetsService:
         
         self.service = build('sheets', 'v4', credentials=self.creds)
         self.spreadsheet_id = settings.spreadsheet_id
+        
+        print(f"✅ [SHEETS DEBUG] GoogleSheetsService успешно инициализирован")
     
     async def export_statistics(self, data: List[List[Any]], sheet_name: str) -> str:
         """Экспорт статистики в Google Sheets"""
@@ -43,6 +56,136 @@ class GoogleSheetsService:
             return result
         except Exception as e:
             raise Exception(f"Ошибка при экспорте в Google Sheets: {str(e)}")
+    
+    async def export_employees_statistics(self, employees_stats: List, period: str = "today") -> str:
+        """Экспорт статистики сотрудников"""
+        try:
+            # Формируем данные для экспорта
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            sheet_name = f"Статистика_сотрудников_{period}"
+            
+            # Заголовки
+            headers = [
+                "ID сотрудника",
+                "ФИО",
+                "Telegram ID", 
+                "Username",
+                "Статус",
+                "Админ",
+                "Всего сообщений",
+                "Отвечено",
+                "Пропущено",
+                "Среднее время ответа (мин)",
+                "Превышений 15 мин",
+                "Превышений 30 мин", 
+                "Превышений 60 мин",
+                "Процент ответов (%)",
+                "Эффективность (%)",
+                "Период"
+            ]
+            
+            # Данные
+            data = [
+                [f"Статистика сотрудников - {period.upper()}", "", "", "", "", "", "", "", "", "", "", "", "", "", "", f"Обновлено: {current_time}"],
+                [],
+                headers
+            ]
+            
+            for emp in employees_stats:
+                row = [
+                    emp.employee_id,
+                    emp.employee_name,
+                    emp.telegram_id,
+                    emp.telegram_username or "-",
+                    "Активен" if emp.is_active else "Неактивен",
+                    "Да" if emp.is_admin else "Нет",
+                    emp.total_messages,
+                    emp.responded_messages,
+                    emp.missed_messages,
+                    round(emp.avg_response_time or 0, 1),
+                    emp.exceeded_15_min,
+                    emp.exceeded_30_min,
+                    emp.exceeded_60_min,
+                    round(emp.response_rate, 1),
+                    round(emp.efficiency_percent, 1),
+                    f"{emp.period_start.strftime('%Y-%m-%d')} - {emp.period_end.strftime('%Y-%m-%d')}"
+                ]
+                data.append(row)
+                
+            # Добавляем итоговую строку
+            if employees_stats:
+                data.append([])
+                data.append([
+                    "ИТОГО:", "",
+                    "", "", "", "",
+                    sum(emp.total_messages for emp in employees_stats),
+                    sum(emp.responded_messages for emp in employees_stats),
+                    sum(emp.missed_messages for emp in employees_stats),
+                    round(sum(emp.avg_response_time or 0 for emp in employees_stats) / len(employees_stats), 1),
+                    sum(emp.exceeded_15_min for emp in employees_stats),
+                    sum(emp.exceeded_30_min for emp in employees_stats),
+                    sum(emp.exceeded_60_min for emp in employees_stats),
+                    round(sum(emp.response_rate for emp in employees_stats) / len(employees_stats), 1),
+                    round(sum(emp.efficiency_percent for emp in employees_stats) / len(employees_stats), 1),
+                    ""
+                ])
+            
+            return await self.export_statistics(data, sheet_name)
+            
+        except Exception as e:
+            raise Exception(f"Ошибка при экспорте статистики сотрудников: {str(e)}")
+
+    async def export_detailed_employee_report(self, employee_stats, messages: List = None) -> str:
+        """Экспорт детального отчета по сотруднику"""
+        try:
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            sheet_name = f"Отчет_{employee_stats.employee_name}_{employee_stats.period_name}"
+            
+            # Общая информация
+            data = [
+                [f"Детальный отчет по сотруднику: {employee_stats.employee_name}", "", "", "", "", f"Обновлено: {current_time}"],
+                [],
+                ["Информация о сотруднике", ""],
+                ["ФИО", employee_stats.employee_name],
+                ["Telegram ID", employee_stats.telegram_id],
+                ["Username", employee_stats.telegram_username or "-"],
+                ["Статус", "Активен" if employee_stats.is_active else "Неактивен"],
+                ["Роль", "Администратор" if employee_stats.is_admin else "Сотрудник"],
+                [],
+                ["Статистика за период", ""],
+                ["Период", f"{employee_stats.period_start.strftime('%Y-%m-%d')} - {employee_stats.period_end.strftime('%Y-%m-%d')}"],
+                ["Всего сообщений", employee_stats.total_messages],
+                ["Отвечено", employee_stats.responded_messages],
+                ["Пропущено", employee_stats.missed_messages],
+                ["Среднее время ответа (мин)", round(employee_stats.avg_response_time or 0, 1)],
+                ["Превышений 15 минут", employee_stats.exceeded_15_min],
+                ["Превышений 30 минут", employee_stats.exceeded_30_min],
+                ["Превышений 60 минут", employee_stats.exceeded_60_min],
+                ["Процент ответов", f"{round(employee_stats.response_rate, 1)}%"],
+                ["Эффективность", f"{round(employee_stats.efficiency_percent, 1)}%"],
+                []
+            ]
+            
+            # Если есть сообщения, добавляем их список
+            if messages:
+                data.extend([
+                    ["Последние сообщения", "", "", "", ""],
+                    ["Дата/время", "Тип", "Время ответа (мин)", "Отвечено", "Текст сообщения"]
+                ])
+                
+                for msg in messages[:20]:  # Показываем последние 20 сообщений
+                    data.append([
+                        msg.received_at.strftime("%Y-%m-%d %H:%M:%S") if msg.received_at else "-",
+                        msg.message_type or "-",
+                        round(msg.response_time_minutes or 0, 1) if msg.response_time_minutes else "-",
+                        "Да" if msg.responded_at else "Нет",
+                        (msg.message_text or "")[:100] + "..." if msg.message_text and len(msg.message_text) > 100 else msg.message_text or "-"
+                    ])
+            
+            return await self.export_statistics(data, sheet_name)
+            
+        except Exception as e:
+            raise Exception(f"Ошибка при экспорте детального отчета: {str(e)}")
     
     def _export_sync(self, data: List[List[Any]], sheet_name: str) -> str:
         """Синхронный метод экспорта"""
@@ -64,7 +207,7 @@ class GoogleSheetsService:
                                 'title': sheet_name,
                                 'gridProperties': {
                                     'rowCount': len(data) + 10,
-                                    'columnCount': len(data[0]) if data else 10
+                                    'columnCount': len(data[0]) if data else 20
                                 }
                             }
                         }
@@ -136,12 +279,34 @@ class GoogleSheetsService:
                     'fields': 'userEnteredFormat(backgroundColor,textFormat)'
                 }
             }, {
+                # Форматируем строку с заголовками таблицы (3-я строка)
+                'repeatCell': {
+                    'range': {
+                        'sheetId': sheet_id,
+                        'startRowIndex': 2,
+                        'endRowIndex': 3
+                    },
+                    'cell': {
+                        'userEnteredFormat': {
+                            'backgroundColor': {
+                                'red': 0.9,
+                                'green': 0.9,
+                                'blue': 0.9
+                            },
+                            'textFormat': {
+                                'bold': True
+                            }
+                        }
+                    },
+                    'fields': 'userEnteredFormat(backgroundColor,textFormat)'
+                }
+            }, {
                 'autoResizeDimensions': {
                     'dimensions': {
                         'sheetId': sheet_id,
                         'dimension': 'COLUMNS',
                         'startIndex': 0,
-                        'endIndex': 10
+                        'endIndex': 20
                     }
                 }
             }]

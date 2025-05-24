@@ -236,7 +236,7 @@ async def dashboard_page(request: Request, current_user: dict = Depends(get_curr
         # Админ видит админскую панель
         return templates.TemplateResponse("dashboard.html", {
             "request": request,
-            "user": current_user
+            "userInfo": current_user
         })
     else:
         # Сотрудник видит личный кабинет с его статистикой
@@ -270,7 +270,7 @@ async def dashboard_page(request: Request, current_user: dict = Depends(get_curr
         
         return templates.TemplateResponse("employee_dashboard.html", {
             "request": request,
-            "user": current_user,
+            "userInfo": current_user,
             "stats": stats_obj,
             "recent_messages": recent_messages
         })
@@ -320,27 +320,39 @@ async def login_page(request: Request):
 
 
 @app.get("/employees", response_class=HTMLResponse)
-async def employees_page(request: Request):
+async def employees_page(request: Request, current_user: dict = Depends(get_current_user)):
     """Страница управления сотрудниками"""
-    return templates.TemplateResponse("employees.html", {"request": request})
+    return templates.TemplateResponse("employees.html", {
+        "request": request,
+        "userInfo": current_user
+    })
 
 
 @app.get("/statistics", response_class=HTMLResponse)
-async def statistics_page(request: Request):
+async def statistics_page(request: Request, current_user: dict = Depends(get_current_user)):
     """Страница статистики"""
-    return templates.TemplateResponse("statistics.html", {"request": request})
+    return templates.TemplateResponse("statistics.html", {
+        "request": request,
+        "userInfo": current_user
+    })
 
 
 @app.get("/profile", response_class=HTMLResponse)
-async def profile_page(request: Request):
+async def profile_page(request: Request, current_user: dict = Depends(get_current_user)):
     """Личный кабинет сотрудника"""
-    return templates.TemplateResponse("profile.html", {"request": request})
+    return templates.TemplateResponse("profile.html", {
+        "request": request,
+        "userInfo": current_user
+    })
 
 
 @app.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request):
+async def settings_page(request: Request, current_user: dict = Depends(get_current_user)):
     """Страница настроек системы (только для админов)"""
-    return templates.TemplateResponse("settings.html", {"request": request})
+    return templates.TemplateResponse("settings.html", {
+        "request": request,
+        "userInfo": current_user
+    })
 
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -357,7 +369,7 @@ async def admin_page(request: Request, current_user: dict = Depends(get_current_
     
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
-        "user": current_user
+        "userInfo": current_user
     })
 
 

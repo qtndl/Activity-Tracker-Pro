@@ -457,7 +457,6 @@
         
         // Logout function
         function logout() {
-            showToast('Выход из системы...', 'info');
             setTimeout(() => {
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('user_info');
@@ -465,7 +464,8 @@
             }, 1000);
         }
         
-        // Modern Toast Notifications
+        // Modern Toast Notifications - DISABLED
+        /*
         function showToast(message, type = 'success', duration = 5000) {
             const toastContainer = document.querySelector('.toast-container');
             const toastId = 'toast-' + Date.now();
@@ -504,13 +504,13 @@
                 setTimeout(() => toast.remove(), 300);
             }
         }
+        */
         
         // Handle API errors
         axios.interceptors.response.use(
             response => response,
             error => {
                 if (error.response && error.response.status === 401) {
-                    showToast('Сессия истекла. Требуется повторный вход.', 'warning');
                     setTimeout(() => {
                         localStorage.removeItem('access_token');
                         localStorage.removeItem('user_info');

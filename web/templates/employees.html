@@ -1,110 +1,409 @@
 {% extends "base.html" %}
 
-{% block title %}Управление сотрудниками - Трекер активности{% endblock %}
+{% block title %}Управление командой - Activity Tracker Pro{% endblock %}
 
 {% block extra_css %}
 <style>
-    .employee-card {
-        background: white;
-        border-radius: 15px;
-        padding: 25px;
-        margin-bottom: 20px;
+    /* Hero Section */
+    .team-hero {
+        background: var(--info);
+        border-radius: 30px;
+        color: white;
+        margin-bottom: 3rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .team-hero::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: 
+            radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.2) 0%, transparent 50%),
+            radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
+            radial-gradient(circle at 40% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+        animation: teamGlow 6s ease-in-out infinite alternate;
+    }
+
+    @keyframes teamGlow {
+        0% { opacity: 0.5; transform: scale(1); }
+        100% { opacity: 1; transform: scale(1.05); }
+    }
+
+    .hero-content {
+        position: relative;
+        z-index: 2;
+        padding: 3rem;
+    }
+
+    .hero-title {
+        font-size: 3rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        background: linear-gradient(45deg, #fff, rgba(255, 255, 255, 0.8));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .hero-subtitle {
+        font-size: 1.25rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+    }
+
+    /* Search Section */
+    .search-section {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        padding: 2rem;
+        margin-bottom: 3rem;
         transition: all 0.3s ease;
-        cursor: pointer;
+    }
+
+    [data-bs-theme="dark"] .search-section {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .search-section:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+    }
+
+    .form-control, .form-select {
+        background: rgba(255, 255, 255, 0.9);
         border: 2px solid transparent;
+        border-radius: 15px;
+        padding: 12px 16px;
+        font-weight: 500;
+        transition: all 0.3s ease;
     }
-    
-    .employee-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+
+    [data-bs-theme="dark"] .form-control,
+    [data-bs-theme="dark"] .form-select {
+        background: rgba(26, 26, 46, 0.9);
+        color: var(--dark-text);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .form-control:focus, .form-select:focus {
         border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        background: white;
+        transform: translateY(-2px);
     }
-    
+
+    /* Modern Employee Cards */
+    .employee-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        cursor: pointer;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    [data-bs-theme="dark"] .employee-card {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .employee-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: var(--primary);
+        border-radius: 25px 25px 0 0;
+        transition: all 0.3s ease;
+    }
+
+    .employee-card:hover {
+        transform: translateY(-10px) scale(1.03);
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+    }
+
+    .employee-card:hover::before {
+        height: 100%;
+        opacity: 0.1;
+    }
+
     .employee-card.selected {
         border-color: #667eea;
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        transform: translateY(-10px) scale(1.03);
+        box-shadow: 0 25px 50px rgba(102, 126, 234, 0.4);
     }
-    
+
     .employee-avatar {
         width: 80px;
         height: 80px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 20px;
+        background: var(--primary);
         display: flex;
         align-items: center;
         justify-content: center;
         color: white;
-        font-size: 2rem;
-        font-weight: bold;
-        margin: 0 auto 15px;
+        font-size: 1.8rem;
+        font-weight: 800;
+        margin: 0 auto 1.5rem;
+        position: relative;
+        overflow: hidden;
     }
-    
+
+    .employee-avatar::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        transform: rotate(45deg);
+        transition: all 0.6s ease;
+        opacity: 0;
+    }
+
+    .employee-card:hover .employee-avatar::before {
+        opacity: 1;
+        animation: shimmer 0.6s ease;
+    }
+
+    @keyframes shimmer {
+        0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+        100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+    }
+
     .employee-status {
         position: absolute;
-        top: 15px;
-        right: 15px;
-        width: 15px;
-        height: 15px;
+        top: 1rem;
+        right: 1rem;
+        width: 20px;
+        height: 20px;
         border-radius: 50%;
         border: 3px solid white;
+        z-index: 3;
     }
-    
+
     .status-active { background: #28a745; }
     .status-inactive { background: #ffc107; }
-    .status-admin { background: #667eea; }
-    
+
     .employee-role {
         position: absolute;
-        top: 15px;
-        left: 15px;
-        font-size: 1.5rem;
+        top: 1rem;
+        left: 1rem;
+        font-size: 1.2rem;
         color: #667eea;
+        z-index: 3;
     }
-    
+
+    .employee-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .employee-info {
+        flex: 1;
+        margin-bottom: 1.5rem;
+    }
+
+    .employee-name {
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+    }
+
+    .employee-details {
+        color: #6c757d;
+        margin-bottom: 1rem;
+    }
+
+    .employee-badges {
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .modern-badge {
+        padding: 6px 12px;
+        border-radius: 15px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .badge-active {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+    }
+
+    .badge-inactive {
+        background: linear-gradient(135deg, #ffc107, #fd7e14);
+        color: white;
+    }
+
+    .badge-admin {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+    }
+
+    .badge-employee {
+        background: linear-gradient(135deg, #6c757d, #495057);
+        color: white;
+    }
+
+    .employee-date {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    /* Add Employee Card */
+    .add-employee-card {
+        background: var(--success);
+        color: white;
+        border-radius: 25px;
+        padding: 2rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.4s ease;
+        border: 2px dashed rgba(255, 255, 255, 0.3);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .add-employee-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+        animation: addPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes addPulse {
+        0%, 100% { transform: scale(1) rotate(0deg); }
+        50% { transform: scale(1.1) rotate(180deg); }
+    }
+
+    .add-employee-card:hover {
+        transform: translateY(-10px) scale(1.03);
+        border-color: white;
+        box-shadow: 0 25px 50px rgba(72, 187, 120, 0.4);
+    }
+
+    .add-content {
+        position: relative;
+        z-index: 2;
+    }
+
+    .add-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.9;
+    }
+
+    .add-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .add-subtitle {
+        opacity: 0.8;
+        font-size: 0.9rem;
+    }
+
+    /* Stats Sidebar */
     .stats-sidebar {
         position: fixed;
         top: 0;
         right: -500px;
         width: 500px;
         height: 100vh;
-        background: white;
-        box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border-left: 1px solid var(--glass-border);
         z-index: 1050;
-        transition: all 0.3s ease;
+        transition: all 0.4s ease;
         overflow-y: auto;
     }
-    
+
+    [data-bs-theme="dark"] .stats-sidebar {
+        background: var(--dark-glass-bg);
+        border-left: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
     .stats-sidebar.open {
         right: 0;
     }
-    
+
     .stats-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: var(--primary);
         color: white;
-        padding: 30px;
+        padding: 2rem;
         position: sticky;
         top: 0;
         z-index: 10;
     }
-    
+
     .stats-content {
-        padding: 30px;
+        padding: 2rem;
     }
-    
+
     .mini-stat-card {
-        background: #f8f9fa;
-        border-radius: 10px;
-        padding: 20px;
+        background: var(--glass-bg);
+        backdrop-filter: blur(10px);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        padding: 1.5rem;
         text-align: center;
-        margin-bottom: 15px;
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
     }
-    
+
+    [data-bs-theme="dark"] .mini-stat-card {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .mini-stat-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    }
+
     .mini-stat-number {
-        font-size: 2rem;
-        font-weight: bold;
-        margin: 10px 0;
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin: 0.5rem 0;
+        font-family: 'JetBrains Mono', monospace;
     }
-    
+
     .sidebar-overlay {
         position: fixed;
         top: 0;
@@ -117,84 +416,148 @@
         visibility: hidden;
         transition: all 0.3s ease;
     }
-    
+
     .sidebar-overlay.show {
         opacity: 1;
         visibility: visible;
     }
-    
-    .add-employee-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
+
+    /* Period Buttons */
+    .period-buttons {
+        background: rgba(255, 255, 255, 0.1);
         border-radius: 15px;
-        padding: 40px;
-        text-align: center;
-        cursor: pointer;
+        padding: 0.25rem;
+        margin-bottom: 2rem;
+    }
+
+    .period-btn {
+        background: transparent;
+        border: none;
+        color: inherit;
+        padding: 8px 16px;
+        border-radius: 12px;
+        font-weight: 600;
         transition: all 0.3s ease;
-        border: 2px dashed rgba(255, 255, 255, 0.3);
+        width: 33.333%;
     }
-    
-    .add-employee-card:hover {
-        transform: translateY(-5px);
-        border-color: white;
+
+    .period-btn.active,
+    .period-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-2px);
     }
-    
-    .search-card {
-        background: white;
-        border-radius: 15px;
-        padding: 20px;
-        margin-bottom: 30px;
+
+    /* Modern Modals */
+    .modal-content {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+    }
+
+    [data-bs-theme="dark"] .modal-content {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .modal-header {
+        background: var(--primary);
+        border-radius: 25px 25px 0 0;
+        border-bottom: none;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .hero-title {
+            font-size: 2rem;
+        }
+        
+        .stats-sidebar {
+            width: 100%;
+            right: -100%;
+        }
+        
+        .search-section {
+            padding: 1.5rem;
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <!-- Приветствие -->
-    <div class="card welcome-card">
-        <div class="card-body text-center">
-            <h2><i class="fas fa-users me-2"></i>Управление сотрудниками</h2>
-            <p class="lead mb-0">Просматривайте информацию о сотрудниках и их статистику</p>
-            <p class="mt-2">
-                <i class="fas fa-info-circle me-1"></i>
-                Нажмите на карточку сотрудника чтобы посмотреть его детальную статистику
-            </p>
+    <!-- Team Hero -->
+    <div class="team-hero animate-fade-in">
+        <div class="hero-content">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <h1 class="hero-title">
+                        <i class="fas fa-users me-3"></i>Центр управления командой
+                    </h1>
+                    <p class="hero-subtitle">
+                        Управление сотрудниками, анализ производительности и контроль доступа
+                    </p>
+                </div>
+                <div class="col-lg-4 text-end">
+                    <div class="status-indicator status-online">
+                        <div class="spinner-grow spinner-grow-sm" role="status"></div>
+                        Система активна
+                    </div>
+                    <p class="mt-3 mb-0 small">
+                        <i class="fas fa-clock me-2"></i>
+                        <span id="current-time">Обновлено в реальном времени</span>
+                    </p>
+                </div>
+            </div>
         </div>
     </div>
     
-    <!-- Поиск и фильтры -->
-    <div class="card search-card">
-        <div class="row align-items-center">
-            <div class="col-md-6">
-                <div class="input-group">
-                    <span class="input-group-text">
-                        <i class="fas fa-search"></i>
-                    </span>
-                    <input type="text" class="form-control" id="searchInput" placeholder="Поиск по имени или username...">
-                </div>
+    <!-- Search and Filters -->
+    <div class="search-section animate-slide-up" style="animation-delay: 0.2s">
+        <div class="row align-items-end">
+            <div class="col-lg-4">
+                <label class="form-label fw-bold">
+                    <i class="fas fa-search me-2"></i>Поиск сотрудника
+                </label>
+                <input type="text" class="form-control" id="searchInput" placeholder="Поиск по имени или username...">
             </div>
-            <div class="col-md-4">
-                <select class="form-control" id="filterSelect">
+            <div class="col-lg-3">
+                <label class="form-label fw-bold">
+                    <i class="fas fa-filter me-2"></i>Фильтр
+                </label>
+                <select class="form-select" id="filterSelect">
                     <option value="all">Все сотрудники</option>
                     <option value="active">Только активные</option>
                     <option value="inactive">Только неактивные</option>
                     <option value="admin">Только администраторы</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <button class="btn btn-primary w-100" onclick="clearFilters()">
-                    <i class="fas fa-undo me-1"></i>Сбросить
+            <div class="col-lg-2">
+                <button class="btn btn-gradient-primary w-100" onclick="clearFilters()">
+                    <i class="fas fa-undo me-2"></i>Сбросить
                 </button>
+            </div>
+            <div class="col-lg-3 text-end">
+                <div class="d-flex align-items-center justify-content-end gap-3">
+                    <span class="badge bg-info">
+                        <i class="fas fa-users me-1"></i>
+                        <span id="employeeCount">0</span> сотрудников
+                    </span>
+                </div>
             </div>
         </div>
     </div>
     
-    <!-- Сотрудники -->
+    <!-- Employees Grid -->
     <div class="row" id="employeesContainer">
-        <div class="col-12 text-center">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Загрузка...</span>
+        <div class="col-12 text-center py-5">
+            <div class="loading-dots">
+                <div></div>
+                <div></div>
+                <div></div>
+                <div></div>
             </div>
+            <p class="mt-3 text-muted">Загрузка команды...</p>
         </div>
     </div>
 </div>
@@ -206,7 +569,7 @@
         <div class="d-flex justify-content-between align-items-center">
             <div>
                 <h4 class="mb-1" id="statsEmployeeName">Статистика сотрудника</h4>
-                <p class="mb-0" id="statsEmployeeInfo">Загрузка...</p>
+                <p class="mb-0 opacity-75" id="statsEmployeeInfo">Загрузка...</p>
             </div>
             <button class="btn btn-outline-light" onclick="closeSidebar()">
                 <i class="fas fa-times"></i>
@@ -216,62 +579,71 @@
     
     <div class="stats-content">
         <div id="statsLoading" class="text-center py-4">
-            <div class="spinner-border text-primary" role="status"></div>
-            <p class="mt-2">Загрузка статистики...</p>
+            <div class="loading-dots">
+                <div></div>
+                <div></div>
+                <div></div>
+                <div></div>
+            </div>
+            <p class="mt-3 text-muted">Загрузка статистики...</p>
         </div>
         
         <div id="statsData" style="display: none;">
             <!-- Период выбора -->
-            <div class="mb-4">
-                <div class="btn-group w-100" role="group">
-                    <button type="button" class="btn btn-outline-primary active" onclick="loadEmployeeStats('today')">Сегодня</button>
-                    <button type="button" class="btn btn-outline-primary" onclick="loadEmployeeStats('week')">Неделя</button>
-                    <button type="button" class="btn btn-outline-primary" onclick="loadEmployeeStats('month')">Месяц</button>
-                </div>
+            <div class="period-buttons">
+                <button type="button" class="period-btn active" onclick="loadEmployeeStats('today')">
+                    <i class="fas fa-calendar-day me-1"></i>Сегодня
+                </button>
+                <button type="button" class="period-btn" onclick="loadEmployeeStats('week')">
+                    <i class="fas fa-calendar-week me-1"></i>Неделя
+                </button>
+                <button type="button" class="period-btn" onclick="loadEmployeeStats('month')">
+                    <i class="fas fa-calendar-alt me-1"></i>Месяц
+                </button>
             </div>
             
             <!-- Основная статистика -->
             <div class="row">
-                <div class="col-6">
+                <div class="col-6 mb-3">
                     <div class="mini-stat-card">
-                        <i class="fas fa-envelope fa-2x info mb-2"></i>
-                        <div class="mini-stat-number info" id="statsTotalMessages">0</div>
+                        <i class="fas fa-envelope fa-2x text-info mb-2"></i>
+                        <div class="mini-stat-number text-info" id="statsTotalMessages">0</div>
                         <div class="text-muted">Всего сообщений</div>
                     </div>
                 </div>
-                <div class="col-6">
+                <div class="col-6 mb-3">
                     <div class="mini-stat-card">
-                        <i class="fas fa-check-circle fa-2x success mb-2"></i>
-                        <div class="mini-stat-number success" id="statsResponded">0</div>
+                        <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                        <div class="mini-stat-number text-success" id="statsResponded">0</div>
                         <div class="text-muted">Отвечено</div>
                     </div>
                 </div>
-                <div class="col-6">
+                <div class="col-6 mb-3">
                     <div class="mini-stat-card">
-                        <i class="fas fa-times-circle fa-2x danger mb-2"></i>
-                        <div class="mini-stat-number danger" id="statsMissed">0</div>
+                        <i class="fas fa-times-circle fa-2x text-danger mb-2"></i>
+                        <div class="mini-stat-number text-danger" id="statsMissed">0</div>
                         <div class="text-muted">Пропущено</div>
                     </div>
                 </div>
-                <div class="col-6">
+                <div class="col-6 mb-3">
                     <div class="mini-stat-card">
-                        <i class="fas fa-clock fa-2x primary mb-2"></i>
-                        <div class="mini-stat-number primary" id="statsAvgTime">0</div>
-                        <div class="text-muted">Среднее время (мин)</div>
+                        <i class="fas fa-clock fa-2x text-primary mb-2"></i>
+                        <div class="mini-stat-number text-primary"><span id="statsAvgTime">0</span><small class="fs-6">м</small></div>
+                        <div class="text-muted">Среднее время</div>
                     </div>
                 </div>
             </div>
             
             <!-- Эффективность -->
-            <div class="card mt-4">
-                <div class="card-body">
-                    <h6 class="card-title">Эффективность работы</h6>
-                    <div class="progress mb-2" style="height: 15px;">
-                        <div class="progress-bar" id="statsEfficiency" style="width: 0%"></div>
-                    </div>
-                    <div class="text-center">
-                        <span class="badge performance-badge" id="statsEfficiencyBadge">0%</span>
-                    </div>
+            <div class="mini-stat-card">
+                <h6 class="mb-3">
+                    <i class="fas fa-chart-line me-2"></i>Эффективность работы
+                </h6>
+                <div class="progress mb-3" style="height: 20px;">
+                    <div class="progress-bar" id="statsEfficiency" style="width: 0%"></div>
+                </div>
+                <div class="text-center">
+                    <span class="badge fs-6" id="statsEfficiencyBadge">0%</span>
                 </div>
             </div>
             
@@ -291,39 +663,56 @@
     </div>
 </div>
 
-<!-- Модальные окна (сокращенные версии) -->
+<!-- Модальные окна -->
 <div class="modal fade" id="addEmployeeModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-gradient text-white">
-                <h5 class="modal-title">Добавить сотрудника</h5>
+            <div class="modal-header text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-user-plus me-2"></i>Добавить сотрудника
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="addEmployeeForm">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="telegramId" class="form-label">Telegram ID</label>
+                        <label for="telegramId" class="form-label fw-bold">
+                            <i class="fas fa-hashtag me-2"></i>Telegram ID
+                        </label>
                         <input type="number" class="form-control" id="telegramId" required>
+                        <small class="form-text text-muted">Уникальный ID пользователя в Telegram</small>
                     </div>
                     <div class="mb-3">
-                        <label for="telegramUsername" class="form-label">Telegram Username</label>
+                        <label for="telegramUsername" class="form-label fw-bold">
+                            <i class="fas fa-at me-2"></i>Telegram Username
+                        </label>
                         <div class="input-group">
                             <span class="input-group-text">@</span>
-                            <input type="text" class="form-control" id="telegramUsername">
+                            <input type="text" class="form-control" id="telegramUsername" placeholder="username">
                         </div>
+                        <small class="form-text text-muted">Необязательно: имя пользователя в Telegram</small>
                     </div>
                     <div class="mb-3">
-                        <label for="fullName" class="form-label">Полное имя</label>
-                        <input type="text" class="form-control" id="fullName" required>
+                        <label for="fullName" class="form-label fw-bold">
+                            <i class="fas fa-user me-2"></i>Полное имя
+                        </label>
+                        <input type="text" class="form-control" id="fullName" required placeholder="Иван Иванов">
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="isAdmin">
-                        <label class="form-check-label" for="isAdmin">Права администратора</label>
+                        <label class="form-check-label fw-bold" for="isAdmin">
+                            <i class="fas fa-crown me-2"></i>Права администратора
+                        </label>
+                        <small class="form-text text-muted d-block">Администраторы имеют полный доступ к системе</small>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Добавить</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Отмена
+                    </button>
+                    <button type="submit" class="btn btn-gradient-primary">
+                        <i class="fas fa-plus me-2"></i>Добавить
+                    </button>
                 </div>
             </form>
         </div>
@@ -333,29 +722,43 @@
 <div class="modal fade" id="editEmployeeModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header bg-gradient text-white">
-                <h5 class="modal-title">Редактировать сотрудника</h5>
+            <div class="modal-header text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-user-edit me-2"></i>Редактировать сотрудника
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form id="editEmployeeForm">
                 <input type="hidden" id="editEmployeeId">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label for="editFullName" class="form-label">Полное имя</label>
+                        <label for="editFullName" class="form-label fw-bold">
+                            <i class="fas fa-user me-2"></i>Полное имя
+                        </label>
                         <input type="text" class="form-control" id="editFullName" required>
                     </div>
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="editIsActive">
-                        <label class="form-check-label" for="editIsActive">Активен</label>
+                        <label class="form-check-label fw-bold" for="editIsActive">
+                            <i class="fas fa-toggle-on me-2"></i>Активен
+                        </label>
+                        <small class="form-text text-muted d-block">Активные сотрудники могут работать с системой</small>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="editIsAdmin">
-                        <label class="form-check-label" for="editIsAdmin">Права администратора</label>
+                        <label class="form-check-label fw-bold" for="editIsAdmin">
+                            <i class="fas fa-crown me-2"></i>Права администратора
+                        </label>
+                        <small class="form-text text-muted d-block">Администраторы имеют полный доступ к системе</small>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Отмена
+                    </button>
+                    <button type="submit" class="btn btn-gradient-primary">
+                        <i class="fas fa-save me-2"></i>Сохранить
+                    </button>
                 </div>
             </form>
         </div>
@@ -375,9 +778,20 @@
     let currentEmployeeId = null;
     let currentPeriod = 'today';
     
+    // Update current time
+    function updateCurrentTime() {
+        const now = new Date();
+        const timeString = now.toLocaleString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        document.getElementById('current-time').textContent = `Обновлено в ${timeString}`;
+    }
+    
     // Инициализация аватаров
     function getInitials(fullName) {
-        return fullName.split(' ').map(n => n[0]).join('').toUpperCase();
+        return fullName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
     }
     
     // Загрузка сотрудников
@@ -387,10 +801,16 @@
             employees = response.data;
             filteredEmployees = [...employees];
             renderEmployees();
+            updateEmployeeCount();
         } catch (error) {
             console.error('Error loading employees:', error);
             showAlert('Ошибка при загрузке списка сотрудников', 'danger');
         }
+    }
+    
+    // Update employee count
+    function updateEmployeeCount() {
+        document.getElementById('employeeCount').textContent = filteredEmployees.length;
     }
     
     // Отображение сотрудников
@@ -399,53 +819,69 @@
         
         if (filteredEmployees.length === 0) {
             container.innerHTML = `
-                <div class="col-12 text-center">
-                    <p class="text-muted">Нет сотрудников для отображения</p>
+                <div class="col-12 text-center py-5">
+                    <div class="no-data-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h3>Нет сотрудников</h3>
+                    <p class="text-muted">Попробуйте изменить фильтры или добавьте нового сотрудника</p>
+                    <button class="btn btn-gradient-primary" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+                        <i class="fas fa-plus me-2"></i>Добавить первого сотрудника
+                    </button>
                 </div>
             `;
             return;
         }
         
-        const employeeCards = filteredEmployees.map(emp => {
+        const employeeCards = filteredEmployees.map((emp, index) => {
             const statusClass = emp.is_active ? 'status-active' : 'status-inactive';
-            const roleIcon = emp.is_admin ? 'fa-crown' : 'fa-user';
             
             return `
                 <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
-                    <div class="card employee-card" onclick="openEmployeeStats(${emp.id})" data-employee-id="${emp.id}">
+                    <div class="employee-card animate-slide-up" 
+                         style="animation-delay: ${index * 0.1}s" 
+                         onclick="openEmployeeStats(${emp.id})" 
+                         data-employee-id="${emp.id}">
                         <div class="position-relative">
                             ${emp.is_admin ? `<i class="fas fa-crown employee-role" title="Администратор"></i>` : ''}
                             <div class="employee-status ${statusClass}" title="${emp.is_active ? 'Активен' : 'Неактивен'}"></div>
                             
-                            <div class="employee-avatar">
-                                ${getInitials(emp.full_name)}
-                            </div>
-                            
-                            <div class="text-center">
-                                <h5 class="card-title mb-2">${emp.full_name}</h5>
-                                <p class="text-muted mb-1">
-                                    <i class="fas fa-hashtag me-1"></i>${emp.telegram_id}
-                                </p>
-                                ${emp.telegram_username ? `
-                                    <p class="text-muted mb-2">
-                                        <i class="fas fa-at me-1"></i>${emp.telegram_username}
-                                    </p>
-                                ` : ''}
-                                
-                                <div class="d-flex justify-content-center gap-2 mt-3">
-                                    <span class="badge ${emp.is_active ? 'bg-success' : 'bg-warning text-dark'}">
-                                        ${emp.is_active ? 'Активен' : 'Неактивен'}
-                                    </span>
-                                    <span class="badge ${emp.is_admin ? 'bg-primary' : 'bg-secondary'}">
-                                        ${emp.is_admin ? 'Админ' : 'Сотрудник'}
-                                    </span>
+                            <div class="employee-content">
+                                <div class="employee-avatar">
+                                    ${getInitials(emp.full_name)}
                                 </div>
                                 
-                                <div class="mt-3">
-                                    <small class="text-muted">
-                                        <i class="fas fa-calendar me-1"></i>
-                                        ${new Date(emp.created_at).toLocaleDateString('ru-RU')}
-                                    </small>
+                                <div class="employee-info">
+                                    <div class="employee-name">${emp.full_name}</div>
+                                    
+                                    <div class="employee-details">
+                                        <div class="mb-2">
+                                            <i class="fas fa-hashtag me-1"></i>
+                                            ${emp.telegram_id}
+                                        </div>
+                                        ${emp.telegram_username ? `
+                                            <div class="mb-2">
+                                                <i class="fas fa-at me-1"></i>
+                                                ${emp.telegram_username}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                    
+                                    <div class="employee-badges">
+                                        <span class="modern-badge ${emp.is_active ? 'badge-active' : 'badge-inactive'}">
+                                            <i class="fas ${emp.is_active ? 'fa-check' : 'fa-pause'}"></i>
+                                            ${emp.is_active ? 'Активен' : 'Неактивен'}
+                                        </span>
+                                        <span class="modern-badge ${emp.is_admin ? 'badge-admin' : 'badge-employee'}">
+                                            <i class="fas ${emp.is_admin ? 'fa-crown' : 'fa-user'}"></i>
+                                            ${emp.is_admin ? 'Админ' : 'Сотрудник'}
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div class="employee-date">
+                                    <i class="fas fa-calendar me-1"></i>
+                                    С ${new Date(emp.created_at).toLocaleDateString('ru-RU')}
                                 </div>
                             </div>
                         </div>
@@ -457,11 +893,16 @@
         // Добавляем карточку "Добавить сотрудника"
         const addCard = `
             <div class="col-xl-3 col-lg-4 col-md-6 mb-4">
-                <div class="add-employee-card h-100 d-flex align-items-center justify-content-center" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
-                    <div>
-                        <i class="fas fa-plus fa-3x mb-3"></i>
-                        <h5>Добавить сотрудника</h5>
-                        <p class="mb-0">Нажмите чтобы добавить нового сотрудника</p>
+                <div class="add-employee-card animate-slide-up" 
+                     style="animation-delay: ${filteredEmployees.length * 0.1}s"
+                     data-bs-toggle="modal" 
+                     data-bs-target="#addEmployeeModal">
+                    <div class="add-content">
+                        <div class="add-icon">
+                            <i class="fas fa-plus"></i>
+                        </div>
+                        <div class="add-title">Добавить сотрудника</div>
+                        <div class="add-subtitle">Расширьте свою команду</div>
                     </div>
                 </div>
             </div>
@@ -509,9 +950,16 @@
         currentPeriod = period;
         
         // Обновляем активную кнопку периода
-        document.querySelectorAll('.stats-content .btn-group button').forEach(btn => {
+        document.querySelectorAll('.period-btn').forEach(btn => {
             btn.classList.remove('active');
-            if (btn.textContent.toLowerCase().includes(period === 'today' ? 'сегодня' : period === 'week' ? 'неделя' : 'месяц')) {
+        });
+        
+        // Находим и активируем правильную кнопку
+        const buttons = document.querySelectorAll('.period-btn');
+        buttons.forEach(btn => {
+            if ((period === 'today' && btn.textContent.includes('Сегодня')) ||
+                (period === 'week' && btn.textContent.includes('Неделя')) ||
+                (period === 'month' && btn.textContent.includes('Месяц'))) {
                 btn.classList.add('active');
             }
         });
@@ -542,11 +990,14 @@
             
             // Цвет эффективности
             progressBar.className = 'progress-bar';
-            badge.className = 'badge performance-badge';
+            badge.className = 'badge fs-6';
             
-            if (efficiency >= 80) {
+            if (efficiency >= 90) {
                 progressBar.classList.add('bg-success');
                 badge.classList.add('bg-success');
+            } else if (efficiency >= 75) {
+                progressBar.classList.add('bg-info');
+                badge.classList.add('bg-info');
             } else if (efficiency >= 60) {
                 progressBar.classList.add('bg-warning');
                 badge.classList.add('bg-warning', 'text-dark');
@@ -595,6 +1046,7 @@
         });
         
         renderEmployees();
+        updateEmployeeCount();
     }
     
     // Очистка фильтров
@@ -729,24 +1181,36 @@
     
     // Показать уведомление
     function showAlert(message, type) {
-        const alert = document.createElement('div');
-        alert.className = `alert alert-${type} alert-dismissible fade show notification`;
-        alert.innerHTML = `
+        // Create alert element
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.style.position = 'fixed';
+        alertDiv.style.top = '20px';
+        alertDiv.style.right = '20px';
+        alertDiv.style.zIndex = '9999';
+        alertDiv.style.minWidth = '300px';
+        alertDiv.innerHTML = `
             <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
-        document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.container-fluid').firstChild);
         
+        document.body.appendChild(alertDiv);
+        
+        // Auto remove after 5 seconds
         setTimeout(() => {
-            if (alert.parentNode) {
-                alert.remove();
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
             }
         }, 5000);
     }
     
     // Инициализация
     document.addEventListener('DOMContentLoaded', () => {
+        // Update time
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        
         loadEmployees();
         
         // Поиск в реальном времени

@@ -32,6 +32,12 @@
         100% { opacity: 1; transform: scale(1.02); }
     }
 
+    .hero-content {
+        position: relative;
+        z-index: 2;
+        padding: 3rem;
+    }
+
     /* Modern Period Selector */
     .period-control {
         background: var(--glass-bg);
@@ -437,22 +443,42 @@
                     <option value="monthly">Месячная аналитика</option>
                 </select>
             </div>
-            <div class="col-lg-3">
+            <div class="col-lg-2">
                 <label class="form-label fw-bold">
                     <i class="fas fa-play me-2"></i>Начальная дата
                 </label>
                 <input type="date" class="form-control" id="startDate">
             </div>
-            <div class="col-lg-3">
+            <div class="col-lg-2">
                 <label class="form-label fw-bold">
                     <i class="fas fa-stop me-2"></i>Конечная дата
                 </label>
                 <input type="date" class="form-control" id="endDate">
             </div>
-            <div class="col-lg-3">
+            <div class="col-lg-2">
                 <button class="btn btn-gradient-primary w-100" onclick="loadStatistics()">
                     <i class="fas fa-analytics me-2"></i>Проанализировать
                 </button>
+            </div>
+            <div class="col-lg-3">
+                <label class="form-label fw-bold">
+                    <i class="fas fa-table me-2"></i>Экспорт в Google Sheets
+                </label>
+                <div class="btn-group w-100" role="group">
+                    <button class="btn btn-success" onclick="exportToSheets('all')" title="Экспорт статистики всех сотрудников">
+                        <i class="fas fa-users me-1"></i>Все
+                    </button>
+                    {% if not userInfo.is_admin %}
+                    <button class="btn btn-info" onclick="exportToSheets('my')" title="Экспорт моей статистики">
+                        <i class="fas fa-user me-1"></i>Моя
+                    </button>
+                    {% endif %}
+                    {% if userInfo.is_admin %}
+                    <button class="btn btn-warning" onclick="setupAutoExport()" title="Настроить автоматический экспорт">
+                        <i class="fas fa-cog me-1"></i>Авто
+                    </button>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -620,6 +646,20 @@
 
 {% block extra_js %}
 <script>
+    // Получаем данные пользователя из серверного шаблона
+    const serverUserData = {
+        employee_id: {{ userInfo.employee_id or 0 }},
+        telegram_id: {{ userInfo.telegram_id or 0 }},
+        full_name: '{{ userInfo.full_name or "Guest" }}',
+        is_admin: {% if userInfo.is_admin %}true{% else %}false{% endif %},
+        is_active: {% if userInfo.is_active %}true{% else %}false{% endif %}
+    };
+    
+    // Обновляем userInfo из base.html актуальными серверными данными
+    Object.assign(userInfo, serverUserData);
+    
+    console.log('User info updated:', userInfo);
+
     let statisticsData = [];
     let efficiencyChart = null;
     let responsePieChart = null;
@@ -678,10 +718,8 @@
         document.getElementById('noDataState').style.display = 'none';
         
         try {
-            showToast('Анализируем данные...', 'info', 2000);
-            
-            // Load summary data
-            await loadSummaryData();
+            // Load summary data with selected period and dates
+            await loadSummaryData(periodType, startDate, endDate);
             
             // Load detailed statistics
             let url = `/api/statistics/${userInfo.is_admin ? 'all' : 'my'}?period_type=${periodType}`;
@@ -702,21 +740,52 @@
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('statisticsContent').style.display = 'block';
             
-            showToast('Анализ завершен!', 'success');
-            
         } catch (error) {
             console.error('Error loading statistics:', error);
-            showToast('Ошибка при загрузке данных: ' + (error.response?.data?.detail || error.message), 'danger');
             document.getElementById('loadingState').style.display = 'none';
             showNoDataState();
         }
     }
 
-    // Load summary data
-    async function loadSummaryData() {
+    // Load summary data with selected parameters
+    async function loadSummaryData(periodType = 'daily', startDate = null, endDate = null) {
         try {
-            const summaryResponse = await axios.get('/api/statistics/summary?period=month');
+            // Build summary URL with parameters
+            let summaryUrl = '/api/statistics/summary';
+            const params = new URLSearchParams();
+            
+            // Determine period based on date range if provided
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                const diffTime = Math.abs(end - start);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays <= 1) {
+                    params.append('period', 'today');
+                } else if (diffDays <= 7) {
+                    params.append('period', 'week');
+                } else {
+                    params.append('period', 'month');
+                }
+                
+                params.append('start_date', startDate);
+                params.append('end_date', endDate);
+            } else {
+                // Default period
+                params.append('period', 'month');
+            }
+            
+            if (params.toString()) {
+                summaryUrl += '?' + params.toString();
+            }
+            
+            console.log('Loading summary with URL:', summaryUrl);
+            
+            const summaryResponse = await axios.get(summaryUrl);
             const summary = summaryResponse.data;
+            
+            console.log('Summary data received:', summary);
             
             // Animate counters
             setTimeout(() => animateCounter('totalMessages', summary.total_messages || 0), 100);
@@ -729,6 +798,14 @@
             
         } catch (error) {
             console.error('Error loading summary:', error);
+            // Set fallback values
+            animateCounter('totalMessages', 0);
+            animateCounter('respondedMessages', 0);
+            animateCounter('missedMessages', 0);
+            animateCounter('efficiency', 0);
+            animateCounter('exceeded15', 0);
+            animateCounter('exceeded30', 0);
+            animateCounter('exceeded60', 0);
         }
     }
 
@@ -944,12 +1021,289 @@
         loadStatistics();
     }
 
+    // Export to Google Sheets
+    async function exportToSheets(type) {
+        const periodType = document.getElementById('periodSelect').value;
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        
+        // Показываем индикатор загрузки
+        const btn = event.target.closest('button');
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Экспорт...';
+        btn.disabled = true;
+        
+        try {
+            // Определяем период для API
+            let period = 'today';
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                const diffTime = Math.abs(end - start);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays <= 1) period = 'today';
+                else if (diffDays <= 7) period = 'week';
+                else period = 'month';
+            } else if (periodType === 'weekly') {
+                period = 'week';
+            } else if (periodType === 'monthly') {
+                period = 'month';
+            }
+            
+            // Параметры запроса
+            const params = new URLSearchParams({ period });
+            if (startDate) params.append('start_date', startDate);
+            if (endDate) params.append('end_date', endDate);
+            
+            // Определяем employee_id для персонального экспорта
+            if (type === 'my' && !userInfo.is_admin) {
+                params.append('employee_id', userInfo.employee_id);
+            } else if (type === 'all' && userInfo.is_admin) {
+                // Для всех сотрудников employee_id не указываем
+            }
+            
+            console.log('Export request params:', params.toString());
+            console.log('Export type:', type);
+            console.log('User info:', userInfo);
+            
+            // Выполняем запрос
+            const response = await axios.post(`/api/statistics/export-to-sheets?${params.toString()}`);
+            
+            if (response.data.success) {
+                // Показываем уведомление об успехе
+                showNotification('success', 'Экспорт завершен!', 
+                    `${response.data.message}<br>
+                     <a href="${response.data.url}" target="_blank" class="btn btn-sm btn-light mt-2">
+                         <i class="fas fa-external-link-alt me-1"></i>Открыть таблицу
+                     </a>`
+                );
+            } else {
+                throw new Error(response.data.error || 'Ошибка экспорта');
+            }
+            
+        } catch (error) {
+            console.error('Export error:', error);
+            console.error('Error response:', error.response);
+            
+            let errorMessage = 'Ошибка при экспорте данных';
+            let helpMessage = '';
+            
+            if (error.response) {
+                // Сервер ответил с ошибкой
+                console.error('Server error data:', error.response.data);
+                console.error('Status:', error.response.status);
+                
+                if (error.response.data) {
+                    if (typeof error.response.data === 'string') {
+                        errorMessage = error.response.data;
+                    } else if (error.response.data.error) {
+                        errorMessage = error.response.data.error;
+                        if (error.response.data.help) {
+                            helpMessage = error.response.data.help;
+                        }
+                        if (error.response.data.details) {
+                            console.error('Error details:', error.response.data.details);
+                            helpMessage += helpMessage ? '\n\n' : '';
+                            helpMessage += 'Детали: ' + JSON.stringify(error.response.data.details, null, 2);
+                        }
+                    } else {
+                        errorMessage = JSON.stringify(error.response.data, null, 2);
+                    }
+                }
+                
+                // Специальные сообщения для разных статусов
+                if (error.response.status === 400) {
+                    if (errorMessage.includes('Google Sheets интеграция отключена')) {
+                        helpMessage = 'Необходимо настроить Google Sheets интеграцию:\n' +
+                                    '1. Создать credentials.json\n' +
+                                    '2. Дать доступ service account к таблице\n' +
+                                    '3. Проверить настройки в .env файле';
+                    }
+                } else if (error.response.status === 401) {
+                    errorMessage = 'Ошибка авторизации. Необходимо войти в систему заново.';
+                } else if (error.response.status === 403) {
+                    errorMessage = 'Недостаточно прав для выполнения операции.';
+                } else if (error.response.status === 500) {
+                    errorMessage = 'Внутренняя ошибка сервера. Проверьте логи.';
+                }
+            } else if (error.request) {
+                // Запрос был отправлен, но ответа не получено
+                errorMessage = 'Сервер не отвечает. Проверьте подключение.';
+            }
+            
+            // Формируем полное сообщение об ошибке
+            let fullMessage = errorMessage;
+            if (helpMessage) {
+                fullMessage += '<br><br><small><strong>Помощь:</strong><br>' + 
+                              helpMessage.replace(/\n/g, '<br>') + '</small>';
+            }
+            
+            showNotification('error', 'Ошибка экспорта', fullMessage);
+        } finally {
+            // Восстанавливаем кнопку
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+        }
+    }
+
+    // Setup auto export modal
+    function setupAutoExport() {
+        if (!userInfo.is_admin) {
+            showNotification('warning', 'Доступ запрещен', 'Только администраторы могут настраивать автоэкспорт');
+            return;
+        }
+        
+        // Создаем модальное окно
+        const modalHtml = `
+            <div class="modal fade" id="autoExportModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="fas fa-cog me-2"></i>Настройка автоэкспорта
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Автоматический экспорт</label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="autoExportEnabled">
+                                    <label class="form-check-label" for="autoExportEnabled">
+                                        Включить автоматический экспорт
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="exportSchedule" class="form-label">Расписание</label>
+                                <select class="form-select" id="exportSchedule">
+                                    <option value="daily">Ежедневно (в 23:59)</option>
+                                    <option value="weekly">Еженедельно (воскресенье)</option>
+                                    <option value="monthly">Ежемесячно (последний день)</option>
+                                </select>
+                            </div>
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Информация:</strong> Автоэкспорт будет создавать отдельный лист в вашей Google таблице с актуальной статистикой.
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                            <button type="button" class="btn btn-primary" onclick="saveAutoExportSettings()">
+                                <i class="fas fa-save me-2"></i>Сохранить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Удаляем старый модал если есть
+        const existingModal = document.getElementById('autoExportModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Добавляем новый модал
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Показываем модал
+        const modal = new bootstrap.Modal(document.getElementById('autoExportModal'));
+        modal.show();
+    }
+
+    // Save auto export settings
+    async function saveAutoExportSettings() {
+        const enabled = document.getElementById('autoExportEnabled').checked;
+        const schedule = document.getElementById('exportSchedule').value;
+        
+        try {
+            const response = await axios.post('/api/statistics/auto-export', {
+                enabled: enabled,
+                schedule: schedule
+            });
+            
+            if (response.data.success) {
+                showNotification('success', 'Настройки сохранены', response.data.message);
+                
+                // Закрываем модал
+                const modal = bootstrap.Modal.getInstance(document.getElementById('autoExportModal'));
+                modal.hide();
+            } else {
+                throw new Error(response.data.error || 'Ошибка сохранения');
+            }
+            
+        } catch (error) {
+            console.error('Auto export settings error:', error);
+            showNotification('error', 'Ошибка', 'Не удалось сохранить настройки автоэкспорта');
+        }
+    }
+
+    // Show notification
+    function showNotification(type, title, message) {
+        // Удаляем старые уведомления
+        const existingToasts = document.querySelectorAll('.toast');
+        existingToasts.forEach(toast => toast.remove());
+        
+        // Создаем контейнер для уведомлений если его нет
+        if (!document.getElementById('toast-container')) {
+            document.body.insertAdjacentHTML('beforeend', `
+                <div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 11"></div>
+            `);
+        }
+        
+        // Определяем цвет и иконку
+        let bgClass = 'bg-primary';
+        let icon = 'fas fa-info-circle';
+        
+        if (type === 'success') {
+            bgClass = 'bg-success';
+            icon = 'fas fa-check-circle';
+        } else if (type === 'error') {
+            bgClass = 'bg-danger';
+            icon = 'fas fa-exclamation-circle';
+        } else if (type === 'warning') {
+            bgClass = 'bg-warning';
+            icon = 'fas fa-exclamation-triangle';
+        }
+        
+        // HTML уведомления
+        const toastHtml = `
+            <div class="toast ${bgClass} text-white border-0" role="alert">
+                <div class="toast-header ${bgClass} text-white border-0">
+                    <i class="${icon} me-2"></i>
+                    <strong class="me-auto">${title}</strong>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                </div>
+                <div class="toast-body">
+                    ${message}
+                </div>
+            </div>
+        `;
+        
+        // Добавляем уведомление
+        document.getElementById('toast-container').insertAdjacentHTML('beforeend', toastHtml);
+        
+        // Показываем уведомление
+        const toastElement = document.querySelector('.toast:last-child');
+        const toast = new bootstrap.Toast(toastElement, { 
+            autohide: type !== 'error', // Ошибки не скрываются автоматически
+            delay: 5000 
+        });
+        toast.show();
+    }
+
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
         updateCurrentTime();
         setInterval(updateCurrentTime, 1000);
         setDefaultDates();
-        loadStatistics();
+        
+        // Load initial statistics with default values
+        setTimeout(() => {
+            loadStatistics();
+        }, 100);
     });
 </script>
 {% endblock %} 

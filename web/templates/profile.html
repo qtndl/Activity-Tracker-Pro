@@ -220,7 +220,7 @@
         color: white;
         padding: 1.5rem 2rem;
         display: flex;
-        justify-content: between;
+        justify-content: space-between;
         align-items: center;
     }
 
@@ -600,7 +600,6 @@
     // Load profile data
     async function loadProfile() {
         try {
-            showToast('Загрузка профиля...', 'info', 2000);
             
             // Get employee info
             const response = await axios.get('/api/employees/me');
@@ -631,11 +630,8 @@
             // Load performance chart
             await loadPerformanceChart();
             
-            showToast('Профиль успешно загружен!', 'success');
-            
         } catch (error) {
             console.error('Error loading profile:', error);
-            showToast('Ошибка при загрузке профиля', 'danger');
         }
     }
     
