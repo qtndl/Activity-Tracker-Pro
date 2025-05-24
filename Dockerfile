@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Удаляем файлы с секретами (на всякий случай)
-RUN rm -f .env credentials.json
+RUN rm -rf .env credentials.json .credentials.json
 
 # Создаем директории для данных
 RUN mkdir -p /app/data /app/logs
