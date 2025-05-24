@@ -11,25 +11,14 @@ from config.config import settings
 
 class GoogleSheetsService:
     def __init__(self):
-        print(f"🔍 [SHEETS DEBUG] Инициализация GoogleSheetsService")
-        print(f"🔍 [SHEETS DEBUG] settings.google_sheets_enabled = {settings.google_sheets_enabled}")
-        print(f"🔍 [SHEETS DEBUG] Тип: {type(settings.google_sheets_enabled)}")
-        print(f"🔍 [SHEETS DEBUG] settings.google_sheets_credentials_file = {settings.google_sheets_credentials_file}")
-        print(f"🔍 [SHEETS DEBUG] settings.spreadsheet_id = {settings.spreadsheet_id}")
-        
         if not settings.google_sheets_enabled:
-            print(f"❌ [SHEETS DEBUG] Google Sheets интеграция отключена! Значение: {settings.google_sheets_enabled}")
             raise Exception("Google Sheets интеграция отключена")
         
         if not settings.google_sheets_credentials_file or not os.path.exists(settings.google_sheets_credentials_file):
-            print(f"❌ [SHEETS DEBUG] Файл credentials не найден: {settings.google_sheets_credentials_file}")
             raise Exception("Файл с учетными данными Google не найден")
         
         if not settings.spreadsheet_id:
-            print(f"❌ [SHEETS DEBUG] ID таблицы не указан: {settings.spreadsheet_id}")
             raise Exception("ID таблицы Google Sheets не указан")
-        
-        print(f"✅ [SHEETS DEBUG] Все проверки пройдены, инициализируем API...")
         
         # Инициализация сервиса
         self.creds = service_account.Credentials.from_service_account_file(
@@ -39,8 +28,6 @@ class GoogleSheetsService:
         
         self.service = build('sheets', 'v4', credentials=self.creds)
         self.spreadsheet_id = settings.spreadsheet_id
-        
-        print(f"✅ [SHEETS DEBUG] GoogleSheetsService успешно инициализирован")
     
     async def export_statistics(self, data: List[List[Any]], sheet_name: str) -> str:
         """Экспорт статистики в Google Sheets"""

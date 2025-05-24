@@ -47,6 +47,7 @@
         padding: 2rem;
         margin-bottom: 2rem;
         transition: all 0.3s ease;
+        overflow: visible;
     }
 
     [data-bs-theme="dark"] .period-control {
@@ -55,8 +56,8 @@
     }
 
     .period-control:hover {
-        transform: translateY(-3px);
         box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+        transform: none !important;
     }
 
     .form-control, .form-select {
@@ -79,7 +80,20 @@
         border-color: #667eea;
         box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
         background: white;
-        transform: translateY(-2px);
+        outline: none;
+    }
+
+    .form-control:disabled {
+        background: rgba(248, 249, 250, 0.6);
+        color: #6c757d;
+        border-color: rgba(0, 0, 0, 0.1);
+        cursor: not-allowed;
+    }
+
+    [data-bs-theme="dark"] .form-control:disabled {
+        background: rgba(26, 26, 46, 0.3);
+        color: rgba(255, 255, 255, 0.4);
+        border-color: rgba(255, 255, 255, 0.05);
     }
 
     /* Summary Stats Cards */
@@ -399,6 +413,45 @@
             font-size: 0.9rem;
         }
     }
+
+    /* Стили для кастомного select */
+    .custom-select {
+        background: rgba(255, 255, 255, 0.9) !important;
+        border: 2px solid transparent !important;
+        border-radius: 15px !important;
+        padding: 12px 16px !important;
+        font-weight: 500 !important;
+        height: 48px !important;
+        appearance: none !important;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23667eea' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m1 6 7 7 7-7'/%3e%3c/svg%3e") !important;
+        background-repeat: no-repeat !important;
+        background-position: right 12px center !important;
+        background-size: 16px 12px !important;
+        cursor: pointer !important;
+    }
+
+    [data-bs-theme="dark"] .custom-select {
+        background: rgba(26, 26, 46, 0.9) !important;
+        color: var(--dark-text) !important;
+        border-color: rgba(255, 255, 255, 0.1) !important;
+    }
+
+    .custom-select:focus {
+        border-color: #667eea !important;
+        outline: none !important;
+        box-shadow: none !important;
+    }
+
+    .custom-select option {
+        background: white !important;
+        color: #333 !important;
+        padding: 10px !important;
+    }
+
+    [data-bs-theme="dark"] .custom-select option {
+        background: rgba(26, 26, 46, 0.9) !important;
+        color: var(--dark-text) !important;
+    }
 </style>
 {% endblock %}
 
@@ -431,29 +484,29 @@
     </div>
 
     <!-- Period Control -->
-    <div class="period-control animate-slide-up" style="animation-delay: 0.2s">
+    <div class="period-control" style="animation-delay: 0.2s">
         <div class="row align-items-end">
             <div class="col-lg-3">
                 <label class="form-label fw-bold">
                     <i class="fas fa-calendar-alt me-2"></i>Тип анализа
                 </label>
-                <select class="form-select" id="periodSelect">
+                <select class="form-select custom-select" id="periodSelect" onchange="handlePeriodChange()">
                     <option value="daily">Ежедневная аналитика</option>
                     <option value="weekly">Еженедельная аналитика</option>
-                    <option value="monthly">Месячная аналитика</option>
+                    <option value="monthly" selected>Месячная аналитика</option>
                 </select>
             </div>
             <div class="col-lg-2">
                 <label class="form-label fw-bold">
                     <i class="fas fa-play me-2"></i>Начальная дата
                 </label>
-                <input type="date" class="form-control" id="startDate">
+                <input type="date" class="form-control" id="startDate" disabled readonly>
             </div>
             <div class="col-lg-2">
                 <label class="form-label fw-bold">
                     <i class="fas fa-stop me-2"></i>Конечная дата
                 </label>
-                <input type="date" class="form-control" id="endDate">
+                <input type="date" class="form-control" id="endDate" disabled readonly>
             </div>
             <div class="col-lg-2">
                 <button class="btn btn-gradient-primary w-100" onclick="loadStatistics()">
@@ -609,7 +662,7 @@
                 <div class="chart-container animate-slide-up" style="animation-delay: 1s">
                     <div class="chart-title">
                         <i class="fas fa-chart-area"></i>
-                        <span>Динамика эффективности команды</span>
+                        <span>Динамика времени ответа</span>
                     </div>
                     <div class="chart-body">
                         <canvas id="efficiencyChart"></canvas>
@@ -675,12 +728,57 @@
         document.getElementById('current-time').textContent = `Обновлено в ${timeString}`;
     }
 
+    // Handle period selection change
+    function handlePeriodChange() {
+        const periodSelect = document.getElementById('periodSelect');
+        toggleDateFields();
+        console.log(`📅 Period changed to: ${periodSelect.value}`);
+    }
+
+    // Toggle date fields based on period selection
+    function toggleDateFields() {
+        const periodSelect = document.getElementById('periodSelect');
+        const startDate = document.getElementById('startDate');
+        const endDate = document.getElementById('endDate');
+        
+        // Устанавливаем даты автоматически в зависимости от выбранного периода
+        const today = new Date();
+        let startDateValue, endDateValue;
+        
+        switch(periodSelect.value) {
+            case 'daily':
+                // Сегодня
+                startDateValue = today.toISOString().split('T')[0];
+                endDateValue = today.toISOString().split('T')[0];
+                break;
+            case 'weekly':
+                // Последние 7 дней
+                const weekAgo = new Date(today);
+                weekAgo.setDate(today.getDate() - 7);
+                startDateValue = weekAgo.toISOString().split('T')[0];
+                endDateValue = today.toISOString().split('T')[0];
+                break;
+            case 'monthly':
+                // Текущий месяц
+                const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                startDateValue = startOfMonth.toISOString().split('T')[0];
+                endDateValue = today.toISOString().split('T')[0];
+                break;
+            default:
+                return;
+        }
+        
+        startDate.value = startDateValue;
+        endDate.value = endDateValue;
+        
+        console.log('📅 Period activated:', periodSelect.value, 'with dates:', startDateValue, 'to', endDateValue);
+    }
+
     // Set default dates
     function setDefaultDates() {
-        const today = new Date();
-        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-        document.getElementById('startDate').value = startOfMonth.toISOString().split('T')[0];
-        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        // Устанавливаем месячный период по умолчанию (уже установлен в HTML)
+        document.getElementById('periodSelect').value = 'monthly';
+        toggleDateFields(); // Это установит правильные даты
     }
 
     // Animate number counters
@@ -709,9 +807,17 @@
 
     // Load statistics
     async function loadStatistics() {
+        console.log('🔄 Starting to load statistics...');
+        
         const periodType = document.getElementById('periodSelect').value;
         const startDate = document.getElementById('startDate').value;
         const endDate = document.getElementById('endDate').value;
+        
+        console.log('📋 Parameters:');
+        console.log('  - periodType:', periodType);
+        console.log('  - startDate:', startDate);
+        console.log('  - endDate:', endDate);
+        console.log('  - userInfo:', userInfo);
         
         document.getElementById('loadingState').style.display = 'block';
         document.getElementById('statisticsContent').style.display = 'none';
@@ -719,29 +825,55 @@
         
         try {
             // Load summary data with selected period and dates
+            console.log('📊 Loading summary data...');
             await loadSummaryData(periodType, startDate, endDate);
             
-            // Load detailed statistics
+            // Build URL for detailed statistics
             let url = `/api/statistics/${userInfo.is_admin ? 'all' : 'my'}?period_type=${periodType}`;
-            if (startDate) url += `&start_date=${startDate}`;
-            if (endDate) url += `&end_date=${endDate}`;
+            if (startDate && startDate.trim() !== '') {
+                url += `&start_date=${startDate}`;
+            }
+            if (endDate && endDate.trim() !== '') {
+                url += `&end_date=${endDate}`;
+            }
             
+            console.log('📡 Making API request to:', url);
             const response = await axios.get(url);
             statisticsData = response.data;
             
-            if (statisticsData.length === 0) {
+            console.log('✅ API response received:');
+            console.log('  - status:', response.status);
+            console.log('  - data length:', statisticsData ? statisticsData.length : 'null');
+            console.log('  - data sample:', statisticsData ? statisticsData.slice(0, 2) : 'null');
+            
+            if (!statisticsData || statisticsData.length === 0) {
+                console.log('⚠️ No data received, showing no data state');
                 showNoDataState();
                 return;
             }
             
+            console.log('🔄 Rendering table and charts...');
             renderStatisticsTable();
             renderCharts();
             
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('statisticsContent').style.display = 'block';
             
+            console.log('✅ Statistics loaded successfully');
+            
         } catch (error) {
-            console.error('Error loading statistics:', error);
+            console.error('❌ Error loading statistics:', error);
+            console.error('Error details:', error.response?.data || error.message);
+            console.error('Error status:', error.response?.status);
+            
+            if (error.response?.status === 400) {
+                showNotification('error', 'Ошибка запроса', error.response.data?.error || 'Неверные параметры запроса');
+            } else if (error.response?.status === 404) {
+                showNotification('info', 'Данные не найдены', 'За указанный период данные отсутствуют');
+            } else {
+                showNotification('error', 'Ошибка загрузки', 'Произошла ошибка при загрузке статистики');
+            }
+            
             document.getElementById('loadingState').style.display = 'none';
             showNoDataState();
         }
@@ -878,44 +1010,159 @@
 
     // Efficiency chart
     function renderEfficiencyChart() {
+        console.log('📊 Rendering efficiency chart...');
+        console.log('📊 statisticsData:', statisticsData);
+        
         const ctx = document.getElementById('efficiencyChart').getContext('2d');
         
         if (efficiencyChart) {
             efficiencyChart.destroy();
         }
         
+        if (!statisticsData || statisticsData.length === 0) {
+            console.log('⚠️ No statistics data available for chart, showing empty chart');
+            
+            // Создаем пустой график с заглушкой
+            efficiencyChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Нет данных'],
+                    datasets: [{
+                        label: 'Среднее время ответа (мин)',
+                        data: [0],
+                        borderColor: '#ff9f40',
+                        backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 120,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                callback: function(value) { return value + ' мин'; }
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                        }
+                    },
+                    animation: { duration: 0 }
+                }
+            });
+            return;
+        }
+        
         const chartData = {};
-        statisticsData.forEach(stat => {
-            const date = new Date(stat.date).toLocaleDateString('ru-RU');
-            if (!chartData[date]) {
-                chartData[date] = { total: 0, responded: 0 };
+        statisticsData.forEach((stat, index) => {
+            console.log(`📊 Processing stat ${index}:`, stat);
+            
+            // Проверяем, что есть реальные данные для этой записи
+            if (stat.total_messages > 0 && stat.avg_response_time && stat.avg_response_time > 0) {
+                const date = new Date(stat.date).toLocaleDateString('ru-RU');
+                if (!chartData[date]) {
+                    chartData[date] = { totalTime: 0, count: 0, totalMessages: 0 };
+                }
+                chartData[date].totalTime += stat.avg_response_time;
+                chartData[date].count += 1;
+                chartData[date].totalMessages += stat.total_messages;
+                
+                console.log(`📊 Added data for ${date}: time=${stat.avg_response_time}, total=${stat.total_messages}`);
+            } else {
+                console.log(`📊 Skipped stat ${index} - no valid data (messages: ${stat.total_messages}, time: ${stat.avg_response_time})`);
             }
-            chartData[date].total += stat.total_messages;
-            chartData[date].responded += stat.responded_messages;
         });
         
+        console.log('📊 Processed chart data:', chartData);
+        
+        // Берем только даты с реальными данными
         const labels = Object.keys(chartData).slice(-14);
-        const efficiencyData = labels.map(date => {
+        const responseTimeData = labels.map(date => {
             const data = chartData[date];
-            return data.total > 0 ? Math.round((data.responded / data.total * 100)) : 0;
+            return data.count > 0 ? Math.round(data.totalTime / data.count) : 0;
         });
+        
+        console.log('📊 Final chart data:');
+        console.log('  - labels:', labels);
+        console.log('  - responseTimeData:', responseTimeData);
+        
+        // Если нет данных вообще, показываем пустой график
+        if (labels.length === 0 || responseTimeData.every(val => val === 0)) {
+            console.log('⚠️ No valid data for chart, showing empty state');
+            
+            efficiencyChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Нет данных'],
+                    datasets: [{
+                        label: 'Среднее время ответа (мин)',
+                        data: [0],
+                        borderColor: '#ff9f40',
+                        backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { enabled: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 120,
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                callback: function(value) { return value + ' мин'; }
+                            }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: 'rgba(255, 255, 255, 0.7)' }
+                        }
+                    },
+                    animation: { duration: 0 }
+                }
+            });
+            return;
+        }
         
         const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-        gradient.addColorStop(0, 'rgba(102, 126, 234, 0.4)');
-        gradient.addColorStop(1, 'rgba(102, 126, 234, 0.05)');
+        gradient.addColorStop(0, 'rgba(255, 159, 64, 0.4)');
+        gradient.addColorStop(1, 'rgba(255, 159, 64, 0.05)');
         
+        console.log('📊 Creating response time chart with Chart.js...');
         efficiencyChart = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Эффективность (%)',
-                    data: efficiencyData,
-                    borderColor: '#667eea',
+                    label: 'Среднее время ответа (мин)',
+                    data: responseTimeData,
+                    borderColor: '#ff9f40',
                     backgroundColor: gradient,
                     tension: 0.4,
                     borderWidth: 4,
-                    pointBackgroundColor: '#764ba2',
+                    pointBackgroundColor: '#ff6384',
                     pointBorderColor: '#fff',
                     pointBorderWidth: 3,
                     pointRadius: 8,
@@ -932,19 +1179,24 @@
                         backgroundColor: 'rgba(0, 0, 0, 0.8)',
                         titleColor: '#fff',
                         bodyColor: '#fff',
-                        borderColor: '#667eea',
+                        borderColor: '#ff9f40',
                         borderWidth: 2,
-                        cornerRadius: 15
+                        cornerRadius: 15,
+                        callbacks: {
+                            label: function(context) {
+                                return `Время ответа: ${context.parsed.y} мин`;
+                            }
+                        }
                     }
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        max: 100,
+                        max: 120,
                         grid: { color: 'rgba(255, 255, 255, 0.1)' },
                         ticks: {
                             color: 'rgba(255, 255, 255, 0.7)',
-                            callback: function(value) { return value + '%'; }
+                            callback: function(value) { return value + ' мин'; }
                         }
                     },
                     x: {
@@ -958,20 +1210,38 @@
                 }
             }
         });
+        
+        console.log('✅ Efficiency chart created successfully');
     }
 
     // Response pie chart
     function renderResponsePieChart() {
+        console.log('📊 Rendering response pie chart...');
+        console.log('📊 statisticsData for pie chart:', statisticsData);
+        
         const ctx = document.getElementById('responsePieChart').getContext('2d');
         
         if (responsePieChart) {
             responsePieChart.destroy();
         }
         
+        if (!statisticsData || statisticsData.length === 0) {
+            console.log('⚠️ No statistics data available for pie chart');
+            return;
+        }
+        
         const totalResponded = statisticsData.reduce((sum, stat) => sum + stat.responded_messages, 0);
         const totalMissed = statisticsData.reduce((sum, stat) => sum + stat.missed_messages, 0);
-        const totalPending = statisticsData.reduce((sum, stat) => sum + stat.total_messages, 0) - totalResponded - totalMissed;
+        const totalMessages = statisticsData.reduce((sum, stat) => sum + stat.total_messages, 0);
+        const totalPending = totalMessages - totalResponded - totalMissed;
         
+        console.log('📊 Pie chart calculations:');
+        console.log('  - totalResponded:', totalResponded);
+        console.log('  - totalMissed:', totalMissed);
+        console.log('  - totalMessages:', totalMessages);
+        console.log('  - totalPending:', totalPending);
+        
+        console.log('📊 Creating pie chart with Chart.js...');
         responsePieChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
@@ -1005,6 +1275,8 @@
                 }
             }
         });
+        
+        console.log('✅ Pie chart created successfully');
     }
 
     // Show no data state
@@ -1017,6 +1289,7 @@
     // Reset filters
     function resetFilters() {
         document.getElementById('periodSelect').value = 'daily';
+        toggleDateFields();
         setDefaultDates();
         loadStatistics();
     }

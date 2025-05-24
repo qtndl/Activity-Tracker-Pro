@@ -413,32 +413,16 @@ async def export_statistics_to_sheets(
     db: AsyncSession = Depends(get_db)
 ):
     """Экспорт статистики в Google Sheets"""
-    print(f"🔍 [EXPORT DEBUG] Начало экспорта:")
-    print(f"   - period: {period}")
-    print(f"   - employee_id: {employee_id}")
-    print(f"   - current_user: {current_user}")
-    
     try:
         # Проверяем права доступа
         if not current_user.get("is_admin") and employee_id and employee_id != current_user.get("employee_id"):
-            print(f"❌ [EXPORT DEBUG] Недостаточно прав")
             raise HTTPException(status_code=403, detail="Недостаточно прав")
         
-        print(f"✅ [EXPORT DEBUG] Права проверены")
-        
         # Инициализируем сервисы
-        print(f"🔧 [EXPORT DEBUG] Инициализация сервисов...")
         stats_service = StatisticsService(db)
-        
-        try:
-            sheets_service = GoogleSheetsService()
-            print(f"✅ [EXPORT DEBUG] Google Sheets сервис инициализирован")
-        except Exception as e:
-            print(f"❌ [EXPORT DEBUG] Ошибка инициализации Google Sheets: {e}")
-            raise e
+        sheets_service = GoogleSheetsService()
         
         if employee_id:
-            print(f"📊 [EXPORT DEBUG] Экспорт для сотрудника {employee_id}")
             # Экспорт для конкретного сотрудника
             employee_stats = await stats_service.get_employee_stats(employee_id, period)
             
@@ -453,8 +437,6 @@ async def export_statistics_to_sheets(
             )
             messages = messages_result.scalars().all()
             
-            print(f"📄 [EXPORT DEBUG] Найдено {len(messages)} сообщений")
-            
             url = await sheets_service.export_detailed_employee_report(employee_stats, messages)
             
             return {
@@ -464,16 +446,10 @@ async def export_statistics_to_sheets(
                 "sheet_name": f"Отчет_{employee_stats.employee_name}_{period}"
             }
         else:
-            print(f"👥 [EXPORT DEBUG] Экспорт всех сотрудников")
             # Экспорт статистики всех сотрудников
             all_stats = await stats_service.get_all_employees_stats(period)
             
-            print(f"📊 [EXPORT DEBUG] Найдено {len(all_stats)} сотрудников")
-            print(f"📋 [EXPORT DEBUG] Статистика первого сотрудника: {all_stats[0].__dict__ if all_stats else 'Нет данных'}")
-            
             url = await sheets_service.export_employees_statistics(all_stats, period)
-            
-            print(f"✅ [EXPORT DEBUG] Экспорт завершен, URL: {url}")
             
             return {
                 "success": True,
@@ -484,14 +460,8 @@ async def export_statistics_to_sheets(
             }
             
     except HTTPException as e:
-        print(f"❌ [EXPORT DEBUG] HTTP исключение: {e.detail}")
         raise e
     except Exception as e:
-        print(f"❌ [EXPORT DEBUG] Общая ошибка: {e}")
-        print(f"❌ [EXPORT DEBUG] Тип ошибки: {type(e)}")
-        import traceback
-        print(f"❌ [EXPORT DEBUG] Traceback: {traceback.format_exc()}")
-        
         if "Google Sheets" in str(e):
             return JSONResponse(
                 status_code=400,

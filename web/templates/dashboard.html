@@ -310,37 +310,6 @@
         padding: 2rem;
     }
 
-    /* Export Section */
-    .export-section {
-        background: var(--success);
-        border-radius: 25px;
-        color: white;
-        padding: 2rem;
-        position: relative;
-        overflow: hidden;
-    }
-
-    .export-section::before {
-        content: '';
-        position: absolute;
-        top: -50%;
-        right: -50%;
-        width: 200%;
-        height: 200%;
-        background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-        animation: exportPulse 3s ease-in-out infinite;
-    }
-
-    @keyframes exportPulse {
-        0%, 100% { transform: scale(1) rotate(0deg); }
-        50% { transform: scale(1.1) rotate(180deg); }
-    }
-
-    .export-content {
-        position: relative;
-        z-index: 2;
-    }
-
     /* Loading States */
     .loading-skeleton {
         background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
@@ -494,7 +463,7 @@
                         <i class="fas fa-envelope text-white"></i>
                     </div>
                     <div class="stat-number info" id="totalMessagesToday">0</div>
-                    <div class="stat-label">Обработано сегодня</div>
+                    <div class="stat-label" id="totalMessagesLabel">Обработано сегодня</div>
                     <div class="stat-change text-info">
                         <i class="fas fa-chart-line"></i>
                         <span>В тренде</span>
@@ -507,7 +476,7 @@
                         <i class="fas fa-check-circle text-white"></i>
                     </div>
                     <div class="stat-number success" id="respondedToday">0</div>
-                    <div class="stat-label">Успешно отвечено</div>
+                    <div class="stat-label" id="respondedLabel">Успешно отвечено</div>
                     <div class="stat-change text-success">
                         <i class="fas fa-arrow-up"></i>
                         <span>Отличная работа!</span>
@@ -587,32 +556,6 @@
             </div>
         </div>
 
-        <!-- Export Section -->
-        <div class="row mb-5" id="exportSection" style="display: none;">
-            <div class="col-12">
-                <div class="export-section animate-slide-up" style="animation-delay: 0.8s">
-                    <div class="export-content">
-                        <div class="row align-items-center">
-                            <div class="col-lg-8">
-                                <h4 class="mb-2">
-                                    <i class="fas fa-table me-3"></i>Экспорт в Google Sheets
-                                </h4>
-                                <p class="mb-0 opacity-90">
-                                    Автоматическая выгрузка актуальной статистики для углубленного анализа
-                                </p>
-                            </div>
-                            <div class="col-lg-4 text-end">
-                                <button class="btn btn-light btn-lg" onclick="exportToGoogleSheets()">
-                                    <i class="fas fa-cloud-upload me-2"></i>
-                                    Экспортировать данные
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Charts Section -->
         <div class="row" id="chartsSection" style="display: none;">
             <div class="col-lg-8 mb-4">
@@ -674,6 +617,45 @@
         loadDashboard(period);
     }
 
+    // Update period labels based on selected period
+    function updatePeriodLabels(period) {
+        const labels = {
+            today: {
+                totalMessages: 'Обработано сегодня',
+                responded: 'Успешно отвечено',
+                efficiency: 'Эффективность сегодня',
+                missed: 'Пропущено сегодня'
+            },
+            week: {
+                totalMessages: 'Обработано за неделю',
+                responded: 'Успешно отвечено за неделю',
+                efficiency: 'Эффективность за неделю',
+                missed: 'Пропущено за неделю'
+            },
+            month: {
+                totalMessages: 'Обработано за месяц',
+                responded: 'Успешно отвечено за месяц',
+                efficiency: 'Эффективность за месяц',
+                missed: 'Пропущено за месяц'
+            }
+        };
+
+        const periodLabels = labels[period] || labels.today;
+        
+        // Обновляем надписи с проверкой существования элементов
+        const totalMessagesLabel = document.getElementById('totalMessagesLabel');
+        if (totalMessagesLabel) {
+            totalMessagesLabel.textContent = periodLabels.totalMessages;
+        }
+        
+        const respondedLabel = document.getElementById('respondedLabel');
+        if (respondedLabel) {
+            respondedLabel.textContent = periodLabels.responded;
+        }
+        
+        console.log(`📝 Labels updated for period: ${period}`);
+    }
+
     // Set progress ring
     function setProgressRing(elementId, percentage) {
         const circle = document.getElementById(elementId);
@@ -689,6 +671,9 @@
     async function loadDashboard(period = 'today') {
         console.log('🔄 Loading dashboard data for period:', period);
         currentPeriod = period;
+        
+        // Update period labels immediately
+        updatePeriodLabels(period);
         
         // Update active button
         document.querySelectorAll('.period-btn').forEach(btn => {
@@ -805,12 +790,6 @@
                 console.error('❌ Element urgentStatus NOT FOUND!');
             }
             
-            // Show export section for admins
-            if (userInfo.is_admin) {
-                document.getElementById('exportSection').style.display = 'block';
-                console.log('👤 Admin user - showing export section');
-            }
-            
             // Load charts
             console.log('📊 Loading charts');
             await loadCharts();
@@ -881,8 +860,24 @@
     // Load charts with modern styling
     async function loadCharts() {
         try {
+            console.log('📊 Loading charts data...');
             const chartResponse = await axios.get(`/api/statistics/charts/response-time?period=${currentPeriod === 'today' ? 'week' : 'month'}`);
+            console.log('📊 Chart response:', chartResponse.data);
             const chartData = chartResponse.data;
+            
+            // Извлекаем labels и data из ответа API
+            const labels = chartData.data.map(item => {
+                const date = new Date(item.date);
+                return date.toLocaleDateString('ru-RU', { 
+                    month: 'short', 
+                    day: 'numeric' 
+                });
+            });
+            const responseTimeData = chartData.data.map(item => item.avg_response_time);
+            
+            console.log('📊 Processed chart data:');
+            console.log('  - labels:', labels);
+            console.log('  - data:', responseTimeData);
             
             document.getElementById('chartsSection').style.display = 'flex';
             
@@ -907,13 +902,14 @@
             gradient.addColorStop(0, 'rgba(102, 126, 234, 0.3)');
             gradient.addColorStop(1, 'rgba(102, 126, 234, 0.05)');
             
+            console.log('📊 Creating chart with Chart.js...');
             responseTimeChart = new Chart(ctx1, {
                 type: 'line',
                 data: {
-                    labels: chartData.labels,
+                    labels: labels,
                     datasets: [{
                         label: 'Время ответа (мин)',
-                        data: chartData.data,
+                        data: responseTimeData,
                         borderColor: gradientBlue.start,
                         backgroundColor: gradient,
                         tension: 0.4,
@@ -985,8 +981,12 @@
                 }
             });
             
+            console.log('✅ Line chart created successfully');
+            
             // Pie chart
+            console.log('📊 Loading pie chart data...');
             const summaryResponse = await axios.get(`/api/statistics/summary?period=${currentPeriod}`);
+            console.log('📊 Summary response:', summaryResponse.data);
             const summaryData = summaryResponse.data;
             
             const ctx2 = document.getElementById('messagesPieChart').getContext('2d');
@@ -1048,33 +1048,11 @@
                 }
             });
             
-        } catch (error) {
-            console.error('Error loading charts:', error);
-        }
-    }
-
-    // Export to Google Sheets
-    async function exportToGoogleSheets() {
-        const btn = event.target.closest('button');
-        const originalText = btn.innerHTML;
-        
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Экспорт...';
-        
-        try {
-            const response = await axios.post(`/api/dashboard/export/google-sheets?period=${currentPeriod}`);
-            
-            if (response.data.sheet_url) {
-                setTimeout(() => {
-                    window.open(response.data.sheet_url, '_blank');
-                }, 1000);
-            }
+            console.log('✅ Pie chart created successfully');
             
         } catch (error) {
-            console.error('Error exporting:', error);
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = originalText;
+            console.error('❌ Error loading charts:', error);
+            console.error('Error details:', error.response?.data || error.message);
         }
     }
 
