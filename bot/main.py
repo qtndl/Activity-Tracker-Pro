@@ -127,19 +127,9 @@ class MessageTracker:
             del self.pending_messages[chat_id][message_id]
     
     async def schedule_notifications(self, message_id: int, employee_id: int, chat_id: int):
-        """Планирование уведомлений"""
-        await self.notifications.schedule_warning(
-            message_id, employee_id, chat_id,
-            settings.response_time_warning_1, 'warning_15'
-        )
-        await self.notifications.schedule_warning(
-            message_id, employee_id, chat_id,
-            settings.response_time_warning_2, 'warning_30'
-        )
-        await self.notifications.schedule_warning(
-            message_id, employee_id, chat_id,
-            settings.response_time_warning_3, 'warning_60'
-        )
+        """Планирование уведомлений с актуальными настройками из БД"""
+        # Используем метод NotificationService который правильно читает настройки из БД
+        await self.notifications.schedule_warnings_for_message(message_id, employee_id, chat_id)
 
 
 # Создаем экземпляр трекера
