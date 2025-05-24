@@ -1,296 +1,619 @@
 {% extends "base.html" %}
 
-{% block title %}Статистика - Трекер активности{% endblock %}
+{% block title %}Аналитика - Activity Tracker Pro{% endblock %}
 
 {% block extra_css %}
 <style>
-    .period-selector {
-        background: white;
-        border-radius: 15px;
-        padding: 20px;
-        margin-bottom: 30px;
-    }
-    
-    .summary-stat-card {
-        background: white;
-        border-radius: 15px;
-        padding: 25px;
-        text-align: center;
-        transition: all 0.3s ease;
+    /* Hero Analytics Section */
+    .analytics-hero {
+        background: var(--secondary);
+        border-radius: 30px;
+        color: white;
+        margin-bottom: 3rem;
         position: relative;
         overflow: hidden;
     }
-    
-    .summary-stat-card::before {
+
+    .analytics-hero::before {
         content: '';
         position: absolute;
         top: 0;
         left: 0;
         right: 0;
-        height: 4px;
+        bottom: 0;
+        background: 
+            radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
+            radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+        animation: analyticsGlow 8s ease-in-out infinite alternate;
     }
-    
-    .summary-stat-card.total::before { background: linear-gradient(90deg, #17a2b8, #138496); }
-    .summary-stat-card.success::before { background: linear-gradient(90deg, #28a745, #20c997); }
-    .summary-stat-card.danger::before { background: linear-gradient(90deg, #dc3545, #e83e8c); }
-    .summary-stat-card.info::before { background: linear-gradient(90deg, #667eea, #764ba2); }
-    
-    .summary-stat-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+
+    @keyframes analyticsGlow {
+        0% { opacity: 0.7; transform: scale(1); }
+        100% { opacity: 1; transform: scale(1.02); }
     }
-    
-    .summary-stat-icon {
-        font-size: 2.5rem;
-        margin-bottom: 15px;
-        opacity: 0.8;
+
+    /* Modern Period Selector */
+    .period-control {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        transition: all 0.3s ease;
     }
-    
-    .summary-stat-number {
-        font-size: 3rem;
-        font-weight: bold;
-        margin: 15px 0;
+
+    [data-bs-theme="dark"] .period-control {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
-    
-    .summary-stat-label {
-        color: #6c757d;
-        font-size: 1.1rem;
+
+    .period-control:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+    }
+
+    .form-control, .form-select {
+        background: rgba(255, 255, 255, 0.9);
+        border: 2px solid transparent;
+        border-radius: 15px;
+        padding: 12px 16px;
         font-weight: 500;
+        transition: all 0.3s ease;
     }
-    
-    .violation-card {
+
+    [data-bs-theme="dark"] .form-control,
+    [data-bs-theme="dark"] .form-select {
+        background: rgba(26, 26, 46, 0.9);
+        color: var(--dark-text);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
         background: white;
-        border-radius: 15px;
-        padding: 25px;
+        transform: translateY(-2px);
+    }
+
+    /* Summary Stats Cards */
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 2rem;
+        margin-bottom: 3rem;
+    }
+
+    .summary-stat {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        padding: 2.5rem;
         text-align: center;
-        margin-bottom: 15px;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        cursor: pointer;
     }
-    
-    .violation-number {
+
+    [data-bs-theme="dark"] .summary-stat {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .summary-stat::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        border-radius: 25px 25px 0 0;
+        transition: all 0.3s ease;
+    }
+
+    .summary-stat.total::before { background: var(--info); }
+    .summary-stat.success::before { background: var(--success); }
+    .summary-stat.danger::before { background: var(--danger); }
+    .summary-stat.warning::before { background: var(--warning); }
+
+    .summary-stat:hover {
+        transform: translateY(-10px) scale(1.02);
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+    }
+
+    .summary-stat:hover::before {
+        height: 100%;
+        opacity: 0.1;
+    }
+
+    .summary-icon {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         font-size: 2.5rem;
-        font-weight: bold;
-        margin: 10px 0;
-    }
-    
-    .charts-row {
-        margin-top: 30px;
-    }
-    
-    .chart-card {
-        background: white;
-        border-radius: 15px;
+        margin: 0 auto 1.5rem;
+        position: relative;
         overflow: hidden;
     }
-    
-    .chart-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+    .summary-icon.total { background: var(--info); }
+    .summary-icon.success { background: var(--success); }
+    .summary-icon.danger { background: var(--danger); }
+    .summary-icon.warning { background: var(--warning); }
+
+    .summary-number {
+        font-size: 4rem;
+        font-weight: 800;
+        margin: 1rem 0;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .summary-label {
+        font-size: 1.2rem;
+        font-weight: 600;
+        opacity: 0.8;
+    }
+
+    /* Violation Cards */
+    .violations-section {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    [data-bs-theme="dark"] .violations-section {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .violations-header {
+        background: var(--warning);
         color: white;
-        padding: 20px;
+        padding: 1.5rem 2rem;
         font-weight: 600;
     }
-    
+
+    .violations-body {
+        padding: 2rem;
+    }
+
+    .violation-item {
+        background: rgba(255, 193, 7, 0.1);
+        border: 2px solid rgba(255, 193, 7, 0.2);
+        border-radius: 20px;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .violation-item:hover {
+        transform: translateY(-5px);
+        border-color: rgba(255, 193, 7, 0.4);
+        box-shadow: 0 15px 30px rgba(255, 193, 7, 0.2);
+    }
+
+    .violation-number {
+        font-size: 3rem;
+        font-weight: 800;
+        margin: 1rem 0;
+        font-family: 'JetBrains Mono', monospace;
+        color: #ff6b35;
+    }
+
+    /* Enhanced Table */
+    .data-table-section {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    [data-bs-theme="dark"] .data-table-section {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .table-header {
+        background: var(--primary);
+        color: white;
+        padding: 1.5rem 2rem;
+        font-weight: 600;
+    }
+
+    .table-responsive {
+        border-radius: 0 0 25px 25px;
+        overflow: hidden;
+    }
+
+    .table {
+        margin-bottom: 0;
+        background: transparent;
+    }
+
+    .table th {
+        background: rgba(102, 126, 234, 0.1);
+        border: none;
+        font-weight: 600;
+        padding: 1.5rem 1rem;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .table td {
+        border: none;
+        padding: 1.5rem 1rem;
+        vertical-align: middle;
+        background: rgba(255, 255, 255, 0.5);
+        backdrop-filter: blur(10px);
+    }
+
+    [data-bs-theme="dark"] .table td {
+        background: rgba(26, 26, 46, 0.5);
+        color: var(--dark-text);
+    }
+
+    .table tbody tr {
+        transition: all 0.3s ease;
+    }
+
+    .table tbody tr:hover {
+        transform: scale(1.01);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .badge {
+        border-radius: 15px;
+        padding: 8px 16px;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .progress {
+        height: 25px;
+        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.2);
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        border-radius: 15px;
+        transition: width 1s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .progress-bar::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        animation: progressShine 2s infinite;
+    }
+
+    @keyframes progressShine {
+        0% { left: -100%; }
+        100% { left: 100%; }
+    }
+
+    /* Enhanced Charts */
+    .chart-container {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    [data-bs-theme="dark"] .chart-container {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .chart-container:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .chart-title {
+        background: var(--primary);
+        color: white;
+        padding: 1.5rem 2rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
     .chart-body {
-        padding: 30px;
+        padding: 2rem;
+        height: 450px;
     }
-    
-    .loading-state {
+
+    /* Loading States */
+    .loading-skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 15px;
+        height: 40px;
+        margin-bottom: 1rem;
+    }
+
+    [data-bs-theme="dark"] .loading-skeleton {
+        background: linear-gradient(90deg, #2a2a3e 25%, #1a1a2e 50%, #2a2a3e 75%);
+        background-size: 200% 100%;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* No Data State */
+    .no-data {
         text-align: center;
-        padding: 50px 20px;
+        padding: 4rem 2rem;
         color: #6c757d;
     }
-    
-    .no-data-state {
-        text-align: center;
-        padding: 50px 20px;
-        color: #6c757d;
+
+    .no-data-icon {
+        font-size: 5rem;
+        margin-bottom: 2rem;
+        opacity: 0.3;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .summary-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .summary-number {
+            font-size: 3rem;
+        }
+        
+        .table-responsive {
+            font-size: 0.9rem;
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <!-- Приветствие -->
-    <div class="card welcome-card">
-        <div class="card-body text-center">
-            <h2><i class="fas fa-chart-bar me-2"></i>Статистика работы</h2>
-            <p class="lead mb-0">Детальная аналитика активности и эффективности</p>
-            <p class="mt-2">
-                <i class="fas fa-clock me-1"></i>
-                Последнее обновление: <span id="current-time"></span>
-            </p>
+    <!-- Analytics Hero -->
+    <div class="analytics-hero animate-fade-in">
+        <div class="hero-content">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <h1 class="hero-title">
+                        <i class="fas fa-chart-line me-3"></i>Центр аналитики
+                    </h1>
+                    <p class="hero-subtitle">
+                        Глубокий анализ производительности и детальная статистика команды
+                    </p>
+                </div>
+                <div class="col-lg-4 text-end">
+                    <div class="status-indicator status-online">
+                        <div class="spinner-grow spinner-grow-sm" role="status"></div>
+                        Данные в реальном времени
+                    </div>
+                    <p class="mt-3 mb-0 small">
+                        <i class="fas fa-clock me-2"></i>
+                        <span id="current-time"></span>
+                    </p>
+                </div>
+            </div>
         </div>
     </div>
-    
-    <!-- Селектор периода -->
-    <div class="card period-selector">
-        <div class="row align-items-center">
-            <div class="col-md-4">
-                <label class="form-label">Тип периода:</label>
-                <select class="form-control" id="periodSelect">
-                    <option value="daily">Ежедневная статистика</option>
-                    <option value="weekly">Еженедельная статистика</option>
-                    <option value="monthly">Месячная статистика</option>
+
+    <!-- Period Control -->
+    <div class="period-control animate-slide-up" style="animation-delay: 0.2s">
+        <div class="row align-items-end">
+            <div class="col-lg-3">
+                <label class="form-label fw-bold">
+                    <i class="fas fa-calendar-alt me-2"></i>Тип анализа
+                </label>
+                <select class="form-select" id="periodSelect">
+                    <option value="daily">Ежедневная аналитика</option>
+                    <option value="weekly">Еженедельная аналитика</option>
+                    <option value="monthly">Месячная аналитика</option>
                 </select>
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Дата начала:</label>
+            <div class="col-lg-3">
+                <label class="form-label fw-bold">
+                    <i class="fas fa-play me-2"></i>Начальная дата
+                </label>
                 <input type="date" class="form-control" id="startDate">
             </div>
-            <div class="col-md-3">
-                <label class="form-label">Дата окончания:</label>
+            <div class="col-lg-3">
+                <label class="form-label fw-bold">
+                    <i class="fas fa-stop me-2"></i>Конечная дата
+                </label>
                 <input type="date" class="form-control" id="endDate">
             </div>
-            <div class="col-md-2">
-                <label class="form-label">&nbsp;</label>
-                <button class="btn btn-primary w-100" onclick="loadStatistics()">
-                    <i class="fas fa-sync me-1"></i>Обновить
+            <div class="col-lg-3">
+                <button class="btn btn-gradient-primary w-100" onclick="loadStatistics()">
+                    <i class="fas fa-analytics me-2"></i>Проанализировать
                 </button>
             </div>
         </div>
     </div>
-    
-    <!-- Загрузка -->
-    <div id="loadingState" class="loading-state">
-        <div class="spinner-border text-primary mb-3" role="status"></div>
-        <p>Загрузка статистики...</p>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="text-center py-5" style="display: none;">
+        <div class="loading-dots">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+        </div>
+        <p class="mt-3 text-muted">Обработка данных...</p>
     </div>
-    
-    <!-- Контент статистики -->
-    <div id="statisticsContent" style="display: none;">
-        <!-- Сводные карточки -->
-        <div class="row mb-4" id="summaryCards">
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card summary-stat-card total">
-                    <i class="fas fa-envelope summary-stat-icon info"></i>
-                    <div class="summary-stat-number info" id="totalMessages">0</div>
-                    <div class="summary-stat-label">Всего сообщений</div>
+
+    <!-- Statistics Content -->
+    <div id="statisticsContent">
+        <!-- Summary Statistics -->
+        <div class="summary-grid animate-slide-up" style="animation-delay: 0.4s" id="summarySection">
+            <div class="summary-stat total">
+                <div class="summary-icon total">
+                    <i class="fas fa-envelope text-white"></i>
                 </div>
+                <div class="summary-number total" id="totalMessages">0</div>
+                <div class="summary-label">Всего сообщений</div>
             </div>
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card summary-stat-card success">
-                    <i class="fas fa-check-circle summary-stat-icon success"></i>
-                    <div class="summary-stat-number success" id="respondedMessages">0</div>
-                    <div class="summary-stat-label">Отвечено</div>
+            <div class="summary-stat success">
+                <div class="summary-icon success">
+                    <i class="fas fa-check-circle text-white"></i>
                 </div>
+                <div class="summary-number success" id="respondedMessages">0</div>
+                <div class="summary-label">Успешно обработано</div>
             </div>
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card summary-stat-card danger">
-                    <i class="fas fa-times-circle summary-stat-icon danger"></i>
-                    <div class="summary-stat-number danger" id="missedMessages">0</div>
-                    <div class="summary-stat-label">Пропущено</div>
+            <div class="summary-stat danger">
+                <div class="summary-icon danger">
+                    <i class="fas fa-times-circle text-white"></i>
                 </div>
+                <div class="summary-number danger" id="missedMessages">0</div>
+                <div class="summary-label">Пропущено</div>
             </div>
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card summary-stat-card info">
-                    <i class="fas fa-percentage summary-stat-icon primary"></i>
-                    <div class="summary-stat-number primary"><span id="efficiency">0</span>%</div>
-                    <div class="summary-stat-label">Эффективность</div>
+            <div class="summary-stat warning">
+                <div class="summary-icon warning">
+                    <i class="fas fa-percentage text-white"></i>
                 </div>
+                <div class="summary-number warning"><span id="efficiency">0</span>%</div>
+                <div class="summary-label">Эффективность</div>
             </div>
         </div>
-        
-        <!-- Превышения времени ответа -->
-        <div class="card mb-4">
-            <div class="card-header bg-gradient text-white">
-                <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Превышения времени ответа</h5>
+
+        <!-- Violations Section -->
+        <div class="violations-section animate-slide-up" style="animation-delay: 0.6s">
+            <div class="violations-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-stopwatch me-2"></i>
+                    Анализ превышений времени ответа
+                </h5>
             </div>
-            <div class="card-body">
+            <div class="violations-body">
                 <div class="row">
-                    <div class="col-md-4">
-                        <div class="violation-card">
-                            <i class="fas fa-hourglass-half fa-2x warning mb-2"></i>
-                            <div class="violation-number warning" id="exceeded15">0</div>
-                            <div class="text-muted">Более 15 минут</div>
+                    <div class="col-lg-4 mb-3">
+                        <div class="violation-item">
+                            <i class="fas fa-hourglass-start fa-3x text-warning mb-3"></i>
+                            <div class="violation-number" id="exceeded15">0</div>
+                            <div class="fw-bold">Превышение 15 минут</div>
+                            <small class="text-muted">Требует внимания</small>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="violation-card">
-                            <i class="fas fa-hourglass-end fa-2x warning mb-2"></i>
-                            <div class="violation-number warning" id="exceeded30">0</div>
-                            <div class="text-muted">Более 30 минут</div>
+                    <div class="col-lg-4 mb-3">
+                        <div class="violation-item">
+                            <i class="fas fa-hourglass-half fa-3x text-warning mb-3"></i>
+                            <div class="violation-number" id="exceeded30">0</div>
+                            <div class="fw-bold">Превышение 30 минут</div>
+                            <small class="text-muted">Критическая задержка</small>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="violation-card">
-                            <i class="fas fa-exclamation-triangle fa-2x danger mb-2"></i>
-                            <div class="violation-number danger" id="exceeded60">0</div>
-                            <div class="text-muted">Более 1 часа</div>
+                    <div class="col-lg-4 mb-3">
+                        <div class="violation-item">
+                            <i class="fas fa-hourglass-end fa-3x text-danger mb-3"></i>
+                            <div class="violation-number" id="exceeded60">0</div>
+                            <div class="fw-bold">Превышение 60 минут</div>
+                            <small class="text-muted">Требует немедленных действий</small>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <!-- Детальная статистика -->
-        <div class="card mb-4">
-            <div class="card-header bg-gradient text-white">
-                <h5 class="mb-0"><i class="fas fa-table me-2"></i>Детальная статистика</h5>
+
+        <!-- Data Table -->
+        <div class="data-table-section animate-slide-up" style="animation-delay: 0.8s">
+            <div class="table-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-table me-2"></i>
+                    Детализированная статистика по сотрудникам
+                </h5>
             </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Дата</th>
-                                <th id="employeeColumn">Сотрудник</th>
-                                <th>Всего</th>
-                                <th>Отвечено</th>
-                                <th>Пропущено</th>
-                                <th>Ср. время (мин)</th>
-                                <th>&gt;15 мин</th>
-                                <th>&gt;30 мин</th>
-                                <th>&gt;60 мин</th>
-                                <th>Эффективность</th>
-                            </tr>
-                        </thead>
-                        <tbody id="statisticsTableBody">
-                            <tr>
-                                <td colspan="10" class="text-center py-4">
-                                    <div class="spinner-border text-primary" role="status"></div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th><i class="fas fa-calendar me-2"></i>Период</th>
+                            <th id="employeeColumn"><i class="fas fa-user me-2"></i>Сотрудник</th>
+                            <th><i class="fas fa-envelope me-2"></i>Всего</th>
+                            <th><i class="fas fa-check me-2"></i>Отвечено</th>
+                            <th><i class="fas fa-times me-2"></i>Пропущено</th>
+                            <th><i class="fas fa-clock me-2"></i>Ср. время</th>
+                            <th><i class="fas fa-exclamation me-2"></i>>15м</th>
+                            <th><i class="fas fa-exclamation me-2"></i>>30м</th>
+                            <th><i class="fas fa-exclamation me-2"></i>>60м</th>
+                            <th><i class="fas fa-chart-line me-2"></i>Результат</th>
+                        </tr>
+                    </thead>
+                    <tbody id="statisticsTableBody">
+                        <tr>
+                            <td colspan="10" class="text-center py-5">
+                                <div class="loading-skeleton"></div>
+                                <div class="loading-skeleton"></div>
+                                <div class="loading-skeleton"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
-        
-        <!-- Графики -->
-        <div class="charts-row">
-            <div class="row">
-                <div class="col-lg-8 mb-4">
-                    <div class="card chart-card">
-                        <div class="chart-header">
-                            <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>График эффективности</h5>
-                        </div>
-                        <div class="chart-body">
-                            <div class="chart-container" style="height: 400px;">
-                                <canvas id="efficiencyChart"></canvas>
-                            </div>
-                        </div>
+
+        <!-- Charts Section -->
+        <div class="row">
+            <div class="col-lg-8 mb-4">
+                <div class="chart-container animate-slide-up" style="animation-delay: 1s">
+                    <div class="chart-title">
+                        <i class="fas fa-chart-area"></i>
+                        <span>Динамика эффективности команды</span>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="efficiencyChart"></canvas>
                     </div>
                 </div>
-                <div class="col-lg-4 mb-4">
-                    <div class="card chart-card">
-                        <div class="chart-header">
-                            <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Распределение ответов</h5>
-                        </div>
-                        <div class="chart-body">
-                            <div class="chart-container" style="height: 400px;">
-                                <canvas id="responsePieChart"></canvas>
-                            </div>
-                        </div>
+            </div>
+            <div class="col-lg-4 mb-4">
+                <div class="chart-container animate-slide-up" style="animation-delay: 1.2s">
+                    <div class="chart-title">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Распределение результатов</span>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="responsePieChart"></canvas>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Состояние "Нет данных" -->
-    <div id="noDataState" class="no-data-state" style="display: none;">
-        <i class="fas fa-chart-bar fa-4x mb-3 text-muted"></i>
-        <h4>Нет данных за выбранный период</h4>
-        <p>Попробуйте выбрать другой период или тип статистики</p>
+
+    <!-- No Data State -->
+    <div id="noDataState" class="no-data" style="display: none;">
+        <div class="no-data-icon">
+            <i class="fas fa-chart-bar"></i>
+        </div>
+        <h3>Данные отсутствуют</h3>
+        <p class="text-muted">Попробуйте изменить период анализа или проверьте настройки фильтрации</p>
+        <button class="btn btn-gradient-primary" onclick="resetFilters()">
+            <i class="fas fa-refresh me-2"></i>Сбросить фильтры
+        </button>
     </div>
 </div>
 {% endblock %}
@@ -300,37 +623,67 @@
     let statisticsData = [];
     let efficiencyChart = null;
     let responsePieChart = null;
-    
-    // Обновление времени
+
+    // Update current time
     function updateCurrentTime() {
         const now = new Date();
-        document.getElementById('current-time').textContent = now.toLocaleString('ru-RU');
+        const timeString = now.toLocaleString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        document.getElementById('current-time').textContent = `Обновлено в ${timeString}`;
     }
-    
-    // Установка значений по умолчанию
+
+    // Set default dates
     function setDefaultDates() {
         const today = new Date();
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         document.getElementById('startDate').value = startOfMonth.toISOString().split('T')[0];
         document.getElementById('endDate').value = today.toISOString().split('T')[0];
     }
-    
-    // Основная функция загрузки статистики
+
+    // Animate number counters
+    function animateCounter(elementId, targetValue) {
+        const element = document.getElementById(elementId);
+        const startValue = parseInt(element.textContent) || 0;
+        const duration = 1500;
+        const startTime = performance.now();
+        
+        function updateCounter(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+            const currentValue = Math.round(startValue + (targetValue - startValue) * easeOut);
+            
+            element.textContent = currentValue;
+            
+            if (progress < 1) {
+                requestAnimationFrame(updateCounter);
+            }
+        }
+        
+        requestAnimationFrame(updateCounter);
+    }
+
+    // Load statistics
     async function loadStatistics() {
         const periodType = document.getElementById('periodSelect').value;
         const startDate = document.getElementById('startDate').value;
         const endDate = document.getElementById('endDate').value;
         
-        // Показываем загрузку
         document.getElementById('loadingState').style.display = 'block';
         document.getElementById('statisticsContent').style.display = 'none';
         document.getElementById('noDataState').style.display = 'none';
         
         try {
-            // Загружаем сводную статистику
+            showToast('Анализируем данные...', 'info', 2000);
+            
+            // Load summary data
             await loadSummaryData();
             
-            // Загружаем детальную статистику
+            // Load detailed statistics
             let url = `/api/statistics/${userInfo.is_admin ? 'all' : 'my'}?period_type=${periodType}`;
             if (startDate) url += `&start_date=${startDate}`;
             if (endDate) url += `&end_date=${endDate}`;
@@ -343,71 +696,76 @@
                 return;
             }
             
-            // Отображаем данные
             renderStatisticsTable();
             renderCharts();
             
-            // Показываем контент
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('statisticsContent').style.display = 'block';
             
+            showToast('Анализ завершен!', 'success');
+            
         } catch (error) {
             console.error('Error loading statistics:', error);
-            showAlert('Ошибка при загрузке статистики: ' + (error.response?.data?.detail || error.message), 'danger');
+            showToast('Ошибка при загрузке данных: ' + (error.response?.data?.detail || error.message), 'danger');
             document.getElementById('loadingState').style.display = 'none';
             showNoDataState();
         }
     }
-    
-    // Загрузка сводных данных
+
+    // Load summary data
     async function loadSummaryData() {
         try {
-            // Определяем период для сводки (всегда за месяц)
             const summaryResponse = await axios.get('/api/statistics/summary?period=month');
             const summary = summaryResponse.data;
             
-            // Обновляем сводные карточки
-            document.getElementById('totalMessages').textContent = summary.total_messages || 0;
-            document.getElementById('respondedMessages').textContent = summary.responded_messages || 0;
-            document.getElementById('missedMessages').textContent = summary.missed_messages || 0;
-            document.getElementById('efficiency').textContent = summary.efficiency_percent || 0;
-            document.getElementById('exceeded15').textContent = summary.exceeded_15_min || 0;
-            document.getElementById('exceeded30').textContent = summary.exceeded_30_min || 0;
-            document.getElementById('exceeded60').textContent = summary.exceeded_60_min || 0;
+            // Animate counters
+            setTimeout(() => animateCounter('totalMessages', summary.total_messages || 0), 100);
+            setTimeout(() => animateCounter('respondedMessages', summary.responded_messages || 0), 200);
+            setTimeout(() => animateCounter('missedMessages', summary.missed_messages || 0), 300);
+            setTimeout(() => animateCounter('efficiency', summary.efficiency_percent || 0), 400);
+            setTimeout(() => animateCounter('exceeded15', summary.exceeded_15_min || 0), 500);
+            setTimeout(() => animateCounter('exceeded30', summary.exceeded_30_min || 0), 600);
+            setTimeout(() => animateCounter('exceeded60', summary.exceeded_60_min || 0), 700);
             
         } catch (error) {
             console.error('Error loading summary:', error);
-            // Не прерываем загрузку из-за ошибки сводки
         }
     }
-    
-    // Отображение таблицы статистики
+
+    // Render statistics table
     function renderStatisticsTable() {
         const tbody = document.getElementById('statisticsTableBody');
         
-        // Скрываем колонку сотрудника для не-админов
         if (!userInfo.is_admin) {
             document.getElementById('employeeColumn').style.display = 'none';
         }
         
         if (statisticsData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center py-4">Нет данных за выбранный период</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5">Нет данных за выбранный период</td></tr>';
             return;
         }
         
-        tbody.innerHTML = statisticsData.map(stat => `
-            <tr>
-                <td>${new Date(stat.date).toLocaleDateString('ru-RU')}</td>
-                ${userInfo.is_admin ? `<td>${stat.employee_name}</td>` : ''}
-                <td><span class="badge bg-info">${stat.total_messages}</span></td>
-                <td><span class="badge bg-success">${stat.responded_messages}</span></td>
-                <td><span class="badge bg-danger">${stat.missed_messages}</span></td>
-                <td>${stat.avg_response_time ? Math.round(stat.avg_response_time) : '-'}</td>
-                <td><span class="badge bg-warning text-dark">${stat.exceeded_15_min}</span></td>
-                <td><span class="badge bg-warning text-dark">${stat.exceeded_30_min}</span></td>
-                <td><span class="badge bg-danger">${stat.exceeded_60_min}</span></td>
+        tbody.innerHTML = statisticsData.map((stat, index) => `
+            <tr style="animation-delay: ${index * 0.1}s" class="animate-slide-up">
                 <td>
-                    <div class="progress" style="height: 20px;">
+                    <span class="badge bg-secondary">
+                        ${new Date(stat.date).toLocaleDateString('ru-RU')}
+                    </span>
+                </td>
+                ${userInfo.is_admin ? `<td><strong>${stat.employee_name}</strong></td>` : ''}
+                <td><span class="badge bg-info fs-6">${stat.total_messages}</span></td>
+                <td><span class="badge bg-success fs-6">${stat.responded_messages}</span></td>
+                <td><span class="badge bg-danger fs-6">${stat.missed_messages}</span></td>
+                <td>
+                    <span class="badge ${getTimeClass(stat.avg_response_time)} fs-6">
+                        ${stat.avg_response_time ? Math.round(stat.avg_response_time) : 0}м
+                    </span>
+                </td>
+                <td><span class="badge bg-warning text-dark fs-6">${stat.exceeded_15_min}</span></td>
+                <td><span class="badge bg-warning text-dark fs-6">${stat.exceeded_30_min}</span></td>
+                <td><span class="badge bg-danger fs-6">${stat.exceeded_60_min}</span></td>
+                <td>
+                    <div class="progress">
                         <div class="progress-bar ${getEfficiencyClass(stat.efficiency_percent)}" 
                              style="width: ${stat.efficiency_percent || 0}%">
                             ${stat.efficiency_percent ? Math.round(stat.efficiency_percent) : 0}%
@@ -417,22 +775,31 @@
             </tr>
         `).join('');
     }
-    
-    // Получение класса для эффективности
+
+    // Get efficiency class
     function getEfficiencyClass(efficiency) {
         if (!efficiency) return 'bg-secondary';
-        if (efficiency >= 80) return 'bg-success';
+        if (efficiency >= 90) return 'bg-success';
+        if (efficiency >= 75) return 'bg-info';
         if (efficiency >= 60) return 'bg-warning';
         return 'bg-danger';
     }
-    
-    // Отображение графиков
+
+    // Get time class
+    function getTimeClass(time) {
+        if (!time) return 'bg-secondary';
+        if (time <= 15) return 'bg-success';
+        if (time <= 30) return 'bg-warning text-dark';
+        return 'bg-danger';
+    }
+
+    // Render charts
     function renderCharts() {
         renderEfficiencyChart();
         renderResponsePieChart();
     }
-    
-    // График эффективности
+
+    // Efficiency chart
     function renderEfficiencyChart() {
         const ctx = document.getElementById('efficiencyChart').getContext('2d');
         
@@ -440,25 +807,25 @@
             efficiencyChart.destroy();
         }
         
-        // Группируем данные по дням для графика
         const chartData = {};
         statisticsData.forEach(stat => {
             const date = new Date(stat.date).toLocaleDateString('ru-RU');
             if (!chartData[date]) {
-                chartData[date] = {
-                    total: 0,
-                    responded: 0
-                };
+                chartData[date] = { total: 0, responded: 0 };
             }
             chartData[date].total += stat.total_messages;
             chartData[date].responded += stat.responded_messages;
         });
         
-        const labels = Object.keys(chartData).slice(0, 10); // Последние 10 дат
+        const labels = Object.keys(chartData).slice(-14);
         const efficiencyData = labels.map(date => {
             const data = chartData[date];
             return data.total > 0 ? Math.round((data.responded / data.total * 100)) : 0;
         });
+        
+        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+        gradient.addColorStop(0, 'rgba(102, 126, 234, 0.4)');
+        gradient.addColorStop(1, 'rgba(102, 126, 234, 0.05)');
         
         efficiencyChart = new Chart(ctx, {
             type: 'line',
@@ -468,13 +835,14 @@
                     label: 'Эффективность (%)',
                     data: efficiencyData,
                     borderColor: '#667eea',
-                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    backgroundColor: gradient,
                     tension: 0.4,
-                    borderWidth: 3,
+                    borderWidth: 4,
                     pointBackgroundColor: '#764ba2',
                     pointBorderColor: '#fff',
-                    pointBorderWidth: 2,
-                    pointRadius: 6,
+                    pointBorderWidth: 3,
+                    pointRadius: 8,
+                    pointHoverRadius: 12,
                     fill: true
                 }]
             },
@@ -482,34 +850,40 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: {
-                        display: false
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        titleColor: '#fff',
+                        bodyColor: '#fff',
+                        borderColor: '#667eea',
+                        borderWidth: 2,
+                        cornerRadius: 15
                     }
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
                         max: 100,
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' },
                         ticks: {
-                            callback: function(value) {
-                                return value + '%';
-                            }
-                        },
-                        grid: {
-                            color: 'rgba(0,0,0,0.1)'
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            callback: function(value) { return value + '%'; }
                         }
                     },
                     x: {
-                        grid: {
-                            color: 'rgba(0,0,0,0.1)'
-                        }
+                        grid: { display: false },
+                        ticks: { color: 'rgba(255, 255, 255, 0.7)' }
                     }
+                },
+                animation: {
+                    duration: 2000,
+                    easing: 'easeOutQuart'
                 }
             }
         });
     }
-    
-    // Круговая диаграмма распределения ответов
+
+    // Response pie chart
     function renderResponsePieChart() {
         const ctx = document.getElementById('responsePieChart').getContext('2d');
         
@@ -517,89 +891,65 @@
             responsePieChart.destroy();
         }
         
-        // Суммируем данные
-        const totalMessages = statisticsData.reduce((sum, stat) => sum + stat.total_messages, 0);
-        const respondedMessages = statisticsData.reduce((sum, stat) => sum + stat.responded_messages, 0);
-        const missedMessages = totalMessages - respondedMessages;
+        const totalResponded = statisticsData.reduce((sum, stat) => sum + stat.responded_messages, 0);
+        const totalMissed = statisticsData.reduce((sum, stat) => sum + stat.missed_messages, 0);
+        const totalPending = statisticsData.reduce((sum, stat) => sum + stat.total_messages, 0) - totalResponded - totalMissed;
         
         responsePieChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: ['Отвечено', 'Пропущено'],
+                labels: ['Отвечено', 'Пропущено', 'В обработке'],
                 datasets: [{
-                    data: [respondedMessages, missedMessages],
-                    backgroundColor: [
-                        '#28a745',
-                        '#dc3545'
-                    ],
+                    data: [totalResponded, totalMissed, Math.max(0, totalPending)],
+                    backgroundColor: ['#4facfe', '#ff6b9d', '#feca57'],
                     borderWidth: 0,
-                    hoverBorderWidth: 3,
+                    hoverBorderWidth: 4,
                     hoverBorderColor: '#fff'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                cutout: '60%',
+                cutout: '70%',
                 plugins: {
                     legend: {
                         position: 'bottom',
                         labels: {
-                            padding: 20,
+                            color: 'rgba(255, 255, 255, 0.8)',
+                            padding: 25,
                             usePointStyle: true,
-                            font: {
-                                size: 14
-                            }
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const percentage = Math.round((context.raw / total) * 100);
-                                return context.label + ': ' + context.raw + ' (' + percentage + '%)';
-                            }
+                            font: { size: 14, weight: 600 }
                         }
                     }
+                },
+                animation: {
+                    duration: 2000,
+                    easing: 'easeOutBounce'
                 }
             }
         });
     }
-    
-    // Показать состояние "Нет данных"
+
+    // Show no data state
     function showNoDataState() {
         document.getElementById('loadingState').style.display = 'none';
         document.getElementById('statisticsContent').style.display = 'none';
         document.getElementById('noDataState').style.display = 'block';
     }
-    
-    // Показать уведомление
-    function showAlert(message, type) {
-        const alert = document.createElement('div');
-        alert.className = `alert alert-${type} alert-dismissible fade show notification`;
-        alert.innerHTML = `
-            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.container-fluid').firstChild);
-        
-        setTimeout(() => {
-            if (alert.parentNode) {
-                alert.remove();
-            }
-        }, 5000);
+
+    // Reset filters
+    function resetFilters() {
+        document.getElementById('periodSelect').value = 'daily';
+        setDefaultDates();
+        loadStatistics();
     }
-    
-    // Инициализация
+
+    // Initialize
     document.addEventListener('DOMContentLoaded', () => {
         updateCurrentTime();
         setInterval(updateCurrentTime, 1000);
         setDefaultDates();
         loadStatistics();
-        
-        // Автоматическое обновление каждые 5 минут
-        setInterval(loadStatistics, 300000);
     });
 </script>
 {% endblock %} 

@@ -60,6 +60,10 @@ class SmartMonitoringService:
         """Создает сообщение адресованное конкретному сотруднику"""
         
         employee_id = analysis['addressed_to_employee_id']
+        # Формируем имя клиента
+        client_name = ((telegram_message.from_user.first_name or '') +
+                      (' ' + telegram_message.from_user.last_name if telegram_message.from_user.last_name else '')).strip() or None
+        client_username = telegram_message.from_user.username
         
         # Создаем запись сообщения
         message = Message(
@@ -67,8 +71,8 @@ class SmartMonitoringService:
             chat_id=telegram_message.chat.id,
             message_id=telegram_message.message_id,
             client_telegram_id=telegram_message.from_user.id,
-            client_username=telegram_message.from_user.username,
-            client_name=telegram_message.from_user.full_name,
+            client_username=client_username,
+            client_name=client_name,
             message_text=telegram_message.text,
             received_at=datetime.utcnow(),
             addressed_to_employee_id=employee_id,
@@ -98,6 +102,11 @@ class SmartMonitoringService:
         
         created_messages = []
         
+        # Формируем имя клиента
+        client_name = ((telegram_message.from_user.first_name or '') +
+                      (' ' + telegram_message.from_user.last_name if telegram_message.from_user.last_name else '')).strip() or None
+        client_username = telegram_message.from_user.username
+        
         for employee_id in target_employees:
             # Создаем отдельную запись для каждого сотрудника
             message = Message(
@@ -105,8 +114,8 @@ class SmartMonitoringService:
                 chat_id=telegram_message.chat.id,
                 message_id=telegram_message.message_id,
                 client_telegram_id=telegram_message.from_user.id,
-                client_username=telegram_message.from_user.username,
-                client_name=telegram_message.from_user.full_name,
+                client_username=client_username,
+                client_name=client_name,
                 message_text=telegram_message.text,
                 received_at=datetime.utcnow(),
                 is_addressed_to_specific=False,

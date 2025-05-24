@@ -1,27 +1,371 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Трекер активности{% endblock %}</title>
+    <title>{% block title %}Activity Tracker Pro{% endblock %}</title>
     
     <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    
+    <style>
+        :root {
+            /* Modern Color Palette */
+            --primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --info: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            --warning: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            --danger: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+            
+            /* Glass effect */
+            --glass-bg: rgba(255, 255, 255, 0.25);
+            --glass-border: rgba(255, 255, 255, 0.18);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            
+            /* Dark theme */
+            --dark-bg: #0f0f23;
+            --dark-surface: #1a1a2e;
+            --dark-glass-bg: rgba(26, 26, 46, 0.7);
+            --dark-text: #e8eaed;
+        }
+
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background: var(--primary);
+            min-height: 100vh;
+            color: #2d3748;
+            overflow-x: hidden;
+        }
+
+        [data-bs-theme="dark"] body {
+            background: linear-gradient(135deg, var(--dark-bg) 0%, var(--dark-surface) 100%);
+            color: var(--dark-text);
+        }
+
+        /* Modern Navbar */
+        .navbar {
+            background: var(--glass-bg) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--glass-border);
+            box-shadow: var(--glass-shadow);
+            padding: 1rem 0;
+            transition: all 0.3s ease;
+        }
+
+        [data-bs-theme="dark"] .navbar {
+            background: var(--dark-glass-bg) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .navbar-brand {
+            font-weight: 800;
+            font-size: 1.5rem;
+            background: var(--primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-link {
+            font-weight: 500;
+            border-radius: 12px;
+            margin: 0 4px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-link::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--primary);
+            transition: left 0.3s ease;
+            z-index: -1;
+            border-radius: 12px;
+        }
+
+        .nav-link:hover::before,
+        .nav-link.active::before {
+            left: 0;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            color: white !important;
+            transform: translateY(-2px);
+        }
+
+        /* Modern Cards */
+        .card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            box-shadow: var(--glass-shadow);
+            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            overflow: hidden;
+        }
+
+        [data-bs-theme="dark"] .card {
+            background: var(--dark-glass-bg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--dark-text);
+        }
+
+        .card:hover {
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Gradient Buttons */
+        .btn-gradient-primary {
+            background: var(--primary);
+            border: none;
+            color: white;
+            font-weight: 600;
+            border-radius: 15px;
+            padding: 12px 24px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-gradient-primary::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn-gradient-primary:hover::before {
+            left: 100%;
+        }
+
+        .btn-gradient-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Modern Containers */
+        .container-fluid {
+            padding: 2rem;
+        }
+
+        /* Welcome Cards with Gradient */
+        .welcome-card {
+            background: var(--primary);
+            color: white;
+            border: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .welcome-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.1) rotate(180deg); }
+        }
+
+        /* Modern Typography */
+        h1, h2, h3, h4, h5, h6 {
+            font-weight: 700;
+            letter-spacing: -0.025em;
+        }
+
+        .display-1, .display-2, .display-3, .display-4 {
+            font-weight: 800;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            position: fixed;
+            top: 50%;
+            right: 2rem;
+            z-index: 1000;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: var(--glass-shadow);
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1) rotate(10deg);
+        }
+
+        /* Loading Animation */
+        .loading-dots {
+            display: inline-block;
+            position: relative;
+            width: 80px;
+            height: 80px;
+        }
+
+        .loading-dots div {
+            position: absolute;
+            top: 33px;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: var(--primary);
+            animation-timing-function: cubic-bezier(0, 1, 1, 0);
+        }
+
+        .loading-dots div:nth-child(1) {
+            left: 8px;
+            animation: loading1 0.6s infinite;
+        }
+
+        .loading-dots div:nth-child(2) {
+            left: 8px;
+            animation: loading2 0.6s infinite;
+        }
+
+        .loading-dots div:nth-child(3) {
+            left: 32px;
+            animation: loading2 0.6s infinite;
+        }
+
+        .loading-dots div:nth-child(4) {
+            left: 56px;
+            animation: loading3 0.6s infinite;
+        }
+
+        @keyframes loading1 {
+            0% { transform: scale(0); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes loading3 {
+            0% { transform: scale(1); }
+            100% { transform: scale(0); }
+        }
+
+        @keyframes loading2 {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(24px, 0); }
+        }
+
+        /* Notification Toast */
+        .toast-container {
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            z-index: 1100;
+        }
+
+        .toast {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 15px;
+            box-shadow: var(--glass-shadow);
+        }
+
+        /* Micro Animations */
+        .animate-fade-in {
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        .animate-slide-up {
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container-fluid {
+                padding: 1rem;
+            }
+            
+            .card {
+                border-radius: 15px;
+            }
+            
+            .theme-toggle {
+                right: 1rem;
+                width: 50px;
+                height: 50px;
+            }
+        }
+    </style>
     
     {% block extra_css %}{% endblock %}
 </head>
 <body>
+    <!-- Theme Toggle -->
+    <div class="theme-toggle" onclick="toggleTheme()" title="Переключить тему">
+        <i class="fas fa-moon theme-icon" id="themeIcon"></i>
+    </div>
+
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+    <nav class="navbar navbar-expand-lg">
         <div class="container-fluid">
             <a class="navbar-brand fw-bold" href="/dashboard">
-                <i class="bi bi-graph-up-arrow"></i> Activity Tracker
+                <i class="fas fa-chart-line me-2"></i>Activity Tracker Pro
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -30,36 +374,36 @@
                 <ul class="navbar-nav me-auto" id="mainNav">
                     <li class="nav-item">
                         <a class="nav-link" href="/dashboard">
-                            <i class="bi bi-speedometer2"></i> Дашборд
+                            <i class="fas fa-tachometer-alt me-2"></i>Дашборд
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/statistics">
-                            <i class="bi bi-bar-chart"></i> Статистика
+                            <i class="fas fa-chart-bar me-2"></i>Аналитика
                         </a>
                     </li>
                     <li class="nav-item" id="employeesNav" style="display: none;">
                         <a class="nav-link" href="/employees">
-                            <i class="bi bi-people"></i> Сотрудники
+                            <i class="fas fa-users me-2"></i>Команда
                         </a>
                     </li>
                     <li class="nav-item" id="settingsNav" style="display: none;">
                         <a class="nav-link" href="/settings">
-                            <i class="bi bi-gear"></i> Настройки
+                            <i class="fas fa-cog me-2"></i>Настройки
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/profile">
-                            <i class="bi bi-person-circle"></i> Профиль
+                            <i class="fas fa-user-circle me-2"></i>Профиль
                         </a>
                     </li>
                 </ul>
                 <div class="navbar-nav">
                     <span class="navbar-text me-3" id="userName">
-                        <i class="bi bi-person-fill"></i> <span id="userNameText"></span>
+                        <i class="fas fa-user-astronaut me-2"></i><span id="userNameText"></span>
                     </span>
-                    <button class="btn btn-outline-light btn-sm" onclick="logout()">
-                        <i class="bi bi-box-arrow-right"></i> Выход
+                    <button class="btn btn-gradient-primary btn-sm" onclick="logout()">
+                        <i class="fas fa-sign-out-alt me-2"></i>Выход
                     </button>
                 </div>
             </div>
@@ -68,29 +412,40 @@
 
     <!-- Main Content -->
     <main class="py-4">
-        <div class="container-fluid">
-            {% block content %}{% endblock %}
-        </div>
+        {% block content %}{% endblock %}
     </main>
 
-    <!-- Footer -->
-    <footer class="footer mt-auto py-3 bg-light">
-        <div class="container text-center text-muted">
-            <small>&copy; 2025 Трекер активности. Все права защищены.</small>
-        </div>
-    </footer>
+    <!-- Toast Container -->
+    <div class="toast-container"></div>
 
     <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Axios for API calls -->
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     
     <!-- Common JS -->
     <script>
-        // Get user info from localStorage (token is in cookies)
+        // Theme Management
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-bs-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            const icon = document.getElementById('themeIcon');
+            
+            html.setAttribute('data-bs-theme', newTheme);
+            icon.className = newTheme === 'dark' ? 'fas fa-sun theme-icon' : 'fas fa-moon theme-icon';
+            
+            localStorage.setItem('theme', newTheme);
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-bs-theme', savedTheme);
+        document.getElementById('themeIcon').className = savedTheme === 'dark' ? 'fas fa-sun theme-icon' : 'fas fa-moon theme-icon';
+
+        // User info
         const userInfo = JSON.parse(localStorage.getItem('user_info') || '{}');
         
-        // Update UI based on user info
         if (userInfo && userInfo.full_name) {
             document.getElementById('userNameText').textContent = userInfo.full_name || 'Пользователь';
             
@@ -102,30 +457,92 @@
         
         // Logout function
         function logout() {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('user_info');
-            window.location.href = '/logout'; // Используем серверный logout для очистки cookies
+            showToast('Выход из системы...', 'info');
+            setTimeout(() => {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user_info');
+                window.location.href = '/logout';
+            }, 1000);
         }
         
-        // Handle API errors (401 from server means cookies expired)
+        // Modern Toast Notifications
+        function showToast(message, type = 'success', duration = 5000) {
+            const toastContainer = document.querySelector('.toast-container');
+            const toastId = 'toast-' + Date.now();
+            
+            const iconMap = {
+                success: 'fa-check-circle',
+                danger: 'fa-exclamation-triangle',
+                warning: 'fa-exclamation-circle',
+                info: 'fa-info-circle'
+            };
+            
+            const toast = document.createElement('div');
+            toast.className = `toast show animate-slide-up`;
+            toast.id = toastId;
+            toast.innerHTML = `
+                <div class="toast-header">
+                    <i class="fas ${iconMap[type]} text-${type} me-2"></i>
+                    <strong class="me-auto">Уведомление</strong>
+                    <small class="text-muted">сейчас</small>
+                    <button type="button" class="btn-close" onclick="hideToast('${toastId}')"></button>
+                </div>
+                <div class="toast-body">
+                    ${message}
+                </div>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            setTimeout(() => hideToast(toastId), duration);
+        }
+        
+        function hideToast(toastId) {
+            const toast = document.getElementById(toastId);
+            if (toast) {
+                toast.style.animation = 'fadeOut 0.3s ease-out';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }
+        
+        // Handle API errors
         axios.interceptors.response.use(
             response => response,
             error => {
                 if (error.response && error.response.status === 401) {
-                    localStorage.removeItem('access_token');
-                    localStorage.removeItem('user_info');
-                    window.location.href = '/login';
+                    showToast('Сессия истекла. Требуется повторный вход.', 'warning');
+                    setTimeout(() => {
+                        localStorage.removeItem('access_token');
+                        localStorage.removeItem('user_info');
+                        window.location.href = '/login';
+                    }, 2000);
                 }
                 return Promise.reject(error);
             }
         );
         
-        // Active nav item
+        // Active nav item with animation
         const currentPath = window.location.pathname;
         document.querySelectorAll('.nav-link').forEach(link => {
             if (link.getAttribute('href') === currentPath) {
                 link.classList.add('active');
             }
+        });
+
+        // Add fade-in animation to page content
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelector('main').classList.add('animate-fade-in');
+        });
+        
+        // Smooth scroll
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
         });
     </script>
     

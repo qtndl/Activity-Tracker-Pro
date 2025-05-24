@@ -1,207 +1,610 @@
 {% extends "base.html" %}
 
-{% block title %}Дашборд - Трекер активности{% endblock %}
+{% block title %}Дашборд - Activity Tracker Pro{% endblock %}
 
 {% block extra_css %}
 <style>
-    .welcome-admin-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    /* Hero Section */
+    .hero-section {
+        background: var(--primary);
+        border-radius: 30px;
         color: white;
-        margin-bottom: 30px;
-        border-radius: 20px;
-    }
-    
-    .period-buttons {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 15px;
-        padding: 10px;
-    }
-    
-    .admin-stat-card {
-        text-align: center;
-        padding: 25px 20px;
-        border-radius: 15px;
+        margin-bottom: 3rem;
         position: relative;
         overflow: hidden;
-        background: white;
-        transition: all 0.3s ease;
+        backdrop-filter: blur(20px);
     }
-    
-    .admin-stat-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+
+    .hero-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: 
+            radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.2) 0%, transparent 50%),
+            radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
+            radial-gradient(circle at 40% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+        animation: heroGlow 6s ease-in-out infinite alternate;
     }
-    
-    .admin-stat-card.bg-primary { background: linear-gradient(135deg, #667eea, #764ba2) !important; }
-    .admin-stat-card.bg-info { background: linear-gradient(135deg, #17a2b8, #138496) !important; }
-    .admin-stat-card.bg-success { background: linear-gradient(135deg, #28a745, #20c997) !important; }
-    .admin-stat-card.bg-danger { background: linear-gradient(135deg, #dc3545, #e83e8c) !important; }
-    
-    .admin-stat-number {
-        font-size: 2.5rem;
-        font-weight: bold;
-        margin: 10px 0;
-        color: white;
+
+    @keyframes heroGlow {
+        0% { opacity: 0.5; transform: scale(1); }
+        100% { opacity: 1; transform: scale(1.05); }
     }
-    
-    .admin-stat-label {
-        color: rgba(255, 255, 255, 0.9);
-        font-size: 1rem;
-        font-weight: 500;
-        margin-bottom: 0;
+
+    .hero-content {
+        position: relative;
+        z-index: 2;
+        padding: 3rem;
     }
-    
-    .admin-stat-icon {
-        font-size: 2rem;
-        margin-bottom: 10px;
-        color: rgba(255, 255, 255, 0.8);
-    }
-    
-    .metric-card {
-        background: white;
-        border-radius: 15px;
-        padding: 30px;
-        text-align: center;
-        transition: all 0.3s ease;
-    }
-    
-    .metric-card:hover {
-        transform: translateY(-5px);
-    }
-    
-    .metric-number {
+
+    .hero-title {
         font-size: 3rem;
-        font-weight: bold;
-        margin: 15px 0;
+        font-weight: 800;
+        margin-bottom: 1rem;
+        background: linear-gradient(45deg, #fff, rgba(255, 255, 255, 0.8));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
-    
-    .export-card {
-        background: linear-gradient(135deg, #28a745, #20c997);
+
+    .hero-subtitle {
+        font-size: 1.25rem;
+        opacity: 0.9;
+        margin-bottom: 2rem;
+    }
+
+    /* Period Buttons */
+    .period-selector {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 20px;
+        padding: 0.5rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .period-btn {
+        background: transparent;
+        border: none;
         color: white;
+        padding: 12px 24px;
         border-radius: 15px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .period-btn.active,
+    .period-btn:hover {
+        background: rgba(255, 255, 255, 0.25);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Modern Stat Cards */
+    .stat-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        cursor: pointer;
+    }
+
+    [data-bs-theme="dark"] .stat-card {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        border-radius: 25px 25px 0 0;
+        transition: all 0.3s ease;
+    }
+
+    .stat-card.primary::before { background: var(--primary); }
+    .stat-card.success::before { background: var(--success); }
+    .stat-card.info::before { background: var(--info); }
+    .stat-card.danger::before { background: var(--danger); }
+
+    .stat-card:hover {
+        transform: translateY(-10px) scale(1.03);
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+    }
+
+    .stat-card:hover::before {
+        height: 100%;
+        opacity: 0.1;
+    }
+
+    .stat-icon {
+        width: 80px;
+        height: 80px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        margin-bottom: 1.5rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stat-icon.primary { background: var(--primary); }
+    .stat-icon.success { background: var(--success); }
+    .stat-icon.info { background: var(--info); }
+    .stat-icon.danger { background: var(--danger); }
+
+    .stat-icon::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        transform: rotate(45deg);
+        transition: all 0.6s ease;
+        opacity: 0;
+    }
+
+    .stat-card:hover .stat-icon::before {
+        opacity: 1;
+        animation: shimmer 0.6s ease;
+    }
+
+    @keyframes shimmer {
+        0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+        100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+    }
+
+    .stat-number {
+        font-size: 3rem;
+        font-weight: 800;
+        margin: 1rem 0;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stat-label {
+        font-size: 1.1rem;
+        font-weight: 600;
+        opacity: 0.8;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-change {
+        font-size: 0.9rem;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    /* Metric Cards */
+    .metric-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        padding: 2.5rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.4s ease;
+    }
+
+    [data-bs-theme="dark"] .metric-card {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .metric-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .metric-icon {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+        font-size: 2.5rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .metric-value {
+        font-size: 4rem;
+        font-weight: 800;
+        margin: 1rem 0;
+        font-family: 'JetBrains Mono', monospace;
+        background: var(--primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    /* Progress Ring */
+    .progress-ring {
+        width: 120px;
+        height: 120px;
+        margin: 0 auto 1rem;
+    }
+
+    .progress-ring circle {
+        fill: none;
+        stroke-width: 8;
+        stroke-linecap: round;
+        transform: rotate(-90deg);
+        transform-origin: 50% 50%;
+        transition: stroke-dasharray 1s ease;
+    }
+
+    .progress-ring .bg {
+        stroke: rgba(0, 0, 0, 0.1);
+    }
+
+    .progress-ring .progress {
+        stroke: url(#gradient);
+        stroke-dasharray: 0 314;
+        animation: progressFill 2s ease-in-out;
+    }
+
+    @keyframes progressFill {
+        from { stroke-dasharray: 0 314; }
+    }
+
+    /* Chart Cards */
+    .chart-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        overflow: hidden;
+        transition: all 0.4s ease;
+    }
+
+    [data-bs-theme="dark"] .chart-card {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .chart-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .chart-header {
+        background: var(--primary);
+        color: white;
+        padding: 1.5rem 2rem;
+        font-weight: 600;
+        position: relative;
+    }
+
+    .chart-header::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    }
+
+    .chart-body {
+        padding: 2rem;
+    }
+
+    /* Export Section */
+    .export-section {
+        background: var(--success);
+        border-radius: 25px;
+        color: white;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .export-section::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+        animation: exportPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes exportPulse {
+        0%, 100% { transform: scale(1) rotate(0deg); }
+        50% { transform: scale(1.1) rotate(180deg); }
+    }
+
+    .export-content {
+        position: relative;
+        z-index: 2;
+    }
+
+    /* Loading States */
+    .loading-skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s infinite;
+        border-radius: 15px;
+    }
+
+    @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* Status Indicators */
+    .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+    .status-online {
+        background: rgba(72, 187, 120, 0.2);
+        color: #48bb78;
+        border: 1px solid rgba(72, 187, 120, 0.3);
+    }
+
+    .status-warning {
+        background: rgba(237, 137, 54, 0.2);
+        color: #ed8936;
+        border: 1px solid rgba(237, 137, 54, 0.3);
+    }
+
+    /* Floating Action Button */
+    .fab {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        background: var(--primary);
+        color: white;
+        border: none;
+        font-size: 1.5rem;
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        transition: all 0.3s ease;
+        z-index: 1000;
+    }
+
+    .fab:hover {
+        transform: scale(1.1) rotate(10deg);
+        box-shadow: 0 15px 40px rgba(102, 126, 234, 0.6);
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .hero-title {
+            font-size: 2rem;
+        }
+        
+        .stat-card {
+            padding: 1.5rem;
+        }
+        
+        .metric-card {
+            padding: 2rem;
+        }
+        
+        .stat-number,
+        .metric-value {
+            font-size: 2.5rem;
+        }
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid">
-    <!-- Приветствие админа -->
-    <div class="card welcome-admin-card">
-        <div class="card-body text-center">
-            <h2><i class="fas fa-crown me-2"></i>Админ-панель</h2>
-            <p class="lead mb-3">Общая статистика и управление системой мониторинга</p>
-            <div class="period-buttons">
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-outline-light active" onclick="loadDashboard('today')">
-                        <i class="fas fa-calendar-day me-1"></i>Сегодня
-                    </button>
-                    <button type="button" class="btn btn-outline-light" onclick="loadDashboard('week')">
-                        <i class="fas fa-calendar-week me-1"></i>Неделя
-                    </button>
-                    <button type="button" class="btn btn-outline-light" onclick="loadDashboard('month')">
-                        <i class="fas fa-calendar-alt me-1"></i>Месяц
-                    </button>
+    <!-- Hero Section -->
+    <div class="hero-section animate-fade-in">
+        <div class="hero-content">
+            <div class="row align-items-center">
+                <div class="col-lg-8">
+                    <h1 class="hero-title">
+                        <i class="fas fa-crown me-3"></i>Командный центр
+                    </h1>
+                    <p class="hero-subtitle">
+                        Полный контроль над активностью команды в реальном времени
+                    </p>
+                    <div class="status-indicator status-online">
+                        <div class="spinner-grow spinner-grow-sm" role="status"></div>
+                        Система активна
+                    </div>
+                </div>
+                <div class="col-lg-4 text-end">
+                    <div class="period-selector">
+                        <button class="period-btn active" onclick="loadDashboard('today')">
+                            <i class="fas fa-calendar-day me-2"></i>Сегодня
+                        </button>
+                        <button class="period-btn" onclick="loadDashboard('week')">
+                            <i class="fas fa-calendar-week me-2"></i>Неделя
+                        </button>
+                        <button class="period-btn" onclick="loadDashboard('month')">
+                            <i class="fas fa-calendar-alt me-2"></i>Месяц
+                        </button>
+                    </div>
+                    <p class="mt-3 mb-0 small">
+                        <i class="fas fa-sync-alt me-2"></i>
+                        <span id="current-time"></span>
+                    </p>
                 </div>
             </div>
-            <p class="mt-3 mb-0">
-                <i class="fas fa-clock me-1"></i>
-                Последнее обновление: <span id="current-time"></span>
-            </p>
         </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingSpinner" class="text-center py-5">
+        <div class="loading-dots">
+            <div></div>
+            <div></div>
+            <div></div>
+            <div></div>
+        </div>
+        <p class="mt-3 text-muted">Загрузка аналитики...</p>
     </div>
-    
-    <!-- Loading spinner -->
-    <div id="loadingSpinner" class="spinner-container">
-        <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Загрузка...</span>
-        </div>
-    </div>
-    
-    <!-- Admin dashboard -->
-    <div id="adminDashboard" style="display: none;">
-        <!-- Основная статистика -->
-        <div class="row mb-4">
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card admin-stat-card bg-primary h-100">
-                    <div class="card-body">
-                        <i class="fas fa-users admin-stat-icon"></i>
-                        <div class="admin-stat-number" id="activeEmployees">0</div>
-                        <div class="admin-stat-label">Активные сотрудники</div>
+
+    <!-- Dashboard Content -->
+    <div id="dashboardContent" style="display: none;">
+        <!-- Key Metrics -->
+        <div class="row mb-5" id="keyMetrics">
+            <div class="col-xl-3 col-lg-6 mb-4">
+                <div class="stat-card primary animate-slide-up" style="animation-delay: 0.1s">
+                    <div class="stat-icon primary">
+                        <i class="fas fa-users text-white"></i>
+                    </div>
+                    <div class="stat-number primary" id="activeEmployees">0</div>
+                    <div class="stat-label">Активная команда</div>
+                    <div class="stat-change text-success">
+                        <i class="fas fa-arrow-up"></i>
+                        <span>+12% за неделю</span>
                     </div>
                 </div>
             </div>
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card admin-stat-card bg-info h-100">
-                    <div class="card-body">
-                        <i class="fas fa-envelope admin-stat-icon"></i>
-                        <div class="admin-stat-number" id="totalMessagesToday">0</div>
-                        <div class="admin-stat-label">Сообщений сегодня</div>
+            <div class="col-xl-3 col-lg-6 mb-4">
+                <div class="stat-card info animate-slide-up" style="animation-delay: 0.2s">
+                    <div class="stat-icon info">
+                        <i class="fas fa-envelope text-white"></i>
+                    </div>
+                    <div class="stat-number info" id="totalMessagesToday">0</div>
+                    <div class="stat-label">Обработано сегодня</div>
+                    <div class="stat-change text-info">
+                        <i class="fas fa-chart-line"></i>
+                        <span>В тренде</span>
                     </div>
                 </div>
             </div>
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card admin-stat-card bg-success h-100">
-                    <div class="card-body">
-                        <i class="fas fa-check-circle admin-stat-icon"></i>
-                        <div class="admin-stat-number" id="respondedToday">0</div>
-                        <div class="admin-stat-label">Отвечено</div>
+            <div class="col-xl-3 col-lg-6 mb-4">
+                <div class="stat-card success animate-slide-up" style="animation-delay: 0.3s">
+                    <div class="stat-icon success">
+                        <i class="fas fa-check-circle text-white"></i>
+                    </div>
+                    <div class="stat-number success" id="respondedToday">0</div>
+                    <div class="stat-label">Успешно отвечено</div>
+                    <div class="stat-change text-success">
+                        <i class="fas fa-arrow-up"></i>
+                        <span>Отличная работа!</span>
                     </div>
                 </div>
             </div>
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card admin-stat-card bg-danger h-100">
-                    <div class="card-body">
-                        <i class="fas fa-exclamation-triangle admin-stat-icon"></i>
-                        <div class="admin-stat-number" id="urgentMessages">0</div>
-                        <div class="admin-stat-label">Срочные сообщения</div>
+            <div class="col-xl-3 col-lg-6 mb-4">
+                <div class="stat-card danger animate-slide-up" style="animation-delay: 0.4s">
+                    <div class="stat-icon danger">
+                        <i class="fas fa-exclamation-triangle text-white"></i>
                     </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Детальные метрики -->
-        <div class="row mb-4">
-            <div class="col-md-4 mb-4">
-                <div class="card metric-card h-100">
-                    <i class="fas fa-clock fa-2x primary mb-3"></i>
-                    <h5 class="card-title">Среднее время ответа</h5>
-                    <div class="metric-number primary" id="avgResponseTime">0</div>
-                    <div class="text-muted">минут</div>
-                </div>
-            </div>
-            <div class="col-md-4 mb-4">
-                <div class="card metric-card h-100">
-                    <i class="fas fa-chart-line fa-2x success mb-3"></i>
-                    <h5 class="card-title">Эффективность</h5>
-                    <div class="metric-number success" id="efficiencyToday">0</div>
-                    <div class="text-muted">процентов</div>
-                </div>
-            </div>
-            <div class="col-md-4 mb-4">
-                <div class="card metric-card h-100">
-                    <i class="fas fa-times-circle fa-2x danger mb-3"></i>
-                    <h5 class="card-title">Пропущено</h5>
-                    <div class="metric-number danger" id="missedToday">0</div>
-                    <div class="text-muted">сообщений</div>
+                    <div class="stat-number danger" id="urgentMessages">0</div>
+                    <div class="stat-label">Требует внимания</div>
+                    <div class="stat-change" id="urgentStatus">
+                        <i class="fas fa-clock"></i>
+                        <span>Мониторинг</span>
+                    </div>
                 </div>
             </div>
         </div>
-        
-        <!-- Google Sheets export -->
-        <div class="row mb-4" id="googleSheetsSection" style="display: none;">
+
+        <!-- Performance Metrics -->
+        <div class="row mb-5">
+            <div class="col-lg-4 mb-4">
+                <div class="metric-card animate-slide-up" style="animation-delay: 0.5s">
+                    <div class="metric-icon" style="background: var(--primary);">
+                        <i class="fas fa-clock text-white"></i>
+                    </div>
+                    <h5>Среднее время ответа</h5>
+                    <div class="metric-value" id="avgResponseTime">0</div>
+                    <p class="text-muted mb-0">минут</p>
+                    
+                    <!-- Progress Ring -->
+                    <svg class="progress-ring" viewBox="0 0 120 120">
+                        <defs>
+                            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#667eea"/>
+                                <stop offset="100%" style="stop-color:#764ba2"/>
+                            </linearGradient>
+                        </defs>
+                        <circle class="bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" cx="60" cy="60" r="50" id="timeProgress"></circle>
+                    </svg>
+                </div>
+            </div>
+            <div class="col-lg-4 mb-4">
+                <div class="metric-card animate-slide-up" style="animation-delay: 0.6s">
+                    <div class="metric-icon" style="background: var(--success);">
+                        <i class="fas fa-chart-line text-white"></i>
+                    </div>
+                    <h5>Эффективность команды</h5>
+                    <div class="metric-value" id="efficiencyToday">0</div>
+                    <p class="text-muted mb-0">процентов</p>
+                    
+                    <!-- Progress Ring -->
+                    <svg class="progress-ring" viewBox="0 0 120 120">
+                        <circle class="bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" cx="60" cy="60" r="50" id="efficiencyProgress"></circle>
+                    </svg>
+                </div>
+            </div>
+            <div class="col-lg-4 mb-4">
+                <div class="metric-card animate-slide-up" style="animation-delay: 0.7s">
+                    <div class="metric-icon" style="background: var(--warning);">
+                        <i class="fas fa-times-circle text-white"></i>
+                    </div>
+                    <h5>Пропущено</h5>
+                    <div class="metric-value" id="missedToday">0</div>
+                    <p class="text-muted mb-0">сообщений</p>
+                    
+                    <!-- Progress Ring -->
+                    <svg class="progress-ring" viewBox="0 0 120 120">
+                        <circle class="bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" cx="60" cy="60" r="50" id="missedProgress"></circle>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Export Section -->
+        <div class="row mb-5" id="exportSection" style="display: none;">
             <div class="col-12">
-                <div class="card export-card">
-                    <div class="card-body">
+                <div class="export-section animate-slide-up" style="animation-delay: 0.8s">
+                    <div class="export-content">
                         <div class="row align-items-center">
-                            <div class="col-md-8">
-                                <h5 class="card-title text-white mb-2">
-                                    <i class="fas fa-table me-2"></i>Экспорт в Google Sheets
-                                </h5>
-                                <p class="text-white mb-0">Выгрузите текущую статистику в Google Таблицы для дополнительного анализа</p>
+                            <div class="col-lg-8">
+                                <h4 class="mb-2">
+                                    <i class="fas fa-table me-3"></i>Экспорт в Google Sheets
+                                </h4>
+                                <p class="mb-0 opacity-90">
+                                    Автоматическая выгрузка актуальной статистики для углубленного анализа
+                                </p>
                             </div>
-                            <div class="col-md-4 text-end">
+                            <div class="col-lg-4 text-end">
                                 <button class="btn btn-light btn-lg" onclick="exportToGoogleSheets()">
-                                    <i class="fas fa-cloud-upload me-2"></i>Экспортировать
+                                    <i class="fas fa-cloud-upload me-2"></i>
+                                    Экспортировать данные
                                 </button>
                             </div>
                         </div>
@@ -209,35 +612,42 @@
                 </div>
             </div>
         </div>
-    </div>
-    
-    <!-- Графики -->
-    <div class="row" id="chartsSection" style="display: none;">
-        <div class="col-lg-8 mb-4">
-            <div class="card">
-                <div class="card-header bg-gradient text-white">
-                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>График времени ответа</h5>
+
+        <!-- Charts Section -->
+        <div class="row" id="chartsSection" style="display: none;">
+            <div class="col-lg-8 mb-4">
+                <div class="chart-card animate-slide-up" style="animation-delay: 0.9s">
+                    <div class="chart-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-area me-2"></i>
+                            Динамика времени ответа
+                        </h5>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="responseTimeChart" style="height: 400px;"></canvas>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="chart-container">
-                        <canvas id="responseTimeChart"></canvas>
+            </div>
+            <div class="col-lg-4 mb-4">
+                <div class="chart-card animate-slide-up" style="animation-delay: 1s">
+                    <div class="chart-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-chart-pie me-2"></i>
+                            Распределение результатов
+                        </h5>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="messagesPieChart" style="height: 400px;"></canvas>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-lg-4 mb-4">
-            <div class="card">
-                <div class="card-header bg-gradient text-white">
-                    <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Распределение сообщений</h5>
-                </div>
-                <div class="card-body">
-                    <div class="chart-container">
-                        <canvas id="messagesPieChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
+
+    <!-- Floating Action Button -->
+    <button class="fab" onclick="refreshDashboard()" title="Обновить данные">
+        <i class="fas fa-sync-alt"></i>
+    </button>
 </div>
 {% endblock %}
 
@@ -246,64 +656,140 @@
     let currentPeriod = 'today';
     let responseTimeChart = null;
     let pieChart = null;
-    
-    // Обновление времени
+    let refreshInterval = null;
+
+    // Update current time
     function updateCurrentTime() {
         const now = new Date();
-        document.getElementById('current-time').textContent = now.toLocaleString('ru-RU');
+        const timeString = now.toLocaleString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        document.getElementById('current-time').textContent = `Обновлено в ${timeString}`;
     }
-    
+
+    // Set progress ring
+    function setProgressRing(elementId, percentage) {
+        const circle = document.getElementById(elementId);
+        if (circle) {
+            const circumference = 2 * Math.PI * 50;
+            const offset = circumference - (percentage / 100) * circumference;
+            circle.style.strokeDasharray = `${circumference} ${circumference}`;
+            circle.style.strokeDashoffset = offset;
+        }
+    }
+
     // Load dashboard data
     async function loadDashboard(period = 'today') {
         currentPeriod = period;
         
         // Update active button
-        document.querySelectorAll('.btn-group button').forEach(btn => {
+        document.querySelectorAll('.period-btn').forEach(btn => {
             btn.classList.remove('active');
-            if (btn.textContent.toLowerCase().includes(period)) {
-                btn.classList.add('active');
-            }
         });
+        event?.target?.classList.add('active');
         
         try {
+            showToast('Обновление данных...', 'info', 2000);
+            
             const response = await axios.get('/api/dashboard/overview');
             const data = response.data;
             
-            // Hide spinner
+            // Hide loading
             document.getElementById('loadingSpinner').style.display = 'none';
+            document.getElementById('dashboardContent').style.display = 'block';
             
-            // Show admin dashboard
-            document.getElementById('adminDashboard').style.display = 'block';
+            // Update stats with animations
+            animateNumber('activeEmployees', data.active_employees || 0);
+            animateNumber('totalMessagesToday', data.total_messages_today || 0);
+            animateNumber('respondedToday', data.responded_today || 0);
+            animateNumber('urgentMessages', data.urgent_messages || 0);
+            animateNumber('avgResponseTime', data.avg_response_time || 0);
+            animateNumber('efficiencyToday', data.efficiency_today || 0);
+            animateNumber('missedToday', data.missed_today || 0);
             
-            // Update stats
-            document.getElementById('activeEmployees').textContent = data.active_employees || 0;
-            document.getElementById('totalMessagesToday').textContent = data.total_messages_today || 0;
-            document.getElementById('respondedToday').textContent = data.responded_today || 0;
-            document.getElementById('urgentMessages').textContent = data.urgent_messages || 0;
-            document.getElementById('avgResponseTime').textContent = data.avg_response_time || 0;
-            document.getElementById('efficiencyToday').textContent = data.efficiency_today || 0;
-            document.getElementById('missedToday').textContent = data.missed_today || 0;
+            // Update progress rings
+            setTimeout(() => {
+                const maxTime = 60; // Max expected response time
+                const timePercentage = Math.min((data.avg_response_time || 0) / maxTime * 100, 100);
+                setProgressRing('timeProgress', timePercentage);
+                setProgressRing('efficiencyProgress', data.efficiency_today || 0);
+                
+                const totalMessages = data.total_messages_today || 1;
+                const missedPercentage = (data.missed_today || 0) / totalMessages * 100;
+                setProgressRing('missedProgress', missedPercentage);
+            }, 1000);
             
-            // Check Google Sheets settings
-            checkGoogleSheetsSettings();
+            // Update urgent status
+            const urgentStatus = document.getElementById('urgentStatus');
+            if (data.urgent_messages > 0) {
+                urgentStatus.className = 'stat-change text-danger';
+                urgentStatus.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>Требует действий!</span>';
+            } else {
+                urgentStatus.className = 'stat-change text-success';
+                urgentStatus.innerHTML = '<i class="fas fa-check-circle"></i><span>Всё под контролем</span>';
+            }
+            
+            // Show export section for admins
+            if (userInfo.is_admin) {
+                document.getElementById('exportSection').style.display = 'block';
+            }
             
             // Load charts
             await loadCharts();
             
+            showToast('Данные успешно обновлены!', 'success');
+            
         } catch (error) {
             console.error('Error loading dashboard:', error);
-            showAlert('Ошибка при загрузке дашборда', 'danger');
+            showToast('Ошибка при загрузке данных', 'danger');
         }
     }
-    
-    // Load charts
+
+    // Animate numbers
+    function animateNumber(elementId, targetValue) {
+        const element = document.getElementById(elementId);
+        const startValue = parseInt(element.textContent) || 0;
+        const duration = 1000;
+        const startTime = performance.now();
+        
+        function updateNumber(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Easing function
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+            const currentValue = Math.round(startValue + (targetValue - startValue) * easeOut);
+            
+            element.textContent = currentValue;
+            
+            if (progress < 1) {
+                requestAnimationFrame(updateNumber);
+            }
+        }
+        
+        requestAnimationFrame(updateNumber);
+    }
+
+    // Load charts with modern styling
     async function loadCharts() {
         try {
-            const response = await axios.get(`/api/statistics/charts/response-time?period=${currentPeriod === 'today' ? 'week' : 'month'}`);
-            const data = response.data;
+            const chartResponse = await axios.get(`/api/statistics/charts/response-time?period=${currentPeriod === 'today' ? 'week' : 'month'}`);
+            const chartData = chartResponse.data;
             
-            // Show charts section
             document.getElementById('chartsSection').style.display = 'flex';
+            
+            // Modern gradient colors
+            const gradientBlue = {
+                start: '#667eea',
+                end: '#764ba2'
+            };
+            
+            const gradientGreen = {
+                start: '#4facfe',
+                end: '#00f2fe'
+            };
             
             // Response time chart
             const ctx1 = document.getElementById('responseTimeChart').getContext('2d');
@@ -311,21 +797,30 @@
                 responseTimeChart.destroy();
             }
             
+            const gradient = ctx1.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(102, 126, 234, 0.3)');
+            gradient.addColorStop(1, 'rgba(102, 126, 234, 0.05)');
+            
             responseTimeChart = new Chart(ctx1, {
                 type: 'line',
                 data: {
-                    labels: data.labels,
+                    labels: chartData.labels,
                     datasets: [{
-                        label: 'Среднее время ответа (мин)',
-                        data: data.data,
-                        borderColor: '#667eea',
-                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        label: 'Время ответа (мин)',
+                        data: chartData.data,
+                        borderColor: gradientBlue.start,
+                        backgroundColor: gradient,
                         tension: 0.4,
-                        borderWidth: 3,
-                        pointBackgroundColor: '#764ba2',
+                        borderWidth: 4,
+                        pointBackgroundColor: gradientBlue.end,
                         pointBorderColor: '#fff',
-                        pointBorderWidth: 2,
-                        pointRadius: 6
+                        pointBorderWidth: 3,
+                        pointRadius: 8,
+                        pointHoverRadius: 12,
+                        fill: true,
+                        shadowColor: 'rgba(102, 126, 234, 0.3)',
+                        shadowBlur: 15,
+                        shadowOffsetY: 8
                     }]
                 },
                 options: {
@@ -334,27 +829,59 @@
                     plugins: {
                         legend: {
                             display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: gradientBlue.start,
+                            borderWidth: 2,
+                            cornerRadius: 15,
+                            displayColors: false,
+                            callbacks: {
+                                title: (items) => `Дата: ${items[0].label}`,
+                                label: (item) => `Время ответа: ${item.formattedValue} мин`
+                            }
                         }
                     },
                     scales: {
                         y: {
                             beginAtZero: true,
                             grid: {
-                                color: 'rgba(0,0,0,0.1)'
+                                color: 'rgba(255, 255, 255, 0.1)',
+                                lineWidth: 1
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                font: {
+                                    size: 12,
+                                    weight: 500
+                                }
                             }
                         },
                         x: {
                             grid: {
-                                color: 'rgba(0,0,0,0.1)'
+                                display: false
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                font: {
+                                    size: 12,
+                                    weight: 500
+                                }
                             }
                         }
+                    },
+                    animation: {
+                        duration: 2000,
+                        easing: 'easeOutQuart'
                     }
                 }
             });
             
-            // Pie chart for message distribution
+            // Pie chart
             const summaryResponse = await axios.get(`/api/statistics/summary?period=${currentPeriod}`);
-            const summary = summaryResponse.data;
+            const summaryData = summaryResponse.data;
             
             const ctx2 = document.getElementById('messagesPieChart').getContext('2d');
             if (pieChart) {
@@ -364,30 +891,53 @@
             pieChart = new Chart(ctx2, {
                 type: 'doughnut',
                 data: {
-                    labels: ['Отвечено', 'Пропущено'],
+                    labels: ['Отвечено', 'Пропущено', 'В обработке'],
                     datasets: [{
-                        data: [summary.responded_messages, summary.missed_messages],
+                        data: [
+                            summaryData.responded_messages || 0,
+                            summaryData.missed_messages || 0,
+                            (summaryData.total_messages || 0) - (summaryData.responded_messages || 0) - (summaryData.missed_messages || 0)
+                        ],
                         backgroundColor: [
-                            '#28a745',
-                            '#dc3545'
+                            gradientGreen.start,
+                            '#ff6b9d',
+                            '#feca57'
                         ],
                         borderWidth: 0,
-                        hoverBorderWidth: 3,
+                        hoverBorderWidth: 4,
                         hoverBorderColor: '#fff'
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    cutout: '70%',
+                    cutout: '75%',
                     plugins: {
                         legend: {
                             position: 'bottom',
                             labels: {
-                                padding: 20,
-                                usePointStyle: true
+                                color: 'rgba(255, 255, 255, 0.8)',
+                                padding: 25,
+                                usePointStyle: true,
+                                pointStyle: 'circle',
+                                font: {
+                                    size: 14,
+                                    weight: 600
+                                }
                             }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderWidth: 0,
+                            cornerRadius: 15,
+                            displayColors: false
                         }
+                    },
+                    animation: {
+                        duration: 2000,
+                        easing: 'easeOutBounce'
                     }
                 }
             });
@@ -396,72 +946,92 @@
             console.error('Error loading charts:', error);
         }
     }
-    
-    // Check Google Sheets settings
-    async function checkGoogleSheetsSettings() {
-        if (userInfo.is_admin) {
-            try {
-                const response = await axios.get('/api/dashboard/settings');
-                if (response.data.google_sheets_enabled) {
-                    document.getElementById('googleSheetsSection').style.display = 'block';
-                }
-            } catch (error) {
-                console.error('Error checking settings:', error);
-            }
-        }
-    }
-    
+
     // Export to Google Sheets
     async function exportToGoogleSheets() {
-        const btn = event.target;
+        const btn = event.target.closest('button');
         const originalText = btn.innerHTML;
+        
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Экспорт...';
         
         try {
+            showToast('Подготовка данных для экспорта...', 'info');
+            
             const response = await axios.post(`/api/dashboard/export/google-sheets?period=${currentPeriod}`);
-            showAlert('Данные успешно экспортированы!', 'success');
+            
+            showToast('Данные успешно экспортированы в Google Sheets!', 'success');
             
             if (response.data.sheet_url) {
-                window.open(response.data.sheet_url, '_blank');
+                setTimeout(() => {
+                    window.open(response.data.sheet_url, '_blank');
+                }, 1000);
             }
+            
         } catch (error) {
             console.error('Error exporting:', error);
-            showAlert(error.response?.data?.detail || 'Ошибка при экспорте', 'danger');
+            showToast(error.response?.data?.detail || 'Ошибка при экспорте данных', 'danger');
         } finally {
             btn.disabled = false;
             btn.innerHTML = originalText;
         }
     }
-    
-    // Show alert
-    function showAlert(message, type) {
-        const alert = document.createElement('div');
-        alert.className = `alert alert-${type} alert-dismissible fade show notification`;
-        alert.innerHTML = `
-            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.container-fluid').firstChild);
+
+    // Refresh dashboard
+    function refreshDashboard() {
+        const fab = document.querySelector('.fab');
+        fab.style.transform = 'scale(1.2) rotate(360deg)';
         
         setTimeout(() => {
-            if (alert.parentNode) {
-                alert.remove();
-            }
-        }, 5000);
+            fab.style.transform = '';
+            loadDashboard(currentPeriod);
+        }, 300);
     }
-    
-    // Initialize
+
+    // Auto refresh every 5 minutes
+    function startAutoRefresh() {
+        refreshInterval = setInterval(() => {
+            loadDashboard(currentPeriod);
+        }, 300000); // 5 minutes
+    }
+
+    // Initialize dashboard
     document.addEventListener('DOMContentLoaded', () => {
         updateCurrentTime();
         setInterval(updateCurrentTime, 1000);
-        loadDashboard();
         
-        // Автообновление каждые 5 минут
-        setInterval(() => {
-            loadDashboard(currentPeriod);
-        }, 300000);
+        loadDashboard();
+        startAutoRefresh();
+        
+        // Add intersection observer for animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+        
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+        
+        // Observe all cards
+        document.querySelectorAll('.stat-card, .metric-card, .chart-card').forEach(card => {
+            card.style.opacity = '0';
+            card.style.transform = 'translateY(30px)';
+            card.style.transition = 'all 0.6s ease';
+            observer.observe(card);
+        });
+    });
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+        }
     });
 </script>
 {% endblock %} 

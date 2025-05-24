@@ -1,104 +1,556 @@
 {% extends "base.html" %}
 
-{% block title %}Профиль - Трекер активности{% endblock %}
+{% block title %}Профиль - Activity Tracker Pro{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Profile Hero Section */
+    .profile-hero {
+        background: var(--info);
+        border-radius: 30px;
+        color: white;
+        margin-bottom: 3rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .profile-hero::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: 
+            radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.2) 0%, transparent 50%),
+            radial-gradient(circle at 75% 75%, rgba(255, 255, 255, 0.15) 0%, transparent 50%);
+        animation: profileGlow 10s ease-in-out infinite alternate;
+    }
+
+    @keyframes profileGlow {
+        0% { opacity: 0.6; transform: scale(1); }
+        100% { opacity: 1; transform: scale(1.03); }
+    }
+
+    .profile-content {
+        position: relative;
+        z-index: 2;
+        padding: 3rem;
+    }
+
+    .profile-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3rem;
+        margin: 0 auto 2rem;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        backdrop-filter: blur(10px);
+        transition: all 0.3s ease;
+    }
+
+    .profile-avatar:hover {
+        transform: scale(1.1) rotate(5deg);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Modern Info Cards */
+    .info-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        padding: 2rem;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+        margin-bottom: 2rem;
+    }
+
+    [data-bs-theme="dark"] .info-card {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .info-card:hover {
+        transform: translateY(-8px) scale(1.02);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .info-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: var(--primary);
+        border-radius: 25px 25px 0 0;
+    }
+
+    .info-item {
+        display: flex;
+        align-items: center;
+        padding: 1rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        transition: all 0.3s ease;
+    }
+
+    .info-item:last-child {
+        border-bottom: none;
+    }
+
+    .info-item:hover {
+        transform: translateX(10px);
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 15px;
+        padding-left: 1rem;
+    }
+
+    .info-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 15px;
+        background: var(--primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 1rem;
+        font-size: 1.2rem;
+        color: white;
+    }
+
+    .info-label {
+        font-weight: 600;
+        color: #6c757d;
+        margin-bottom: 0.25rem;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-value {
+        font-weight: 700;
+        font-size: 1.1rem;
+    }
+
+    /* Performance Cards */
+    .performance-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 3rem;
+    }
+
+    .performance-card {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        padding: 2rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.4s ease;
+    }
+
+    [data-bs-theme="dark"] .performance-card {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .performance-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+    }
+
+    .performance-icon {
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+        font-size: 1.8rem;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .performance-icon.messages { background: var(--info); }
+    .performance-icon.responded { background: var(--success); }
+    .performance-icon.time { background: var(--primary); }
+    .performance-icon.efficiency { background: var(--warning); }
+
+    .performance-number {
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin: 1rem 0 0.5rem;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .performance-label {
+        font-weight: 600;
+        opacity: 0.8;
+        font-size: 0.9rem;
+    }
+
+    /* Messages Table */
+    .messages-section {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    [data-bs-theme="dark"] .messages-section {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .messages-header {
+        background: var(--primary);
+        color: white;
+        padding: 1.5rem 2rem;
+        display: flex;
+        justify-content: between;
+        align-items: center;
+    }
+
+    .messages-table {
+        margin: 0;
+        background: transparent;
+    }
+
+    .messages-table th {
+        background: rgba(102, 126, 234, 0.1);
+        border: none;
+        font-weight: 600;
+        padding: 1rem;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .messages-table td {
+        border: none;
+        padding: 1rem;
+        vertical-align: middle;
+        background: rgba(255, 255, 255, 0.3);
+        backdrop-filter: blur(10px);
+    }
+
+    [data-bs-theme="dark"] .messages-table td {
+        background: rgba(26, 26, 46, 0.3);
+    }
+
+    .messages-table tbody tr {
+        transition: all 0.3s ease;
+    }
+
+    .messages-table tbody tr:hover {
+        transform: scale(1.01);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Chart Section */
+    .chart-section {
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        border-radius: 25px;
+        overflow: hidden;
+    }
+
+    [data-bs-theme="dark"] .chart-section {
+        background: var(--dark-glass-bg);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .chart-header {
+        background: var(--secondary);
+        color: white;
+        padding: 1.5rem 2rem;
+        font-weight: 600;
+    }
+
+    .chart-body {
+        padding: 2rem;
+        height: 400px;
+    }
+
+    /* Badges */
+    .modern-badge {
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .badge-admin {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+    }
+
+    .badge-employee {
+        background: linear-gradient(135deg, #6c757d, #495057);
+        color: white;
+    }
+
+    .badge-active {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+    }
+
+    .badge-inactive {
+        background: linear-gradient(135deg, #dc3545, #e83e8c);
+        color: white;
+    }
+
+    /* Refresh Button */
+    .refresh-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        border-radius: 15px;
+        padding: 8px 16px;
+        transition: all 0.3s ease;
+    }
+
+    .refresh-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        color: white;
+    }
+
+    /* Loading States */
+    .loading-skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 10px;
+        height: 20px;
+        margin: 5px 0;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .profile-content {
+            padding: 2rem;
+        }
+        
+        .performance-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .performance-number {
+            font-size: 2rem;
+        }
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="container-fluid">
+    <!-- Profile Hero -->
+    <div class="profile-hero animate-fade-in">
+        <div class="profile-content">
+            <div class="row align-items-center">
+                <div class="col-lg-4 text-center">
+                    <div class="profile-avatar">
+                        <i class="fas fa-user-astronaut"></i>
+                    </div>
+                </div>
+                <div class="col-lg-8">
+                    <h1 class="hero-title mb-3">
+                        <span id="heroName">Личный кабинет</span>
+                    </h1>
+                    <p class="hero-subtitle mb-3">
+                        Персональная статистика и управление профилем
+                    </p>
+                    <div class="d-flex gap-3 flex-wrap">
+                        <div class="status-indicator status-online">
+                            <i class="fas fa-circle"></i>
+                            <span id="heroStatus">Активен</span>
+                        </div>
+                        <div class="status-indicator" style="background: rgba(255, 255, 255, 0.2); color: white; border: 1px solid rgba(255, 255, 255, 0.3);">
+                            <i class="fas fa-clock"></i>
+                            <span id="current-time"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row">
-        <div class="col-lg-8 mx-auto">
-            <h1 class="h3 mb-4">Личный кабинет</h1>
-            
-            <!-- Profile info -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">Информация о профиле</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p><strong>Имя:</strong> <span id="profileName">-</span></p>
-                            <p><strong>Telegram ID:</strong> <span id="profileTelegramId">-</span></p>
-                            <p><strong>Username:</strong> <span id="profileUsername">-</span></p>
+        <!-- Profile Information -->
+        <div class="col-lg-4">
+            <div class="info-card animate-slide-up" style="animation-delay: 0.1s">
+                <h5 class="mb-4">
+                    <i class="fas fa-id-card me-2"></i>Информация о профиле
+                </h5>
+                
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div>
+                        <div class="info-label">Полное имя</div>
+                        <div class="info-value" id="profileName">
+                            <div class="loading-skeleton"></div>
                         </div>
-                        <div class="col-md-6">
-                            <p><strong>Роль:</strong> <span id="profileRole">-</span></p>
-                            <p><strong>Статус:</strong> <span id="profileStatus">-</span></p>
-                            <p><strong>Дата регистрации:</strong> <span id="profileCreated">-</span></p>
+                    </div>
+                </div>
+
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fab fa-telegram"></i>
+                    </div>
+                    <div>
+                        <div class="info-label">Telegram ID</div>
+                        <div class="info-value" id="profileTelegramId">
+                            <div class="loading-skeleton"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-at"></i>
+                    </div>
+                    <div>
+                        <div class="info-label">Username</div>
+                        <div class="info-value" id="profileUsername">
+                            <div class="loading-skeleton"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <div>
+                        <div class="info-label">Роль в системе</div>
+                        <div class="info-value" id="profileRole">
+                            <div class="loading-skeleton"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-item">
+                    <div class="info-icon">
+                        <i class="fas fa-calendar-plus"></i>
+                    </div>
+                    <div>
+                        <div class="info-label">Дата регистрации</div>
+                        <div class="info-value" id="profileCreated">
+                            <div class="loading-skeleton"></div>
                         </div>
                     </div>
                 </div>
             </div>
-            
-            <!-- Today's performance -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">Сегодняшние показатели</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row text-center">
-                        <div class="col-md-3 mb-3">
-                            <h6 class="text-muted">Сообщений</h6>
-                            <p class="h4" id="todayMessages">0</p>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <h6 class="text-muted">Отвечено</h6>
-                            <p class="h4 text-success" id="todayResponded">0</p>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <h6 class="text-muted">Ср. время</h6>
-                            <p class="h4 text-primary"><span id="todayAvgTime">0</span> мин</p>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <h6 class="text-muted">Эффективность</h6>
-                            <p class="h4 text-info"><span id="todayEfficiency">0</span>%</p>
-                        </div>
+        </div>
+
+        <!-- Performance & Content -->
+        <div class="col-lg-8">
+            <!-- Today's Performance -->
+            <div class="performance-grid animate-slide-up" style="animation-delay: 0.2s">
+                <div class="performance-card">
+                    <div class="performance-icon messages">
+                        <i class="fas fa-envelope"></i>
                     </div>
+                    <div class="performance-number" id="todayMessages">0</div>
+                    <div class="performance-label">Сообщений сегодня</div>
+                </div>
+                
+                <div class="performance-card">
+                    <div class="performance-icon responded">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="performance-number" id="todayResponded">0</div>
+                    <div class="performance-label">Успешно отвечено</div>
+                </div>
+                
+                <div class="performance-card">
+                    <div class="performance-icon time">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="performance-number"><span id="todayAvgTime">0</span><small>м</small></div>
+                    <div class="performance-label">Среднее время</div>
+                </div>
+                
+                <div class="performance-card">
+                    <div class="performance-icon efficiency">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="performance-number"><span id="todayEfficiency">0</span><small>%</small></div>
+                    <div class="performance-label">Эффективность</div>
                 </div>
             </div>
-            
-            <!-- Recent messages -->
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Последние сообщения</h5>
-                    <button class="btn btn-sm btn-primary" onclick="loadRecentMessages()">
-                        <i class="bi bi-arrow-clockwise"></i> Обновить
+
+            <!-- Recent Messages -->
+            <div class="messages-section animate-slide-up" style="animation-delay: 0.3s">
+                <div class="messages-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>Последние сообщения
+                    </h5>
+                    <button class="refresh-btn" onclick="loadRecentMessages()">
+                        <i class="fas fa-sync-alt me-2"></i>Обновить
                     </button>
                 </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Время</th>
-                                    <th>Клиент</th>
-                                    <th>Сообщение</th>
-                                    <th>Время ответа</th>
-                                    <th>Статус</th>
-                                </tr>
-                            </thead>
-                            <tbody id="recentMessagesBody">
-                                <tr>
-                                    <td colspan="5" class="text-center">
-                                        <div class="spinner-border spinner-border-sm text-primary" role="status">
-                                            <span class="visually-hidden">Загрузка...</span>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="table-responsive">
+                    <table class="table messages-table">
+                        <thead>
+                            <tr>
+                                <th><i class="fas fa-clock me-2"></i>Время</th>
+                                <th><i class="fas fa-user me-2"></i>Клиент</th>
+                                <th><i class="fas fa-comment me-2"></i>Сообщение</th>
+                                <th><i class="fas fa-stopwatch me-2"></i>Время ответа</th>
+                                <th><i class="fas fa-flag me-2"></i>Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentMessagesBody">
+                            <tr>
+                                <td colspan="5" class="text-center py-4">
+                                    <div class="loading-dots">
+                                        <div></div>
+                                        <div></div>
+                                        <div></div>
+                                        <div></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-            
-            <!-- Performance chart -->
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">График производительности за неделю</h5>
+
+            <!-- Performance Chart -->
+            <div class="chart-section animate-slide-up" style="animation-delay: 0.4s">
+                <div class="chart-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-area me-2"></i>Производительность за неделю
+                    </h5>
                 </div>
-                <div class="card-body">
-                    <div class="chart-container" style="height: 300px;">
-                        <canvas id="performanceChart"></canvas>
-                    </div>
+                <div class="chart-body">
+                    <canvas id="performanceChart"></canvas>
                 </div>
             </div>
         </div>
@@ -110,24 +562,65 @@
 <script>
     let performanceChart = null;
     
+    // Update current time
+    function updateCurrentTime() {
+        const now = new Date();
+        const timeString = now.toLocaleString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        document.getElementById('current-time').textContent = `Обновлено в ${timeString}`;
+    }
+
+    // Animate numbers
+    function animateNumber(elementId, targetValue) {
+        const element = document.getElementById(elementId);
+        const startValue = parseInt(element.textContent) || 0;
+        const duration = 1000;
+        const startTime = performance.now();
+        
+        function updateNumber(currentTime) {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            const easeOut = 1 - Math.pow(1 - progress, 3);
+            const currentValue = Math.round(startValue + (targetValue - startValue) * easeOut);
+            
+            element.textContent = currentValue;
+            
+            if (progress < 1) {
+                requestAnimationFrame(updateNumber);
+            }
+        }
+        
+        requestAnimationFrame(updateNumber);
+    }
+    
     // Load profile data
     async function loadProfile() {
         try {
+            showToast('Загрузка профиля...', 'info', 2000);
+            
             // Get employee info
             const response = await axios.get('/api/employees/me');
             const employee = response.data;
             
-            // Update profile info
-            document.getElementById('profileName').textContent = employee.full_name;
-            document.getElementById('profileTelegramId').textContent = employee.telegram_id;
-            document.getElementById('profileUsername').textContent = employee.telegram_username ? '@' + employee.telegram_username : '-';
-            document.getElementById('profileRole').innerHTML = employee.is_admin ? 
-                '<span class="badge bg-primary">Администратор</span>' : 
-                '<span class="badge bg-secondary">Сотрудник</span>';
-            document.getElementById('profileStatus').innerHTML = employee.is_active ? 
-                '<span class="badge bg-success">Активен</span>' : 
-                '<span class="badge bg-danger">Неактивен</span>';
-            document.getElementById('profileCreated').textContent = new Date(employee.created_at).toLocaleDateString('ru-RU');
+            // Update profile info with animations
+            setTimeout(() => {
+                document.getElementById('heroName').textContent = employee.full_name;
+                document.getElementById('profileName').textContent = employee.full_name;
+                document.getElementById('profileTelegramId').textContent = employee.telegram_id;
+                document.getElementById('profileUsername').textContent = employee.telegram_username ? '@' + employee.telegram_username : '-';
+                
+                // Modern badges
+                document.getElementById('profileRole').innerHTML = employee.is_admin ? 
+                    '<span class="modern-badge badge-admin"><i class="fas fa-crown me-2"></i>Администратор</span>' : 
+                    '<span class="modern-badge badge-employee"><i class="fas fa-user me-2"></i>Сотрудник</span>';
+                
+                document.getElementById('heroStatus').textContent = employee.is_active ? 'Активен' : 'Неактивен';
+                document.getElementById('profileCreated').textContent = new Date(employee.created_at).toLocaleDateString('ru-RU');
+            }, 500);
             
             // Load today's stats
             await loadTodayStats();
@@ -138,9 +631,11 @@
             // Load performance chart
             await loadPerformanceChart();
             
+            showToast('Профиль успешно загружен!', 'success');
+            
         } catch (error) {
             console.error('Error loading profile:', error);
-            showAlert('Ошибка при загрузке профиля', 'danger');
+            showToast('Ошибка при загрузке профиля', 'danger');
         }
     }
     
@@ -150,10 +645,11 @@
             const response = await axios.get('/api/statistics/summary?period=today');
             const stats = response.data;
             
-            document.getElementById('todayMessages').textContent = stats.total_messages;
-            document.getElementById('todayResponded').textContent = stats.responded_messages;
-            document.getElementById('todayAvgTime').textContent = stats.avg_response_time;
-            document.getElementById('todayEfficiency').textContent = stats.efficiency_percent;
+            // Animate numbers
+            setTimeout(() => animateNumber('todayMessages', stats.total_messages || 0), 600);
+            setTimeout(() => animateNumber('todayResponded', stats.responded_messages || 0), 700);
+            setTimeout(() => animateNumber('todayAvgTime', Math.round(stats.avg_response_time) || 0), 800);
+            setTimeout(() => animateNumber('todayEfficiency', Math.round(stats.efficiency_percent) || 0), 900);
             
         } catch (error) {
             console.error('Error loading today stats:', error);
@@ -169,33 +665,47 @@
             const tbody = document.getElementById('recentMessagesBody');
             
             if (messages.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center">Нет сообщений</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">Нет сообщений</td></tr>';
                 return;
             }
             
-            tbody.innerHTML = messages.map(msg => `
-                <tr>
-                    <td>${new Date(msg.received_at).toLocaleString('ru-RU', { 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        day: '2-digit',
-                        month: '2-digit'
-                    })}</td>
-                    <td>${msg.client_username ? '@' + msg.client_username : msg.client_name || 'Неизвестный'}</td>
+            tbody.innerHTML = messages.map((msg, index) => `
+                <tr style="animation-delay: ${index * 0.1}s" class="animate-slide-up">
+                    <td>
+                        <span class="badge bg-secondary">
+                            ${new Date(msg.received_at).toLocaleString('ru-RU', { 
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                day: '2-digit',
+                                month: '2-digit'
+                            })}
+                        </span>
+                    </td>
+                    <td>
+                        <strong>
+                            ${
+                                msg.client_name
+                                    ? msg.client_username
+                                        ? `${msg.client_name} (@${msg.client_username})`
+                                        : msg.client_name
+                                    : (msg.client_username ? `@${msg.client_username}` : 'Неизвестный')
+                            }
+                        </strong>
+                    </td>
                     <td class="text-truncate" style="max-width: 200px;" title="${msg.message_text || ''}">
                         ${msg.message_text ? msg.message_text.substring(0, 50) + '...' : '-'}
                     </td>
                     <td>
                         ${msg.response_time_minutes ? 
-                            `<span class="${getResponseTimeClass(msg.response_time_minutes)}">${msg.response_time_minutes.toFixed(1)} мин</span>` : 
-                            '-'}
+                            `<span class="badge ${getResponseTimeClass(msg.response_time_minutes)} fs-6">${msg.response_time_minutes.toFixed(1)} мин</span>` : 
+                            '<span class="badge bg-secondary fs-6">-</span>'}
                     </td>
                     <td>
                         ${msg.responded_at ? 
-                            '<span class="badge bg-success">Отвечено</span>' : 
+                            '<span class="badge bg-success fs-6"><i class="fas fa-check me-1"></i>Отвечено</span>' : 
                             (msg.is_missed ? 
-                                '<span class="badge bg-danger">Пропущено</span>' : 
-                                '<span class="badge bg-warning">Ожидает</span>')}
+                                '<span class="badge bg-danger fs-6"><i class="fas fa-times me-1"></i>Пропущено</span>' : 
+                                '<span class="badge bg-warning fs-6"><i class="fas fa-clock me-1"></i>Ожидает</span>')}
                     </td>
                 </tr>
             `).join('');
@@ -203,15 +713,15 @@
         } catch (error) {
             console.error('Error loading messages:', error);
             document.getElementById('recentMessagesBody').innerHTML = 
-                '<tr><td colspan="5" class="text-center text-danger">Ошибка загрузки</td></tr>';
+                '<tr><td colspan="5" class="text-center text-danger py-4">Ошибка загрузки</td></tr>';
         }
     }
     
     // Get response time class
     function getResponseTimeClass(minutes) {
-        if (minutes <= 15) return 'text-success';
-        if (minutes <= 30) return 'text-warning';
-        return 'text-danger';
+        if (minutes <= 15) return 'bg-success';
+        if (minutes <= 30) return 'bg-warning text-dark';
+        return 'bg-danger';
     }
     
     // Load performance chart
@@ -226,34 +736,72 @@
                 performanceChart.destroy();
             }
             
+            // Create gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(240, 147, 251, 0.4)');
+            gradient.addColorStop(1, 'rgba(245, 87, 108, 0.1)');
+            
             performanceChart = new Chart(ctx, {
-                type: 'bar',
+                type: 'line',
                 data: {
                     labels: data.labels,
                     datasets: [{
                         label: 'Среднее время ответа (мин)',
                         data: data.data,
-                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                        borderColor: 'rgba(54, 162, 235, 1)',
-                        borderWidth: 1
+                        borderColor: '#f093fb',
+                        backgroundColor: gradient,
+                        tension: 0.4,
+                        borderWidth: 4,
+                        pointBackgroundColor: '#f5576c',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 3,
+                        pointRadius: 8,
+                        pointHoverRadius: 12,
+                        fill: true
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'Минуты'
-                            }
-                        }
-                    },
                     plugins: {
                         legend: {
                             display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: '#f093fb',
+                            borderWidth: 2,
+                            cornerRadius: 15,
+                            displayColors: false
                         }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                callback: function(value) {
+                                    return value + ' мин';
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 2000,
+                        easing: 'easeOutQuart'
                     }
                 }
             });
@@ -263,24 +811,17 @@
         }
     }
     
-    // Show alert
-    function showAlert(message, type) {
-        const alert = document.createElement('div');
-        alert.className = `alert alert-${type} alert-dismissible fade show`;
-        alert.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        document.querySelector('.container-fluid').insertBefore(alert, document.querySelector('.container-fluid').firstChild);
-        
-        setTimeout(() => {
-            alert.remove();
-        }, 5000);
-    }
-    
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
         loadProfile();
+        
+        // Auto refresh every 5 minutes
+        setInterval(() => {
+            loadTodayStats();
+            loadRecentMessages();
+        }, 300000);
     });
 </script>
 {% endblock %} 
