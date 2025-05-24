@@ -98,12 +98,56 @@ deploy() {
     docker-compose build --no-cache
     
     log "Запуск сервисов..."
-    docker-compose up -d
+    if ! docker-compose up -d 2>&1 | tee /tmp/deploy.log; then
+        # Проверяем, если проблема связана с rate limit
+        if grep -q "toomanyrequests\|rate.limit" /tmp/deploy.log; then
+            warn "❌ Обнаружена проблема с Docker Hub rate limit!"
+            warn "🔄 Переключаемся на версию без nginx..."
+            
+            # Используем альтернативную версию
+            log "Запуск без nginx (прямой доступ через порт 80)..."
+            docker-compose -f docker-compose-no-nginx.yml down
+            docker-compose -f docker-compose-no-nginx.yml up -d
+            
+            log "Ожидание запуска сервисов..."
+            sleep 10
+            
+            # Проверка статуса альтернативной версии
+            if docker-compose -f docker-compose-no-nginx.yml ps | grep -q "Up"; then
+                log "🎉 Развертывание без nginx успешно завершено!"
+                echo ""
+                echo "🔗 Доступные сервисы:"
+                echo "   📱 Telegram бот: @your_bot_name"
+                echo "   🌐 Веб-интерфейс: http://localhost (порт 80)"
+                echo "   🌐 Альтернативный доступ: http://localhost:8000"
+                echo ""
+                echo "⚠️  ВАЖНО: Nginx не запущен. SSL недоступен."
+                echo "📝 Для добавления SSL позже используйте: docker login и ./deploy.sh"
+                echo ""
+                echo "📊 Статус контейнеров:"
+                docker-compose -f docker-compose-no-nginx.yml ps
+                echo ""
+                echo "📝 Логи можно посмотреть командой:"
+                echo "   docker-compose -f docker-compose-no-nginx.yml logs -f"
+                return 0
+            else
+                error "Развертывание без nginx также не удалось!"
+                echo "Логи ошибок:"
+                docker-compose -f docker-compose-no-nginx.yml logs
+                exit 1
+            fi
+        else
+            error "Развертывание не удалось по неизвестной причине!"
+            echo "Логи ошибок:"
+            cat /tmp/deploy.log
+            exit 1
+        fi
+    fi
     
     log "Ожидание запуска сервисов..."
     sleep 10
     
-    # Проверка статуса
+    # Проверка статуса обычной версии
     if docker-compose ps | grep -q "Up"; then
         log "🎉 Развертывание успешно завершено!"
         echo ""

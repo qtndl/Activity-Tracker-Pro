@@ -4,6 +4,7 @@ services:
     build: .
     container_name: tgbot_web
     ports:
+      - "80:8000"  # Прямой доступ на порт 80
       - "8000:8000"
     environment:
       - DATABASE_URL=sqlite+aiosqlite:///./data/bot.db
@@ -38,23 +39,6 @@ services:
       - ./credentials.json:/app/credentials.json:ro
     restart: unless-stopped
     command: python -m bot.main
-    networks:
-      - tgbot_network
-
-  # Nginx reverse proxy
-  # Если возникают проблемы с Docker Hub rate limit, используйте docker-compose-no-nginx.yml
-  nginx:
-    image: nginx:alpine
-    container_name: tgbot_nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - web
-    restart: unless-stopped
     networks:
       - tgbot_network
 
