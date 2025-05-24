@@ -12,6 +12,7 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - GOOGLE_SHEETS_ENABLED=${GOOGLE_SHEETS_ENABLED:-false}
       - SPREADSHEET_ID=${SPREADSHEET_ID}
+      - PYTHONPATH=/app
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
@@ -33,6 +34,7 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - GOOGLE_SHEETS_ENABLED=${GOOGLE_SHEETS_ENABLED:-false}
       - SPREADSHEET_ID=${SPREADSHEET_ID}
+      - PYTHONPATH=/app
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs

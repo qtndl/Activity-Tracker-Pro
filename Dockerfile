@@ -13,6 +13,9 @@ RUN useradd --create-home --shell /bin/bash tgbot
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
+# Настраиваем Python path для корректного импорта модулей
+ENV PYTHONPATH=/app
+
 # Копируем файлы зависимостей
 COPY requirements.txt .
 
