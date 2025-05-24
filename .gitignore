@@ -160,7 +160,7 @@ temp/
 tmp/
 
 # Файлы конфигурации с секретами
-config.py
+# НЕ игнорируем config/config.py - это важный файл настроек!
 secrets.py
 .env.local
 .env.production
@@ -193,7 +193,7 @@ monitor_messages.py
 credentials.json
 
 # Docker
-.dockerignore
+# НЕ игнорируем .dockerignore - он нужен для сборки
 
 # SSL сертификаты и ключи
 ssl/
