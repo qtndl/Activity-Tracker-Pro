@@ -39,6 +39,13 @@ class AnalyticsService:
             responded_messages = sum(1 for m in messages if m.responded_at is not None)
             missed_messages = total_messages - responded_messages
             
+            # Считаем уникальных клиентов
+            unique_client_ids = set()
+            for message in messages:
+                if message.client_telegram_id is not None:
+                    unique_client_ids.add(message.client_telegram_id)
+            unique_clients = len(unique_client_ids)
+            
             # Считаем среднее время ответа
             response_times = [
                 m.response_time_minutes 
@@ -56,6 +63,7 @@ class AnalyticsService:
                 'total_messages': total_messages,
                 'responded_messages': responded_messages,
                 'missed_messages': missed_messages,
+                'unique_clients': unique_clients,
                 'avg_response_time': avg_response_time,
                 'exceeded_15_min': exceeded_15_min,
                 'exceeded_30_min': exceeded_30_min,

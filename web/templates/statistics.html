@@ -636,6 +636,7 @@
                             <th><i class="fas fa-envelope me-2"></i>Всего</th>
                             <th><i class="fas fa-check me-2"></i>Отвечено</th>
                             <th><i class="fas fa-times me-2"></i>Пропущено</th>
+                            <th><i class="fas fa-user-friends me-2"></i>Клиентов</th>
                             <th><i class="fas fa-clock me-2"></i>Ср. время</th>
                             <th><i class="fas fa-exclamation me-2"></i>>15м</th>
                             <th><i class="fas fa-exclamation me-2"></i>>30м</th>
@@ -950,7 +951,7 @@
         }
         
         if (statisticsData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5">Нет данных за выбранный период</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5">Нет данных за выбранный период</td></tr>';
             return;
         }
         
@@ -965,6 +966,7 @@
                 <td><span class="badge bg-info fs-6">${stat.total_messages}</span></td>
                 <td><span class="badge bg-success fs-6">${stat.responded_messages}</span></td>
                 <td><span class="badge bg-danger fs-6">${stat.missed_messages}</span></td>
+                <td><span class="badge bg-info fs-6">${stat.unique_clients}</span></td>
                 <td>
                     <span class="badge ${getTimeClass(stat.avg_response_time)} fs-6">
                         ${stat.avg_response_time ? Math.round(stat.avg_response_time) : 0}м

@@ -2,13 +2,18 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
 import logging
+from .settings_manager import settings_manager
 
 logger = logging.getLogger(__name__)
 
 
-def setup_scheduler(message_tracker):
+async def setup_scheduler(message_tracker):
     """Настройка планировщика задач"""
     scheduler = AsyncIOScheduler()
+    
+    # Получаем время отправки отчетов из настроек
+    daily_time = await settings_manager.get_daily_reports_time()
+    hour, minute = map(int, daily_time.split(':'))
     
     # Ежедневный расчет статистики в 00:01
     scheduler.add_job(
@@ -34,10 +39,10 @@ def setup_scheduler(message_tracker):
         replace_existing=True
     )
     
-    # Ежедневные отчеты сотрудникам в 20:00
+    # Ежедневные отчеты сотрудникам (время из настроек)
     scheduler.add_job(
         send_daily_reports,
-        CronTrigger(hour=20, minute=0),
+        CronTrigger(hour=hour, minute=minute),
         args=[message_tracker],
         id='daily_reports',
         replace_existing=True
@@ -45,7 +50,9 @@ def setup_scheduler(message_tracker):
     
     # Запуск планировщика
     scheduler.start()
-    logger.info("Планировщик задач запущен")
+    logger.info(f"Планировщик задач запущен. Ежедневные отчеты: {daily_time}")
+    
+    return scheduler
 
 
 async def send_daily_reports(message_tracker):
@@ -66,6 +73,8 @@ async def send_daily_reports(message_tracker):
         for employee in employees:
             stats = await message_tracker.analytics.get_employee_stats(employee.id, 'daily')
             if stats:
+                # Добавляем employee_id к статистике для админского отчета
+                stats['employee_id'] = employee.id
                 all_stats.append(stats)
                 # Отправляем отчет сотруднику
                 await message_tracker.notifications.send_daily_report(employee.id, stats)

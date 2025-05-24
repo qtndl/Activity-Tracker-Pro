@@ -196,6 +196,7 @@ async def get_employee_statistics(
             "total_messages": stats.total_messages,
             "responded_messages": stats.responded_messages,
             "missed_messages": stats.missed_messages,
+            "unique_clients": stats.unique_clients,
             "avg_response_time": round(stats.avg_response_time or 0, 1),
             "response_rate": round(stats.response_rate, 1)
         }

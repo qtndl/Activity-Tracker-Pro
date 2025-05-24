@@ -23,6 +23,7 @@ class StatisticsResponse(BaseModel):
     total_messages: int
     responded_messages: int
     missed_messages: int
+    unique_clients: int
     avg_response_time: Optional[float]
     exceeded_15_min: int
     exceeded_30_min: int
@@ -115,6 +116,7 @@ async def get_all_statistics(
             total_messages=stats.total_messages,
             responded_messages=stats.responded_messages,
             missed_messages=stats.missed_messages,
+            unique_clients=stats.unique_clients,
             avg_response_time=stats.avg_response_time,
             exceeded_15_min=stats.exceeded_15_min,
             exceeded_30_min=stats.exceeded_30_min,
@@ -145,6 +147,7 @@ async def get_statistics_summary(
                 "total_messages": 0,
                 "responded_messages": 0,
                 "missed_messages": 0,
+                "unique_clients": 0,
                 "avg_response_time": 0,
                 "efficiency_percent": 0,
                 "exceeded_15_min": 0,
@@ -156,6 +159,7 @@ async def get_statistics_summary(
         total_messages = sum(s.total_messages for s in all_stats)
         responded_messages = sum(s.responded_messages for s in all_stats)
         missed_messages = sum(s.missed_messages for s in all_stats)
+        total_unique_clients = sum(s.unique_clients for s in all_stats)
         
         # Среднее время ответа - среднее арифметическое непустых значений
         avg_times = [s.avg_response_time for s in all_stats if s.avg_response_time is not None]
@@ -172,6 +176,7 @@ async def get_statistics_summary(
             "total_messages": total_messages,
             "responded_messages": responded_messages,
             "missed_messages": missed_messages,
+            "unique_clients": total_unique_clients,
             "avg_response_time": round(avg_response_time, 1),
             "efficiency_percent": round(efficiency, 1),
             "exceeded_15_min": exceeded_15,
@@ -188,6 +193,7 @@ async def get_statistics_summary(
             "total_messages": stats.total_messages,
             "responded_messages": stats.responded_messages,
             "missed_messages": stats.missed_messages,
+            "unique_clients": stats.unique_clients,
             "avg_response_time": round(stats.avg_response_time or 0, 1),
             "efficiency_percent": round(stats.efficiency_percent, 1),
             "exceeded_15_min": stats.exceeded_15_min,
@@ -375,6 +381,13 @@ def _group_messages_by_period(messages: List[Message], period_type: str, employe
         responded_messages = sum(1 for m in period_messages if m.responded_at is not None)
         missed_messages = total_messages - responded_messages
         
+        # Подсчитываем уникальных клиентов
+        unique_client_ids = set()
+        for message in period_messages:
+            if message.client_telegram_id is not None:
+                unique_client_ids.add(message.client_telegram_id)
+        unique_clients = len(unique_client_ids)
+        
         response_times = [m.response_time_minutes for m in period_messages if m.response_time_minutes is not None]
         avg_response_time = sum(response_times) / len(response_times) if response_times else None
         
@@ -395,6 +408,7 @@ def _group_messages_by_period(messages: List[Message], period_type: str, employe
             total_messages=total_messages,
             responded_messages=responded_messages,
             missed_messages=missed_messages,
+            unique_clients=unique_clients,
             avg_response_time=avg_response_time,
             exceeded_15_min=exceeded_15,
             exceeded_30_min=exceeded_30,

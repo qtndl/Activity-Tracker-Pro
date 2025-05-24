@@ -500,7 +500,7 @@
 
         <!-- Performance Metrics -->
         <div class="row mb-5">
-            <div class="col-lg-4 mb-4">
+            <div class="col-lg-3 mb-4">
                 <div class="metric-card animate-slide-up" style="animation-delay: 0.5s">
                     <div class="metric-icon" style="background: var(--primary);">
                         <i class="fas fa-clock text-white"></i>
@@ -522,7 +522,7 @@
                     </svg>
                 </div>
             </div>
-            <div class="col-lg-4 mb-4">
+            <div class="col-lg-3 mb-4">
                 <div class="metric-card animate-slide-up" style="animation-delay: 0.6s">
                     <div class="metric-icon" style="background: var(--success);">
                         <i class="fas fa-chart-line text-white"></i>
@@ -538,8 +538,24 @@
                     </svg>
                 </div>
             </div>
-            <div class="col-lg-4 mb-4">
+            <div class="col-lg-3 mb-4">
                 <div class="metric-card animate-slide-up" style="animation-delay: 0.7s">
+                    <div class="metric-icon" style="background: var(--info);">
+                        <i class="fas fa-user-friends text-white"></i>
+                    </div>
+                    <h5 id="uniqueClientsLabel">Уникальных клиентов</h5>
+                    <div class="metric-value" id="uniqueClientsToday">0</div>
+                    <p class="text-muted mb-0">обработано</p>
+                    
+                    <!-- Progress Ring -->
+                    <svg class="progress-ring" viewBox="0 0 120 120">
+                        <circle class="bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" cx="60" cy="60" r="50" id="clientsProgress"></circle>
+                    </svg>
+                </div>
+            </div>
+            <div class="col-lg-3 mb-4">
+                <div class="metric-card animate-slide-up" style="animation-delay: 0.8s">
                     <div class="metric-icon" style="background: var(--warning);">
                         <i class="fas fa-times-circle text-white"></i>
                     </div>
@@ -623,18 +639,21 @@
             today: {
                 totalMessages: 'Обработано сегодня',
                 responded: 'Успешно отвечено',
+                uniqueClients: 'Уникальных клиентов сегодня',
                 efficiency: 'Эффективность сегодня',
                 missed: 'Пропущено сегодня'
             },
             week: {
                 totalMessages: 'Обработано за неделю',
                 responded: 'Успешно отвечено за неделю',
+                uniqueClients: 'Уникальных клиентов за неделю',
                 efficiency: 'Эффективность за неделю',
                 missed: 'Пропущено за неделю'
             },
             month: {
                 totalMessages: 'Обработано за месяц',
                 responded: 'Успешно отвечено за месяц',
+                uniqueClients: 'Уникальных клиентов за месяц',
                 efficiency: 'Эффективность за месяц',
                 missed: 'Пропущено за месяц'
             }
@@ -651,6 +670,11 @@
         const respondedLabel = document.getElementById('respondedLabel');
         if (respondedLabel) {
             respondedLabel.textContent = periodLabels.responded;
+        }
+        
+        const uniqueClientsLabel = document.getElementById('uniqueClientsLabel');
+        if (uniqueClientsLabel) {
+            uniqueClientsLabel.textContent = periodLabels.uniqueClients;
         }
         
         console.log(`📝 Labels updated for period: ${period}`);
@@ -706,6 +730,7 @@
             console.log('  - active_employees:', data.active_employees);
             console.log('  - total_messages_today:', data.total_messages_today);
             console.log('  - responded_today:', data.responded_today);
+            console.log('  - unique_clients_today:', data.unique_clients_today);
             console.log('  - urgent_messages:', data.urgent_messages);
             console.log('  - avg_response_time:', data.avg_response_time);
             console.log('  - efficiency_today:', data.efficiency_today);
@@ -722,7 +747,7 @@
             // Проверяем наличие элементов и их текущие значения
             const elements = [
                 'activeEmployees', 'totalMessagesToday', 'respondedToday', 
-                'urgentMessages', 'avgResponseTime', 'efficiencyToday', 'missedToday'
+                'uniqueClientsToday', 'urgentMessages', 'avgResponseTime', 'efficiencyToday', 'missedToday'
             ];
             
             elements.forEach(id => {
@@ -744,6 +769,9 @@
             
             console.log('  - respondedToday:', data.responded_today || 0);
             animateNumber('respondedToday', data.responded_today || 0);
+            
+            console.log('  - uniqueClientsToday:', data.unique_clients_today || 0);
+            animateNumber('uniqueClientsToday', data.unique_clients_today || 0);
             
             console.log('  - urgentMessages:', data.urgent_messages || 0);
             animateNumber('urgentMessages', data.urgent_messages || 0);
@@ -768,7 +796,12 @@
                 console.log('  - efficiencyProgress percentage:', data.efficiency_today || 0);
                 setProgressRing('efficiencyProgress', data.efficiency_today || 0);
                 
+                // Прогресс уникальных клиентов (относительно общего количества сообщений)
                 const totalMessages = data.total_messages_today || 1;
+                const clientsPercentage = Math.min((data.unique_clients_today || 0) / totalMessages * 100, 100);
+                console.log('  - clientsProgress percentage:', clientsPercentage);
+                setProgressRing('clientsProgress', clientsPercentage);
+                
                 const missedPercentage = (data.missed_today || 0) / totalMessages * 100;
                 console.log('  - missedProgress percentage:', missedPercentage);
                 setProgressRing('missedProgress', missedPercentage);

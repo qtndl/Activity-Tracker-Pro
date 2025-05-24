@@ -24,6 +24,7 @@ class EmployeeStats:
     total_messages: int
     responded_messages: int
     missed_messages: int
+    unique_clients: int  # Количество уникальных клиентов
     avg_response_time: Optional[float]
     
     # Превышения времени
@@ -138,6 +139,7 @@ class StatisticsService:
             total_messages = sum(s.total_messages for s in all_stats)
             responded = sum(s.responded_messages for s in all_stats)
             missed = sum(s.missed_messages for s in all_stats)
+            total_unique_clients = sum(s.unique_clients for s in all_stats)
             
             # Среднее время ответа по всем сотрудникам
             avg_times = [s.avg_response_time for s in all_stats if s.avg_response_time is not None]
@@ -154,6 +156,7 @@ class StatisticsService:
                 "total_messages_today": total_messages,
                 "responded_today": responded,
                 "missed_today": missed,
+                "unique_clients_today": total_unique_clients,
                 "avg_response_time": round(avg_response_time, 1),
                 "urgent_messages": urgent_messages,
                 "efficiency_today": round((responded / total_messages * 100) if total_messages > 0 else 0, 1)
@@ -169,6 +172,7 @@ class StatisticsService:
                 "total_messages_today": user_stats.total_messages,
                 "responded_today": user_stats.responded_messages,
                 "missed_today": user_stats.missed_messages,
+                "unique_clients_today": user_stats.unique_clients,
                 "avg_response_time": round(user_stats.avg_response_time or 0, 1),
                 "unanswered_messages": unanswered,
                 "efficiency_today": round(user_stats.efficiency_percent, 1)
@@ -254,6 +258,13 @@ class StatisticsService:
         responded_messages = len([m for m in messages if m.responded_at is not None])
         missed_messages = total_messages - responded_messages
         
+        # Уникальные клиенты (по Telegram ID)
+        unique_client_ids = set()
+        for msg in messages:
+            if msg.client_telegram_id is not None:
+                unique_client_ids.add(msg.client_telegram_id)
+        unique_clients = len(unique_client_ids)
+        
         # Время ответа
         response_times = [m.response_time_minutes for m in messages if m.response_time_minutes is not None]
         avg_response_time = sum(response_times) / len(response_times) if response_times else None
@@ -271,6 +282,7 @@ class StatisticsService:
             "total_messages": total_messages,
             "responded_messages": responded_messages,
             "missed_messages": missed_messages,
+            "unique_clients": unique_clients,
             "avg_response_time": avg_response_time,
             "exceeded_15_min": exceeded_15_min,
             "exceeded_30_min": exceeded_30_min,

@@ -141,8 +141,8 @@
     /* Performance Cards */
     .performance-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1.5rem;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 2rem;
         margin-bottom: 3rem;
     }
 
@@ -186,6 +186,7 @@
     .performance-icon.responded { background: var(--success); }
     .performance-icon.time { background: var(--primary); }
     .performance-icon.efficiency { background: var(--warning); }
+    .performance-icon.clients { background: var(--primary); }
 
     .performance-number {
         font-size: 2.5rem;
@@ -489,6 +490,14 @@
                 </div>
                 
                 <div class="performance-card">
+                    <div class="performance-icon clients">
+                        <i class="fas fa-user-friends"></i>
+                    </div>
+                    <div class="performance-number" id="todayClients">0</div>
+                    <div class="performance-label">Уникальных клиентов</div>
+                </div>
+                
+                <div class="performance-card">
                     <div class="performance-icon time">
                         <i class="fas fa-clock"></i>
                     </div>
@@ -644,8 +653,9 @@
             // Animate numbers
             setTimeout(() => animateNumber('todayMessages', stats.total_messages || 0), 600);
             setTimeout(() => animateNumber('todayResponded', stats.responded_messages || 0), 700);
-            setTimeout(() => animateNumber('todayAvgTime', Math.round(stats.avg_response_time) || 0), 800);
-            setTimeout(() => animateNumber('todayEfficiency', Math.round(stats.efficiency_percent) || 0), 900);
+            setTimeout(() => animateNumber('todayClients', stats.unique_clients || 0), 800);
+            setTimeout(() => animateNumber('todayAvgTime', Math.round(stats.avg_response_time) || 0), 900);
+            setTimeout(() => animateNumber('todayEfficiency', Math.round(stats.efficiency_percent) || 0), 1000);
             
         } catch (error) {
             console.error('Error loading today stats:', error);

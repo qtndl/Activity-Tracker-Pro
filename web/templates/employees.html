@@ -604,32 +604,39 @@
             
             <!-- Основная статистика -->
             <div class="row">
-                <div class="col-6 mb-3">
+                <div class="col-4 mb-3">
                     <div class="mini-stat-card">
                         <i class="fas fa-envelope fa-2x text-info mb-2"></i>
                         <div class="mini-stat-number text-info" id="statsTotalMessages">0</div>
-                        <div class="text-muted">Всего сообщений</div>
+                        <div class="text-muted small">Всего сообщений</div>
                     </div>
                 </div>
-                <div class="col-6 mb-3">
+                <div class="col-4 mb-3">
                     <div class="mini-stat-card">
                         <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
                         <div class="mini-stat-number text-success" id="statsResponded">0</div>
-                        <div class="text-muted">Отвечено</div>
+                        <div class="text-muted small">Отвечено</div>
+                    </div>
+                </div>
+                <div class="col-4 mb-3">
+                    <div class="mini-stat-card">
+                        <i class="fas fa-times-circle fa-2x text-danger mb-2"></i>
+                        <div class="mini-stat-number text-danger" id="statsMissed">0</div>
+                        <div class="text-muted small">Пропущено</div>
                     </div>
                 </div>
                 <div class="col-6 mb-3">
                     <div class="mini-stat-card">
-                        <i class="fas fa-times-circle fa-2x text-danger mb-2"></i>
-                        <div class="mini-stat-number text-danger" id="statsMissed">0</div>
-                        <div class="text-muted">Пропущено</div>
+                        <i class="fas fa-user-friends fa-2x text-warning mb-2"></i>
+                        <div class="mini-stat-number text-warning" id="statsUniqueClients">0</div>
+                        <div class="text-muted small">Клиентов</div>
                     </div>
                 </div>
                 <div class="col-6 mb-3">
                     <div class="mini-stat-card">
                         <i class="fas fa-clock fa-2x text-primary mb-2"></i>
                         <div class="mini-stat-number text-primary"><span id="statsAvgTime">0</span><small class="fs-6">м</small></div>
-                        <div class="text-muted">Среднее время</div>
+                        <div class="text-muted small">Ср. время</div>
                     </div>
                 </div>
             </div>
@@ -976,6 +983,7 @@
             document.getElementById('statsTotalMessages').textContent = stats.total_messages || 0;
             document.getElementById('statsResponded').textContent = stats.responded_messages || 0;
             document.getElementById('statsMissed').textContent = stats.missed_messages || 0;
+            document.getElementById('statsUniqueClients').textContent = stats.unique_clients || 0;
             document.getElementById('statsAvgTime').textContent = Math.round(stats.avg_response_time || 0);
             
             // Рассчитываем эффективность

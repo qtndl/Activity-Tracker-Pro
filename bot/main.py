@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, CommandStart
-from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, BotCommandScopeChat, BotCommandScopeDefault, BotCommandScopeAllGroupChats
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +12,7 @@ from database.database import init_db, AsyncSessionLocal
 from database.models import Employee, Message as DBMessage, Notification
 from .analytics import AnalyticsService
 from .notifications import NotificationService
-from .handlers import register_handlers
+from .handlers import register_handlers_and_scheduler
 
 # Настройка логирования
 logging.basicConfig(
@@ -48,6 +48,7 @@ class MessageTracker:
                 employee_id=employee_id,
                 chat_id=chat_id,
                 message_id=message_id,
+                client_telegram_id=message.from_user.id,
                 client_username=message.from_user.username,
                 client_name=message.from_user.full_name,
                 message_text=message.text,
@@ -116,10 +117,6 @@ message_tracker = MessageTracker()
 @dp.message(CommandStart())
 async def start_command(message: Message):
     """Обработчик команды /start"""
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔐 Войти в веб-панель", url=f"http://localhost:{settings.web_port}/auth/telegram?user_id={message.from_user.id}")]
-    ])
-    
     await message.answer(
         "👋 Добро пожаловать в систему мониторинга активности сотрудников!\n\n"
         "Я помогу отслеживать:\n"
@@ -127,8 +124,14 @@ async def start_command(message: Message):
         "• 📊 Количество обработанных клиентов\n"
         "• ⚠️ Пропущенные сообщения\n"
         "• 📈 Статистику работы\n\n"
-        "Используйте кнопку ниже для входа в веб-панель:",
-        reply_markup=keyboard
+        "🔐 <b>Для входа в веб-панель:</b>\n"
+        f"1. Откройте: http://localhost:{settings.web_port}/login\n"
+        f"2. Введите ваш Telegram ID: <code>{message.from_user.id}</code>\n"
+        "3. Получите код в этом чате и введите его\n\n"
+        "📊 <b>Команды:</b>\n"
+        "/stats - ваша статистика\n"
+        "/help - подробная справка",
+        parse_mode="HTML"
     )
 
 
@@ -149,13 +152,14 @@ async def stats_command(message: Message):
         
         if stats:
             text = f"📊 Ваша статистика за сегодня:\n\n"
-            text += f"📨 Всего сообщений: {stats.total_messages}\n"
-            text += f"✅ Отвечено: {stats.responded_messages}\n"
-            text += f"❌ Пропущено: {stats.missed_messages}\n"
-            text += f"⏱ Среднее время ответа: {stats.avg_response_time:.1f} мин\n"
-            text += f"⚠️ Ответов > 15 мин: {stats.exceeded_15_min}\n"
-            text += f"⚠️ Ответов > 30 мин: {stats.exceeded_30_min}\n"
-            text += f"⚠️ Ответов > 60 мин: {stats.exceeded_60_min}"
+            text += f"📨 Всего сообщений: {stats['total_messages']}\n"
+            text += f"✅ Отвечено: {stats['responded_messages']}\n"
+            text += f"❌ Пропущено: {stats['missed_messages']}\n"
+            text += f"👥 Уникальных клиентов: {stats['unique_clients']}\n"
+            text += f"⏱ Среднее время ответа: {stats['avg_response_time']:.1f} мин\n"
+            text += f"⚠️ Ответов > 15 мин: {stats['exceeded_15_min']}\n"
+            text += f"⚠️ Ответов > 30 мин: {stats['exceeded_30_min']}\n"
+            text += f"⚠️ Ответов > 60 мин: {stats['exceeded_60_min']}"
         else:
             text = "📊 Статистика за сегодня пока отсутствует"
         
@@ -165,9 +169,29 @@ async def stats_command(message: Message):
 @dp.message(F.chat.type.in_(['group', 'supergroup']))
 async def handle_group_message(message: Message):
     """Обработчик сообщений в группах"""
+    
+    # Игнорируем системные сообщения
+    if (message.new_chat_members or 
+        message.left_chat_member or 
+        message.new_chat_title or 
+        message.new_chat_photo or 
+        message.delete_chat_photo or 
+        message.group_chat_created or 
+        message.supergroup_chat_created or 
+        message.channel_chat_created or 
+        message.migrate_to_chat_id or 
+        message.migrate_from_chat_id or 
+        message.pinned_message or
+        not message.text):  # Игнорируем сообщения без текста (стикеры, фото и т.д.)
+        logger.info(f"🚫 Игнорируем системное сообщение в чате {message.chat.id}")
+        return
+    
+    logger.info(f"📩 Обрабатываем сообщение от {message.from_user.full_name} в чате {message.chat.id}")
+    
     # Проверяем, является ли сообщение ответом
     if message.reply_to_message:
         # Это ответ сотрудника
+        logger.info(f"💬 Ответ сотрудника: {message.from_user.full_name}")
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 select(Employee).where(Employee.telegram_id == message.from_user.id)
@@ -176,10 +200,12 @@ async def handle_group_message(message: Message):
             
             if employee and employee.is_active:
                 await message_tracker.mark_as_responded(message, employee.id)
+                logger.info(f"✅ Отмечен ответ сотрудника: {employee.full_name}")
+            else:
+                logger.info(f"⚠️ Пользователь {message.from_user.full_name} не найден среди сотрудников")
     else:
         # Это новое сообщение от клиента
-        # Определяем, кому адресовано сообщение (можно добавить логику распределения)
-        # Пока просто трекаем для всех активных сотрудников
+        logger.info(f"📨 Новое сообщение от клиента: {message.from_user.full_name}")
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 select(Employee).where(Employee.is_active == True)
@@ -188,6 +214,25 @@ async def handle_group_message(message: Message):
             
             for employee in employees:
                 await message_tracker.track_message(message, employee.id)
+                logger.info(f"📊 Трекаем сообщение для сотрудника: {employee.full_name}")
+
+
+async def setup_bot_commands():
+    """Настройка команд бота"""
+    # Команды для личных чатов
+    private_commands = [
+        BotCommand(command="start", description="🚀 Начало работы"),
+        BotCommand(command="help", description="❓ Помощь и инструкции"),
+        BotCommand(command="stats", description="📊 Моя статистика"),
+    ]
+    
+    # Устанавливаем команды для личных чатов
+    await bot.set_my_commands(commands=private_commands, scope=BotCommandScopeDefault())
+    
+    # Очищаем команды для групп (пустой список)
+    await bot.set_my_commands(commands=[], scope=BotCommandScopeAllGroupChats())
+    
+    logger.info("✅ Меню команд настроено: личные чаты - есть команды, группы - без меню")
 
 
 async def main():
@@ -196,7 +241,10 @@ async def main():
     await init_db()
     
     # Регистрация обработчиков
-    register_handlers(dp, message_tracker)
+    await register_handlers_and_scheduler(dp, message_tracker)
+    
+    # Настройка команд бота
+    await setup_bot_commands()
     
     # Запуск бота
     logger.info("Бот запущен")

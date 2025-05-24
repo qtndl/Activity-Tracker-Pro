@@ -11,10 +11,6 @@ from web.services.statistics_service import StatisticsService
 
 async def start_command(message: Message, bot: Bot):
     """Обработчик команды /start"""
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔐 Войти в веб-панель", url=f"http://localhost:8000/auth/telegram?user_id={message.from_user.id}")]
-    ])
-    
     await message.answer(
         "👋 Добро пожаловать в систему мониторинга активности сотрудников!\n\n"
         "Я помогу отслеживать:\n"
@@ -22,8 +18,14 @@ async def start_command(message: Message, bot: Bot):
         "• 📊 Количество обработанных клиентов\n"
         "• ⚠️ Пропущенные сообщения\n"
         "• 📈 Статистику работы\n\n"
-        "Используйте кнопку ниже для входа в веб-панель:",
-        reply_markup=keyboard
+        "🔐 <b>Для входа в веб-панель:</b>\n"
+        f"1. Откройте: http://localhost:8000/login\n"
+        f"2. Введите ваш Telegram ID: <code>{message.from_user.id}</code>\n"
+        "3. Получите код в этом чате и введите его\n\n"
+        "📊 <b>Команды:</b>\n"
+        "/stats - ваша статистика\n"
+        "/help - подробная справка",
+        parse_mode="HTML"
     )
 
 async def help_command(message: Message):
@@ -98,18 +100,21 @@ async def stats_command(message: Message):
 📨 Сообщений: {today_stats.total_messages}
 ✅ Отвечено: {today_stats.responded_messages}
 ❌ Пропущено: {today_stats.missed_messages}
+👥 Уникальных клиентов: {today_stats.unique_clients}
 ⏱ Среднее время: {today_stats.avg_response_time:.1f} мин
 
 <b>📅 За неделю:</b>
 📨 Сообщений: {week_stats.total_messages}
 ✅ Отвечено: {week_stats.responded_messages}
 ❌ Пропущено: {week_stats.missed_messages}
+👥 Уникальных клиентов: {week_stats.unique_clients}
 ⏱ Среднее время: {week_stats.avg_response_time:.1f} мин
 
 <b>📅 За месяц:</b>
 📨 Сообщений: {month_stats.total_messages}
 ✅ Отвечено: {month_stats.responded_messages}
 ❌ Пропущено: {month_stats.missed_messages}
+👥 Уникальных клиентов: {month_stats.unique_clients}
 ⏱ Среднее время: {month_stats.avg_response_time:.1f} мин
 
 <i>Для подробной статистики используйте веб-панель:\nhttp://localhost:8000/login</i>
@@ -121,8 +126,40 @@ async def stats_command(message: Message):
 """
         await message.answer(text, parse_mode="HTML")
 
+async def test_daily_reports_command(message: Message):
+    """Тестовая команда для отправки ежедневных отчетов (только для админа)"""
+    if message.chat.type != "private":
+        return
+        
+    async with AsyncSessionLocal() as session:
+        # Проверяем права администратора
+        result = await session.execute(
+            select(Employee).where(
+                Employee.telegram_id == message.from_user.id,
+                Employee.is_admin == True
+            )
+        )
+        admin = result.scalar_one_or_none()
+        
+        if not admin:
+            await message.answer("❌ У вас нет прав администратора")
+            return
+        
+        await message.answer("📊 Запускаю отправку ежедневных отчетов...", parse_mode="HTML")
+        
+        # Импортируем из scheduler
+        from .scheduler import send_daily_reports
+        from ..main import message_tracker
+        
+        try:
+            await send_daily_reports(message_tracker)
+            await message.answer("✅ Ежедневные отчеты отправлены всем сотрудникам!", parse_mode="HTML")
+        except Exception as e:
+            await message.answer(f"❌ Ошибка при отправке отчетов: {e}", parse_mode="HTML")
+
 def register_commands(dp: Dispatcher, bot: Bot):
     """Регистрация обработчиков команд"""
     dp.message.register(start_command, CommandStart())
     dp.message.register(help_command, Command("help"))
-    dp.message.register(stats_command, Command("stats")) 
+    dp.message.register(stats_command, Command("stats"))
+    dp.message.register(test_daily_reports_command, Command("test_reports")) 

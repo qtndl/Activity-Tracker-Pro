@@ -134,4 +134,48 @@ async def reset_settings(
     
     await db.commit()
     
-    return {"message": "Настройки сброшены к значениям по умолчанию"} 
+    return {"message": "Настройки сброшены к значениям по умолчанию"}
+
+
+@router.post("/send-daily-reports")
+async def send_daily_reports_endpoint(
+    db: AsyncSession = Depends(get_db),
+    current_admin = Depends(get_current_admin)
+):
+    """Ручная отправка ежедневных отчетов всем сотрудникам"""
+    
+    try:
+        # Импортируем функцию отправки отчетов
+        from bot.scheduler import send_daily_reports as send_reports_func
+        
+        # Получаем message_tracker из основного бота
+        # Поскольку у нас нет прямого доступа к message_tracker из веб-части,
+        # мы создадим временный для этой операции
+        from bot.analytics import AnalyticsService  
+        from bot.notifications import NotificationService
+        from aiogram import Bot
+        from config.config import settings as bot_settings
+        
+        # Создаем временные экземпляры для отправки отчетов
+        class TempMessageTracker:
+            def __init__(self):
+                self.analytics = AnalyticsService()
+                self.notifications = NotificationService(Bot(token=bot_settings.bot_token))
+        
+        temp_tracker = TempMessageTracker()
+        
+        # Отправляем отчеты
+        await send_reports_func(temp_tracker)
+        
+        # Закрываем сессию бота
+        await temp_tracker.notifications.bot.session.close()
+        
+        return {"message": "Ежедневные отчеты успешно отправлены всем активным сотрудникам!"}
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()  # Логируем полную ошибку
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Ошибка при отправке отчетов: {str(e)}"
+        ) 

@@ -177,24 +177,46 @@ class NotificationService:
                     logger.info(f"Сотрудник {employee_id} деактивирован - ежедневный отчет не отправлен")
                 return
             
-            text = "📊 <b>Ваша статистика за сегодня:</b>\n\n"
-            text += f"📨 Всего сообщений: {stats.total_messages}\n"
-            text += f"✅ Отвечено: {stats.responded_messages}\n"
-            text += f"❌ Пропущено: {stats.missed_messages}\n"
+            # Обрабатываем и словарь и объект
+            if isinstance(stats, dict):
+                total_messages = stats.get('total_messages', 0)
+                responded_messages = stats.get('responded_messages', 0) 
+                missed_messages = stats.get('missed_messages', 0)
+                unique_clients = stats.get('unique_clients', 0)
+                avg_response_time = stats.get('avg_response_time', 0)
+                exceeded_15_min = stats.get('exceeded_15_min', 0)
+                exceeded_30_min = stats.get('exceeded_30_min', 0)
+                exceeded_60_min = stats.get('exceeded_60_min', 0)
+            else:
+                # Объект со атрибутами
+                total_messages = stats.total_messages
+                responded_messages = stats.responded_messages
+                missed_messages = stats.missed_messages
+                unique_clients = stats.unique_clients
+                avg_response_time = stats.avg_response_time
+                exceeded_15_min = stats.exceeded_15_min
+                exceeded_30_min = stats.exceeded_30_min
+                exceeded_60_min = stats.exceeded_60_min
             
-            if stats.responded_messages > 0:
-                text += f"\n⏱ Среднее время ответа: {stats.avg_response_time:.1f} мин\n"
+            text = "📊 <b>Ваша статистика за сегодня:</b>\n\n"
+            text += f"📨 Всего сообщений: {total_messages}\n"
+            text += f"✅ Отвечено: {responded_messages}\n"
+            text += f"❌ Пропущено: {missed_messages}\n"
+            text += f"👥 Уникальных клиентов: {unique_clients}\n"
+            
+            if responded_messages > 0:
+                text += f"\n⏱ Среднее время ответа: {avg_response_time:.1f} мин\n"
                 
-                if stats.exceeded_15_min > 0:
+                if exceeded_15_min > 0:
                     text += f"\n⚠️ Превышений времени ответа:\n"
-                    text += f"  • Более 15 мин: {stats.exceeded_15_min}\n"
-                    text += f"  • Более 30 мин: {stats.exceeded_30_min}\n"
-                    text += f"  • Более 1 часа: {stats.exceeded_60_min}\n"
+                    text += f"  • Более 15 мин: {exceeded_15_min}\n"
+                    text += f"  • Более 30 мин: {exceeded_30_min}\n"
+                    text += f"  • Более 1 часа: {exceeded_60_min}\n"
             
             # Добавляем оценку работы
-            if stats.missed_messages == 0 and stats.avg_response_time < 15:
+            if missed_messages == 0 and avg_response_time < 15:
                 text += "\n🌟 Отличная работа! Продолжайте в том же духе!"
-            elif stats.missed_messages > 0:
+            elif missed_messages > 0:
                 text += f"\n⚠️ Обратите внимание на пропущенные сообщения!"
             
             try:
@@ -216,24 +238,36 @@ class NotificationService:
             
         text = "📊 <b>Общая статистика по всем сотрудникам:</b>\n\n"
         
-        total_messages = sum(s.total_messages for s in all_stats)
-        total_responded = sum(s.responded_messages for s in all_stats)
-        total_missed = sum(s.missed_messages for s in all_stats)
+        # Функция для получения значения из объекта или словаря
+        def get_stat_value(stat, key):
+            if isinstance(stat, dict):
+                return stat.get(key, 0)
+            else:
+                return getattr(stat, key, 0)
+        
+        total_messages = sum(get_stat_value(s, 'total_messages') for s in all_stats)
+        total_responded = sum(get_stat_value(s, 'responded_messages') for s in all_stats)
+        total_missed = sum(get_stat_value(s, 'missed_messages') for s in all_stats)
+        total_unique_clients = sum(get_stat_value(s, 'unique_clients') for s in all_stats)
         
         text += f"📨 Всего сообщений: {total_messages}\n"
         text += f"✅ Отвечено: {total_responded}\n"
         text += f"❌ Пропущено: {total_missed}\n"
+        text += f"👥 Уникальных клиентов: {total_unique_clients}\n"
         
         if total_responded > 0:
-            avg_response = sum(s.avg_response_time * s.responded_messages for s in all_stats) / total_responded
+            avg_response = sum(get_stat_value(s, 'avg_response_time') * get_stat_value(s, 'responded_messages') for s in all_stats) / total_responded
             text += f"⏱ Средний ответ: {avg_response:.1f} мин\n"
         
         text += "\n<b>По сотрудникам:</b>\n"
         
         for stat in all_stats:
+            # Получаем employee_id
+            employee_id = get_stat_value(stat, 'employee_id')
+            
             async with AsyncSessionLocal() as session:
                 result = await session.execute(
-                    select(Employee).where(Employee.id == stat.employee_id)
+                    select(Employee).where(Employee.id == employee_id)
                 )
                 employee = result.scalar_one_or_none()
                 
@@ -242,10 +276,11 @@ class NotificationService:
                     status_text = "активен" if employee.is_active else "деактивирован"
                     
                     text += f"\n{status_emoji} {employee.full_name} ({status_text}):\n"
-                    text += f"  • Сообщений: {stat.total_messages}\n"
-                    text += f"  • Пропущено: {stat.missed_messages}\n"
-                    if stat.responded_messages > 0:
-                        text += f"  • Среднее время: {stat.avg_response_time:.1f} мин\n"
+                    text += f"  • Сообщений: {get_stat_value(stat, 'total_messages')}\n"
+                    text += f"  • Пропущено: {get_stat_value(stat, 'missed_messages')}\n"
+                    text += f"  • Уникальных клиентов: {get_stat_value(stat, 'unique_clients')}\n"
+                    if get_stat_value(stat, 'responded_messages') > 0:
+                        text += f"  • Среднее время: {get_stat_value(stat, 'avg_response_time'):.1f} мин\n"
         
         try:
             await self.bot.send_message(

@@ -112,6 +112,29 @@
                             <input type="time" class="form-control" id="daily_reports_time" value="18:00">
                             <div class="form-text">В указанное время система отправит отчеты всем активным сотрудникам</div>
                         </div>
+                        <div class="col-md-6 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-primary" onclick="sendDailyReports()">
+                                <i class="bi bi-send"></i> Отправить отчеты сейчас
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>Как это работает:</strong> Система автоматически отправляет ежедневные отчеты всем активным сотрудникам в указанное время. Вы также можете отправить отчеты вручную с помощью кнопки выше.
+                    </div>
+                    
+                    <div class="alert alert-secondary mt-2">
+                        <i class="bi bi-list-ul"></i>
+                        <strong>Содержимое отчетов:</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>📨 Количество обработанных сообщений</li>
+                            <li>✅ Количество отвеченных сообщений</li>
+                            <li>❌ Количество пропущенных сообщений</li>
+                            <li>👥 Количество уникальных клиентов</li>
+                            <li>⏱️ Среднее время ответа</li>
+                            <li>⚠️ Статистика превышений времени ответа</li>
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -306,6 +329,24 @@
         } catch (error) {
             console.error('Error resetting settings:', error);
             showAlert('Ошибка при сбросе настроек', 'danger');
+        }
+    }
+    
+    // Send daily reports manually
+    async function sendDailyReports() {
+        if (!confirm('Отправить ежедневные отчеты всем активным сотрудникам прямо сейчас?')) {
+            return;
+        }
+        
+        try {
+            showAlert('Отправляю ежедневные отчеты...', 'info');
+            
+            const response = await axios.post('/api/settings/send-daily-reports');
+            showAlert(response.data.message, 'success');
+            
+        } catch (error) {
+            console.error('Error sending daily reports:', error);
+            showAlert(error.response?.data?.detail || 'Ошибка при отправке отчетов', 'danger');
         }
     }
     
