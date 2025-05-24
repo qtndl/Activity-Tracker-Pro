@@ -192,12 +192,14 @@ class StatisticsService:
                 datetime.combine(end_date, datetime.max.time())
             )
         
-        today = datetime.utcnow().date()
+        now = datetime.utcnow()
+        today = now.date()
         
         if period == "today":
+            # Используем текущее время как конец периода
             return (
                 datetime.combine(today, datetime.min.time()),
-                datetime.combine(today, datetime.max.time())
+                now  # Текущее время
             )
         elif period == "week":
             start = today - timedelta(days=today.weekday())  # Понедельник
@@ -220,7 +222,7 @@ class StatisticsService:
             # По умолчанию - сегодня
             return (
                 datetime.combine(today, datetime.min.time()),
-                datetime.combine(today, datetime.max.time())
+                now  # Текущее время
             )
     
     async def _get_messages_for_period(
@@ -231,17 +233,23 @@ class StatisticsService:
     ) -> List[Message]:
         """Получить сообщения сотрудника за период"""
         
+        # Получаем все сообщения сотрудника
         result = await self.db.execute(
             select(Message).where(
-                and_(
-                    Message.employee_id == employee_id,
-                    Message.received_at >= start_date,
-                    Message.received_at <= end_date,
-                    Message.message_type == "client"  # Только клиентские сообщения
-                )
+                Message.employee_id == employee_id
             ).order_by(Message.received_at)
         )
-        return result.scalars().all()
+        messages = result.scalars().all()
+        
+        # Фильтруем по времени вручную
+        filtered_messages = []
+        for msg in messages:
+            # Приводим время сообщения к UTC
+            msg_time = msg.received_at.replace(tzinfo=None)
+            if start_date <= msg_time <= end_date:
+                filtered_messages.append(msg)
+        
+        return filtered_messages
     
     def _calculate_stats(self, messages: List[Message]) -> Dict[str, Any]:
         """Вычислить статистику по списку сообщений"""
