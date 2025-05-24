@@ -12,7 +12,10 @@ def register_handlers(dp: Dispatcher, message_tracker):
     
     @dp.message(Command("help"))
     async def help_command(message: Message):
-        """Помощь по командам"""
+        """Помощь по командам - ТОЛЬКО в личных сообщениях"""
+        # Игнорируем команды в группах
+        if message.chat.type != "private":
+            return
         
         # Проверяем является ли пользователь админом
         async with AsyncSessionLocal() as session:
@@ -41,6 +44,8 @@ def register_handlers(dp: Dispatcher, message_tracker):
 
 <b>Веб-панель:</b>
 Используйте /start для получения ссылки на вход
+
+⚠️ <i>Все команды работают только в личных сообщениях!</i>
         """
         
         # Добавляем админские команды
@@ -55,7 +60,11 @@ def register_handlers(dp: Dispatcher, message_tracker):
     
     @dp.message(Command("report_weekly"))
     async def weekly_report_command(message: Message):
-        """Недельный отчет"""
+        """Недельный отчет - ТОЛЬКО в личных сообщениях"""
+        # Игнорируем команды в группах
+        if message.chat.type != "private":
+            return
+            
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 select(Employee).where(Employee.telegram_id == message.from_user.id)
@@ -92,7 +101,11 @@ def register_handlers(dp: Dispatcher, message_tracker):
     
     @dp.message(Command("report_monthly"))
     async def monthly_report_command(message: Message):
-        """Месячный отчет"""
+        """Месячный отчет - ТОЛЬКО в личных сообщениях"""
+        # Игнорируем команды в группах
+        if message.chat.type != "private":
+            return
+            
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 select(Employee).where(Employee.telegram_id == message.from_user.id)
@@ -132,7 +145,11 @@ def register_handlers(dp: Dispatcher, message_tracker):
     
     @dp.message(Command("admin_stats"))
     async def admin_stats_command(message: Message):
-        """Статистика для администратора"""
+        """Статистика для администратора - ТОЛЬКО в личных сообщениях"""
+        # Игнорируем команды в группах
+        if message.chat.type != "private":
+            return
+            
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 select(Employee).where(
@@ -197,7 +214,11 @@ def register_handlers(dp: Dispatcher, message_tracker):
     
     @dp.message(Command("mark_deleted"))
     async def mark_deleted_command(message: Message):
-        """Пометить сообщение как удаленное (только для админов)"""
+        """Пометить сообщение как удаленное (только для админов) - ТОЛЬКО в личных сообщениях"""
+        # Игнорируем команды в группах
+        if message.chat.type != "private":
+            return
+            
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 select(Employee).where(

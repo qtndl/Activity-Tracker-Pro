@@ -25,8 +25,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Получаем токен бота
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8110382002:AAHuWex2O-QvW7ElqyOMu1ZHJEGiS8dSGmE")
+# Получаем токен бота из переменных окружения
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN не установлен в переменных окружения!")
 
 # Временное хранилище кодов {telegram_id: {"code": "123456", "expires": datetime, "attempts": 0}}
 verification_codes: Dict[int, dict] = {}

@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # Основное приложение (веб-интерфейс)
+  web:
+    build: .
+    container_name: tgbot_web_dev
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./data/bot.db
+      - BOT_TOKEN=${BOT_TOKEN}
+      - SECRET_KEY=${SECRET_KEY}
+      - GOOGLE_SHEETS_ENABLED=${GOOGLE_SHEETS_ENABLED:-false}
+      - SPREADSHEET_ID=${SPREADSHEET_ID:-}
+      - WEB_HOST=0.0.0.0
+      - WEB_PORT=8000
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./credentials.json:/app/credentials.json:ro
+    restart: unless-stopped
+    command: python run_web.py
+    depends_on:
+      - bot
+    networks:
+      - tgbot_network
+
+  # Telegram бот
+  bot:
+    build: .
+    container_name: tgbot_bot_dev
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./data/bot.db
+      - BOT_TOKEN=${BOT_TOKEN}
+      - SECRET_KEY=${SECRET_KEY}
+      - GOOGLE_SHEETS_ENABLED=${GOOGLE_SHEETS_ENABLED:-false}
+      - SPREADSHEET_ID=${SPREADSHEET_ID:-}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./credentials.json:/app/credentials.json:ro
+    restart: unless-stopped
+    command: python -m bot.main
+    networks:
+      - tgbot_network
+
+networks:
+  tgbot_network:
+    driver: bridge 

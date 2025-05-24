@@ -4,25 +4,36 @@
 import os
 import uvicorn
 
-# Устанавливаем переменные окружения напрямую
-os.environ["BOT_TOKEN"] = "8110382002:AAHuWex2O-QvW7ElqyOMu1ZHJEGiS8dSGmE"
-os.environ["ADMIN_CHAT_ID"] = "896737668"
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./employee_tracker.db"
-os.environ["SECRET_KEY"] = "super-secret-key-change-in-production-2025"
-os.environ["ALGORITHM"] = "HS256"
-os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "43200"
-os.environ["GOOGLE_SHEETS_ENABLED"] = "false"
-os.environ["RESPONSE_TIME_WARNING_1"] = "15"
-os.environ["RESPONSE_TIME_WARNING_2"] = "30"
-os.environ["RESPONSE_TIME_WARNING_3"] = "60"
-os.environ["WEB_HOST"] = "0.0.0.0"
-os.environ["WEB_PORT"] = "8000"
+# Проверка обязательных переменных окружения
+required_vars = ["BOT_TOKEN", "SECRET_KEY"]
+missing_vars = []
+
+for var in required_vars:
+    if not os.getenv(var):
+        missing_vars.append(var)
+
+if missing_vars:
+    print("❌ Отсутствуют обязательные переменные окружения:")
+    for var in missing_vars:
+        print(f"   - {var}")
+    print("\nСоздайте .env файл на основе .env.example")
+    exit(1)
+
+# Импорт приложения
+from web.main import app
 
 if __name__ == "__main__":
-    print("🚀 Запуск веб-сервера на http://localhost:8000")
+    print("🚀 Запуск веб-сервера...")
+    
+    # Получаем настройки из переменных окружения
+    host = os.getenv("WEB_HOST", "0.0.0.0")
+    port = int(os.getenv("WEB_PORT", "8000"))
+    
+    print(f"🌐 Сервер доступен по адресу: http://{host}:{port}")
+    
     uvicorn.run(
-        "web.main:app",  # Используем строку импорта
-        host="0.0.0.0",
-        port=8000,
-        reload=False  # Отключаем reload для простоты
+        app,
+        host=host,
+        port=port,
+        reload=False
     ) 

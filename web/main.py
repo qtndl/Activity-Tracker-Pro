@@ -85,7 +85,13 @@ async def send_verification_code(
         }
         
         # Отправляем код через Telegram Bot API
-        bot_token = "8110382002:AAHuWex2O-QvW7ElqyOMu1ZHJEGiS8dSGmE"
+        bot_token = settings.bot_token
+        if not bot_token:
+            return JSONResponse(
+                status_code=500,
+                content={"success": False, "error": "BOT_TOKEN не настроен"}
+            )
+            
         message = f"""🔐 <b>Код входа в систему мониторинга</b>
 
 

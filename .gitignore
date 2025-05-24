@@ -103,6 +103,9 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.env.local
+.env.production
+.env.staging
 
 # Spyder project settings
 .spyderproject
@@ -127,6 +130,7 @@ dmypy.json
 *.sqlite
 *.sqlite3
 employee_tracker.db
+bot.db
 
 # IDE и редакторы
 .vscode/
@@ -168,6 +172,7 @@ downloads/
 # Резервные копии
 *.bak
 *.backup
+backup/
 
 # Pytest
 .pytest_cache/
@@ -185,4 +190,30 @@ test_*.py
 monitor_messages.py
 
 # Google Sheets credentials
-credentials.json 
+credentials.json
+
+# Docker
+.dockerignore
+
+# SSL сертификаты и ключи
+ssl/
+*.pem
+*.key
+*.crt
+*.csr
+
+# Данные приложения
+data/
+
+# Секретные файлы
+secret_*
+private_*
+*_secret*
+*_private*
+
+# Дополнительная защита от утечек
+*token*
+*secret*
+*password*
+*credential*
+*key* 
