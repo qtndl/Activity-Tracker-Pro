@@ -248,19 +248,19 @@ class MessageTracker:
     async def mark_as_deleted(self, chat_id: int, message_id: int): # message_id здесь это Telegram message_id
         """Отметка сообщения как удаленного"""
         logger.info(f"🗑 Сообщение Telegram.ID={message_id} удалено в чате {chat_id}")
-        
+
         # Обновляем в БД ВСЕ копии этого сообщения (для всех сотрудников)
-                    async with AsyncSessionLocal() as session:
-                        result = await session.execute(
-                            select(DBMessage).where(
-                                and_(
-                                    DBMessage.chat_id == chat_id,
-                        DBMessage.message_id == message_id # Используем Telegram message_id для поиска всех копий
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(DBMessage).where(
+                    and_(
+                        DBMessage.chat_id == chat_id,
+                        DBMessage.message_id == message_id  # Используем Telegram message_id для поиска всех копий
                     )
                 )
             )
             db_message_copies = result.scalars().all()
-            
+
             if not db_message_copies:
                 logger.warning(f"Не найдено DBMessage записей для Telegram.ID={message_id} в чате {chat_id} для пометки как удаленное.")
                 return
@@ -270,16 +270,16 @@ class MessageTracker:
                 if not db_message_copy.is_deleted:  # Если еще не помечено как удаленное
                     db_message_copy.is_deleted = True
                     db_message_copy.deleted_at = datetime.utcnow()
-                    
+
                     # Отменяем уведомления для этого конкретного DBMessage.id
                     await self.notifications.cancel_notifications(db_message_copy.id)
-                    deleted_count +=1 
+                    deleted_count += 1
                     logger.info(f"✅ Сообщение DBMessage.id={db_message_copy.id} (Telegram.ID={message_id}) помечено как удаленное для сотрудника {db_message_copy.employee_id}")
-            
+
             if deleted_count > 0:
                 await session.commit()
                 logger.info(f"✅ Помечено как удаленные {deleted_count} DBMessage записей для Telegram.ID={message_id}.")
-        
+
         # Удаляем из отслеживаемых pending_messages (если такой ключ там был)
         if chat_id in self.pending_messages and message_id in self.pending_messages[chat_id]:
             del self.pending_messages[chat_id][message_id]
@@ -445,28 +445,28 @@ async def handle_group_message(message: Message):
 
     # Проверяем, является ли сообщение ответом
     if message.reply_to_message:
-            if sender_is_employee:
-                # Это ответ сотрудника на какое-то сообщение
-                logger.info(f"💬 Ответ от сотрудника: {message.from_user.full_name}")
-                
-                # Получаем информацию об ответившем сотруднике (для employee_id)
-                responding_employee_result = await session.execute(
-                    select(Employee).where(and_(Employee.telegram_id == message.from_user.id, Employee.is_active == True))
-                )
-                responding_employee = responding_employee_result.scalar_one_or_none()
-                
-                if responding_employee:
-                    # Убедимся, что ответ был на сообщение клиента, а не другого сотрудника
-                    if message.reply_to_message.from_user:
-                        # Проверим, не является ли автор исходного сообщения тоже сотрудником
-                        original_sender_employee_result = await session.execute(
-                            select(Employee).where(Employee.telegram_id == message.reply_to_message.from_user.id)
-                        )
-                        original_sender_is_employee = original_sender_employee_result.scalar_one_or_none() is not None
-                        
-                        if original_sender_is_employee:
-                            logger.info(f"👨‍💼 Сотрудник {responding_employee.full_name} ответил на сообщение другого сотрудника. Игнорируем для статистики ответа.")
-                            return # Не трекаем ответ сотрудника на сотрудника
+        if sender_is_employee:
+            # Это ответ сотрудника на какое-то сообщение
+            logger.info(f"💬 Ответ от сотрудника: {message.from_user.full_name}")
+            
+            # Получаем информацию об ответившем сотруднике (для employee_id)
+            responding_employee_result = await session.execute(
+                select(Employee).where(and_(Employee.telegram_id == message.from_user.id, Employee.is_active == True))
+            )
+            responding_employee = responding_employee_result.scalar_one_or_none()
+            
+            if responding_employee:
+                # Убедимся, что ответ был на сообщение клиента, а не другого сотрудника
+                if message.reply_to_message.from_user:
+                    # Проверим, не является ли автор исходного сообщения тоже сотрудником
+                    original_sender_employee_result = await session.execute(
+                        select(Employee).where(Employee.telegram_id == message.reply_to_message.from_user.id)
+                    )
+                    original_sender_is_employee = original_sender_employee_result.scalar_one_or_none() is not None
+                    
+                    if original_sender_is_employee:
+                        logger.info(f"👨‍💼 Сотрудник {responding_employee.full_name} ответил на сообщение другого сотрудника. Игнорируем для статистики ответа.")
+                        return # Не трекаем ответ сотрудника на сотрудника
 
                     await message_tracker.mark_as_responded(message, responding_employee.id)
                     logger.info(f"✅ Отмечен ответ сотрудника: {responding_employee.full_name}")
@@ -483,19 +483,19 @@ async def handle_group_message(message: Message):
                 return
     else:
         # Это новое сообщение от клиента
-                logger.info(f"📨 Новое сообщение от клиента: {message.from_user.full_name}")
-                active_employees_result = await session.execute(
-                select(Employee).where(Employee.is_active == True)
+        logger.info(f"📨 Новое сообщение от клиента: {message.from_user.full_name}")
+        active_employees_result = await session.execute(
+        select(Employee).where(Employee.is_active == True)
             )
-                active_employees = active_employees_result.scalars().all()
-                
-                if not active_employees:
-                    logger.warning(f"Нет активных сотрудников для назначения сообщения от клиента {message.from_user.full_name}")
-                    return
+        active_employees = active_employees_result.scalars().all()
+        
+        if not active_employees:
+            logger.warning(f"Нет активных сотрудников для назначения сообщения от клиента {message.from_user.full_name}")
+            return
 
-                for employee_obj in active_employees:
-                    await message_tracker.track_message(message, employee_obj.id)
-                    logger.info(f"📊 Трекаем сообщение для сотрудника: {employee_obj.full_name} (ID: {employee_obj.id})")
+        for employee_obj in active_employees:
+            await message_tracker.track_message(message, employee_obj.id)
+            logger.info(f"📊 Трекаем сообщение для сотрудника: {employee_obj.full_name} (ID: {employee_obj.id})")
 
 
 async def setup_bot_commands():
