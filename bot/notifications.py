@@ -193,7 +193,7 @@ class NotificationService:
         if not await settings_manager.daily_reports_enabled():
             logger.info(f"Ежедневные отчеты отключены - отчет сотруднику {employee_id} не отправлен")
             return
-            
+        
         # Получаем данные из объекта EmployeeStats
         total_messages = stats_obj.total_messages
         responded_messages = stats_obj.responded_messages
@@ -204,12 +204,12 @@ class NotificationService:
         exceeded_15_min = stats_obj.exceeded_15_min
         exceeded_30_min = stats_obj.exceeded_30_min
         exceeded_60_min = stats_obj.exceeded_60_min
-            
-            text = "📊 <b>Ваша статистика за сегодня:</b>\n\n"
+
+        text = "📊 <b>Ваша статистика за сегодня:</b>\n\n"
         text += f"📨 Всего сообщений: {total_messages}\n"
         text += f"✅ Отвечено: {responded_messages}\n"
         text += f"❌ Пропущено: {missed_messages}\n"
-            
+        
         if deleted_messages > 0:
             text += f"🗑 Удалено клиентами: {deleted_messages}\n"
         
@@ -217,21 +217,21 @@ class NotificationService:
         
         if avg_response_time is not None and responded_messages > 0: # Отображаем только если есть ответы
             text += f"\n⏱ Среднее время ответа: {avg_response_time:.1f} мин\n"
-                
+            
             if exceeded_15_min > 0 or exceeded_30_min > 0 or exceeded_60_min > 0:
-                    text += f"\n⚠️ Превышений времени ответа:\n"
+                text += f"\n⚠️ Превышений времени ответа:\n"
                 if exceeded_15_min > 0: text += f"  • Более 15 мин: {exceeded_15_min}\n"
                 if exceeded_30_min > 0: text += f"  • Более 30 мин: {exceeded_30_min}\n"
                 if exceeded_60_min > 0: text += f"  • Более 1 часа: {exceeded_60_min}\n"
         elif responded_messages == 0:
-             text += f"\n⏱ Среднее время ответа: - (нет ответов)\n"
-            
-            # Добавляем оценку работы
+            text += f"\n⏱ Среднее время ответа: - (нет ответов)\n"
+        
+        # Добавляем оценку работы
         if missed_messages == 0 and responded_messages > 0 and (avg_response_time is None or avg_response_time < 15):
-                text += "\n🌟 Отличная работа! Продолжайте в том же духе!"
+            text += "\n🌟 Отличная работа! Продолжайте в том же духе!"
         elif missed_messages > 0:
-                text += f"\n⚠️ Обратите внимание на пропущенные сообщения!"
-            
+            text += f"\n⚠️ Обратите внимание на пропущенные сообщения!"
+        
         if deleted_messages > 0:
             text += f"\n\n💡 <i>Удаленные клиентами сообщения не считаются пропущенными</i>"
         
@@ -268,19 +268,19 @@ class NotificationService:
             return
             
         text = "📊 <b>Общая статистика по всем сотрудникам:</b>\n\n"
-        
+
         # Используем данные из summary_stats (уже корректно посчитаны)
         text += f"📨 Всего сообщений: {summary_stats.get('total_messages_today', 0)}\n"
         text += f"✅ Отвечено: {summary_stats.get('responded_today', 0)}\n"
         text += f"❌ Пропущено: {summary_stats.get('missed_today', 0)}\n"
         text += f"👥 Уникальных клиентов: {summary_stats.get('unique_clients_today', 0)}\n"
-        
+
         avg_response_time_admin = summary_stats.get('avg_response_time', 0)
         text += f"⏱ Средний ответ: {avg_response_time_admin:.1f} мин\n"
         text += f"📈 Эффективность: {summary_stats.get('efficiency_today', 0):.1f}%\n" # Добавлено
-        
+
         text += "\n<b>По сотрудникам:</b>\n"
-        
+
         if not individual_employee_stats:
             text += "\n<i>Нет данных по сотрудникам для отображения.</i>"
         else:
@@ -298,7 +298,7 @@ class NotificationService:
                     text += f"  • Среднее время (его ответов): {stats_obj.avg_response_time:.1f} мин\n"
                 elif stats_obj.responded_messages == 0:
                     text += f"  • Среднее время (его ответов): - (нет ответов)\n"
-        
+
         try:
             await self.bot.send_message(
                 admin_telegram_id,
