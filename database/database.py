@@ -1,17 +1,17 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from config.config import settings
 from .models import Base
 
 # Создаем асинхронный движок
 engine = create_async_engine(
-    "sqlite+aiosqlite:///./bot.db",  # Жестко заданный путь
+    settings.database_url,  # Используем значение из настроек
     echo=False,
     future=True
 )
 
 # Создаем фабрику сессий
-AsyncSessionLocal = async_sessionmaker(
+AsyncSessionLocal = sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False

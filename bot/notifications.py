@@ -198,22 +198,25 @@ class NotificationService:
         total_messages = stats_obj.total_messages
         responded_messages = stats_obj.responded_messages
         missed_messages = stats_obj.missed_messages
-        deleted_messages = stats_obj.deleted_messages
+        avg_response_time = stats_obj.avg_response_time
+        efficiency_percent = stats_obj.efficiency_percent
+        response_rate = stats_obj.response_rate
         unique_clients = stats_obj.unique_clients
-        avg_response_time = stats_obj.avg_response_time # Может быть None
         exceeded_15_min = stats_obj.exceeded_15_min
         exceeded_30_min = stats_obj.exceeded_30_min
         exceeded_60_min = stats_obj.exceeded_60_min
+        deleted_messages = stats_obj.deleted_messages
 
+        # Формируем текст отчета
         text = "📊 <b>Ваша статистика за сегодня:</b>\n\n"
+        
+        # Основные показатели
         text += f"📨 Всего сообщений: {total_messages}\n"
         text += f"✅ Отвечено: {responded_messages}\n"
         text += f"❌ Пропущено: {missed_messages}\n"
         
         if deleted_messages > 0:
             text += f"🗑 Удалено клиентами: {deleted_messages}\n"
-        
-        text += f"👥 Уникальных клиентов: {unique_clients}\n"
         
         if avg_response_time is not None and responded_messages > 0: # Отображаем только если есть ответы
             text += f"\n⏱ Среднее время ответа: {avg_response_time:.1f} мин\n"
@@ -232,31 +235,37 @@ class NotificationService:
         elif missed_messages > 0:
             text += f"\n⚠️ Обратите внимание на пропущенные сообщения!"
         
-        if deleted_messages > 0:
-            text += f"\n\n💡 <i>Удаленные клиентами сообщения не считаются пропущенными</i>"
+        if efficiency_percent:
+            text += f"📈 Эффективность: {round(efficiency_percent, 1)}%\n"
         
-        # Получаем telegram_id сотрудника для отправки
-        employee_telegram_id = None
-        async with AsyncSessionLocal() as session:
-            employee_obj = await session.get(Employee, employee_id)
-            if employee_obj:
-                employee_telegram_id = employee_obj.telegram_id
-            else:
-                logger.error(f"Не найден сотрудник с ID {employee_id} для отправки ежедневного отчета.")
-                return
-
-        if employee_telegram_id:
-            try:
-                await self.bot.send_message(
-                    employee_telegram_id,
-                    text,
-                    parse_mode="HTML"
+        if response_rate:
+            text += f"🎯 Процент ответов: {round(response_rate, 1)}%\n"
+        
+        if unique_clients:
+            text += f"👥 Уникальных клиентов: {unique_clients}\n"
+        
+        # Дополнительная информация
+        text += "\n💡 <i>Продолжайте в том же духе!</i>"
+        
+        try:
+            # Получаем информацию о сотруднике
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(
+                    select(Employee).where(Employee.id == employee_id)
                 )
-                logger.info(f"Отправлен ежедневный отчет сотруднику {employee_id}")
-            except Exception as e:
-                logger.error(f"Не удалось отправить ежедневный отчет сотруднику {employee_id} (Telegram ID: {employee_telegram_id}): {e}")
-        else:
-            logger.error(f"Не удалось получить Telegram ID для сотрудника {employee_id}. Отчет не отправлен.")
+                employee = result.scalar_one_or_none()
+                
+                if employee and employee.is_active:
+                    await self.bot.send_message(
+                        employee.telegram_id,
+                        text,
+                        parse_mode="HTML"
+                    )
+                    logger.info(f"Ежедневный отчет отправлен сотруднику {employee_id}")
+                else:
+                    logger.info(f"Сотрудник {employee_id} не найден или неактивен - отчет не отправлен")
+        except Exception as e:
+            logger.error(f"Ошибка при отправке ежедневного отчета сотруднику {employee_id}: {e}")
     
     async def send_admin_report(self, admin_telegram_id: int, summary_stats: dict, individual_employee_stats: List[EmployeeStats]):
         """Отправка отчета администратору.

@@ -417,7 +417,7 @@ async def statistics_page(request: Request, current_user: dict = Depends(get_cur
     """Страница статистики"""
     if not current_user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Доступ запрещен")
-    return templates.TemplateResponse("statistics_new.html", {
+    return templates.TemplateResponse("statistics.html", {
         "request": request,
         "userInfo": current_user
     })

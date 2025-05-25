@@ -201,4 +201,40 @@ async def get_employee_statistics(
             "response_rate": round(stats.response_rate, 1)
         }
     except ValueError as e:
-        raise HTTPException(status_code=404, detail="Сотрудник не найден") 
+        raise HTTPException(status_code=404, detail="Сотрудник не найден")
+
+
+@router.post("/{employee_id}/toggle-active")
+async def toggle_employee_active(
+    employee_id: int,
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Переключить статус активности сотрудника (только для админов)"""
+    print(f"Attempting to toggle active status for employee {employee_id}")
+    print(f"Current user: {current_user}")
+    
+    result = await db.execute(select(Employee).where(Employee.id == employee_id))
+    employee = result.scalar_one_or_none()
+    
+    if not employee:
+        print(f"Employee {employee_id} not found")
+        raise HTTPException(status_code=404, detail="Сотрудник не найден")
+    
+    print(f"Found employee: {employee.id}, current user: {current_user.get('employee_id')}")
+    
+    # Нельзя деактивировать самого себя
+    if employee.id == current_user.get('employee_id'):
+        print(f"Cannot deactivate self: {employee.id}")
+        raise HTTPException(
+            status_code=400,
+            detail="Нельзя деактивировать самого себя"
+        )
+    
+    # Переключаем статус
+    employee.is_active = not employee.is_active
+    await db.commit()
+    await db.refresh(employee)
+    
+    print(f"Successfully toggled status to {employee.is_active}")
+    return {"success": True, "is_active": employee.is_active} 
