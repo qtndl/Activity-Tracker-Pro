@@ -91,22 +91,13 @@ generate_ssl() {
 
 # === ИНИЦИАЛИЗАЦИЯ БАЗЫ ЕСЛИ НУЖНО ===
 init_db_if_needed() {
-  if ! sqlite3 data/bot.db ".tables" | grep -q employees; then
-    log "Таблица employees не найдена, инициализирую базу..."
-    if ! python3 simple_init.py; then
-      warn "❗ Ошибка инициализации базы! Пробую установить зависимости..."
-      if pip install -r requirements.txt; then
-        log "Зависимости установлены. Повторяю инициализацию базы..."
-        if ! python3 simple_init.py; then
-          error "❌ Ошибка инициализации базы даже после установки зависимостей! Проверь окружение вручную."
-          exit 1
-        fi
-      else
-        error "❌ Не удалось установить зависимости! Проверь pip и requirements.txt."
-        exit 1
-      fi
+  if ! docker-compose run --rm web python -c "import sqlite3; db=sqlite3.connect('data/bot.db'); print('employees' in [r[0] for r in db.execute('SELECT name FROM sqlite_master WHERE type=\'table\'' )]); db.close()" | grep -q True; then
+    log "Таблица employees не найдена, инициализирую базу внутри контейнера..."
+    if ! docker-compose run --rm web python simple_init.py; then
+      error "❌ Ошибка инициализации базы внутри контейнера! Проверь Dockerfile и requirements.txt."
+      exit 1
     fi
-    log "База данных инициализирована."
+    log "База данных инициализирована внутри контейнера."
   else
     log "Таблица employees найдена, инициализация не требуется."
   fi
