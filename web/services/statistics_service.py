@@ -58,13 +58,17 @@ class StatisticsService:
     ) -> EmployeeStats:
         """Получить статистику конкретного сотрудника"""
         
+        # Проверяем что employee_id передан
+        if employee_id is None:
+            raise ValueError("employee_id не может быть None")
+        
         # Получаем информацию о сотруднике
         employee_result = await self.db.execute(
             select(Employee).where(Employee.id == employee_id)
         )
         employee = employee_result.scalar_one_or_none()
         if not employee:
-            raise ValueError(f"Сотрудник с ID {employee_id} не найден")
+            raise ValueError(f"Сотрудник с ID {employee_id} не найден в базе данных")
         
         # Определяем период
         period_start, period_end = self._get_period_dates(period, start_date, end_date)

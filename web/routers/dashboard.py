@@ -27,14 +27,35 @@ async def get_dashboard_overview(
 ) -> Dict[str, Any]:
     """Получить обзор для дашборда - ЕДИНЫЙ ИСТОЧНИК ДАННЫХ"""
     
+    # Проверяем что employee_id существует
+    employee_id = current_user.get('employee_id')
+    if employee_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Некорректные данные пользователя. Необходимо войти заново."
+        )
+    
     # Используем единый сервис статистики
     stats_service = StatisticsService(db)
     
-    return await stats_service.get_dashboard_overview(
-        user_id=current_user.get('employee_id'),
-        is_admin=current_user.get('is_admin', False),
-        period=period
-    )
+    try:
+        return await stats_service.get_dashboard_overview(
+            user_id=employee_id,
+            is_admin=current_user.get('is_admin', False),
+            period=period
+        )
+    except ValueError as e:
+        # Сотрудник не найден в базе
+        raise HTTPException(
+            status_code=404,
+            detail=f"Сотрудник не найден: {str(e)}"
+        )
+    except Exception as e:
+        # Другие ошибки
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка получения статистики: {str(e)}"
+        )
 
 
 @router.get("/settings")
