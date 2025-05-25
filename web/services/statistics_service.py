@@ -6,9 +6,11 @@ from datetime import datetime, date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from dataclasses import dataclass
+import logging
 
 from database.models import Employee, Message
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class EmployeeStats:
@@ -136,38 +138,121 @@ class StatisticsService:
     async def get_dashboard_overview(self, user_id: int, is_admin: bool, period: str = "today") -> Dict[str, Any]:
         """Получить данные для дашборда"""
         
+        period_start, period_end = self._get_period_dates(period) # Определяем период один раз
+        logger.info(f"[STAT_DEBUG|get_dashboard_overview] Period: {period}, Start: {period_start}, End: {period_end}, Called for user_id: {user_id}, is_admin: {is_admin}")
+
         if is_admin:
-            # Админ видит общую статистику
-            all_stats = await self.get_all_employees_stats(period)
+            # Админ видит общую статистику, посчитанную по УНИКАЛЬНЫМ сообщениям
             
-            # Считаем общие показатели
-            total_messages = sum(s.total_messages for s in all_stats)
-            responded = sum(s.responded_messages for s in all_stats)
-            missed = sum(s.missed_messages for s in all_stats)
-            total_unique_clients = sum(s.unique_clients for s in all_stats)
+            # 1. Получаем ВСЕ записи Message за период (от всех клиентов, для всех сотрудников)
+            all_db_messages_result = await self.db.execute(
+                select(Message).where(
+                    and_(
+                        Message.received_at >= period_start,
+                        Message.received_at <= period_end
+                    )
+                )
+            )
+            all_db_messages_in_period = all_db_messages_result.scalars().all()
+            logger.info(f"[STAT_DEBUG|get_dashboard_overview|Admin] Found {len(all_db_messages_in_period)} DBMessage records in period before grouping.")
+            # Логирование деталей каждого сообщения
+            for i, msg_debug in enumerate(all_db_messages_in_period):
+               logger.info(f"[STAT_DEBUG|get_dashboard_overview|Admin] Msg {i}: id(DB)={msg_debug.id}, chat_id={msg_debug.chat_id}, client_msg_id={msg_debug.message_id}, client_tg_id={msg_debug.client_telegram_id}, emp_id={msg_debug.employee_id}, received={msg_debug.received_at}, answered_by={msg_debug.answered_by_employee_id}")
+
+            # 2. Группируем сообщения по уникальному идентификатору (chat_id, message_id)
+            #    message_id здесь это telegram message_id клиента, он одинаков для всех копий этого сообщения у сотрудников.
+            unique_client_messages = {}
+            for msg in all_db_messages_in_period:
+                key = (msg.chat_id, msg.message_id)
+                if key not in unique_client_messages:
+                    unique_client_messages[key] = []
+                unique_client_messages[key].append(msg) # Собираем все копии одного и того же сообщения клиента
             
-            # Среднее время ответа по всем сотрудникам
-            avg_times = [s.avg_response_time for s in all_stats if s.avg_response_time is not None]
-            avg_response_time = sum(avg_times) / len(avg_times) if avg_times else 0
+            # 3. Считаем общие показатели по уникальным клиентским сообщениям
+            total_unique_client_messages_count = len(unique_client_messages)
+            responded_unique_client_messages_count = 0
+            missed_unique_client_messages_count = 0
+            deleted_unique_client_messages_count = 0 # Если понадобится
             
-            # Количество активных сотрудников
-            active_employees = len([s for s in all_stats if s.is_active])
+            client_ids_for_unique_count = set()
+            response_times_for_avg = []
+
+            for client_msg_key, db_message_copies in unique_client_messages.items():
+                # db_message_copies - это список всех DBMessage (для разных сотрудников) для одного и того же сообщения клиента
+                
+                # Добавляем ID клиента для подсчета уникальных клиентов
+                if db_message_copies: # Берем из первой копии, они все от одного клиента
+                    client_ids_for_unique_count.add(db_message_copies[0].client_telegram_id)
+
+                is_responded_by_anyone = False
+                is_deleted_by_anyone = False # Если понадобится трекать удаленные на этом уровне
+                
+                # Ищем самый ранний ответ на это сообщение среди всех сотрудников
+                # и был ли ответ вообще
+                earliest_response_time_for_this_message = None
+                first_answered_at = None
+                first_received_at = db_message_copies[0].received_at # Все копии имеют одно время получения
+
+                for copy in db_message_copies:
+                    if copy.answered_by_employee_id is not None and copy.responded_at is not None:
+                        is_responded_by_anyone = True
+                        if first_answered_at is None or copy.responded_at < first_answered_at:
+                            first_answered_at = copy.responded_at
+                    if copy.is_deleted:
+                        is_deleted_by_anyone = True # Если хотя бы одна копия удалена
+                
+                if is_responded_by_anyone and first_answered_at is not None:
+                    responded_unique_client_messages_count += 1
+                    # Рассчитываем время ответа для этого УНИКАЛЬНОГО сообщения
+                    # Время ответа должно считаться от received_at до первого responded_at по этому сообщению
+                    response_duration_seconds = (first_answered_at - first_received_at).total_seconds()
+                    response_times_for_avg.append(response_duration_seconds / 60)
+
+                elif is_deleted_by_anyone: # Если не отвечено, но удалено
+                    deleted_unique_client_messages_count += 1 # Считаем отдельно, если нужно
+                    # Для общей статистики, если сообщение удалено и не отвечено, оно считается пропущенным.
+                    # Это чтобы "В обработке" на диаграмме было 0, если нет реально ожидающих сообщений.
+                    missed_unique_client_messages_count +=1
+                else: # Не отвечено и не удалено
+                    missed_unique_client_messages_count +=1
+
+            # Общее количество уникальных клиентов
+            total_unique_clients = len(client_ids_for_unique_count)
             
-            # Срочные сообщения (без ответа более 30 минут) - всегда актуальные
-            urgent_messages = await self._get_urgent_messages_count()
+            # Среднее время ответа (по уникальным отвеченным сообщениям)
+            avg_response_time = sum(response_times_for_avg) / len(response_times_for_avg) if response_times_for_avg else 0
+            
+            # Количество активных сотрудников (можно взять из старой логики, если она корректна)
+            active_employees_result = await self.db.execute(select(Employee).where(Employee.is_active == True))
+            active_employees_count = len(active_employees_result.scalars().all())
+            
+            # Срочные сообщения (без ответа более 30 минут) - всегда актуальные (можно использовать старую, если она не зависит от суммирования)
+            urgent_messages = await self._get_urgent_messages_count() # Эта функция, вероятно, смотрит на текущие неотвеченные
+            
+            # Эффективность
+            efficiency = 0
+            if total_unique_client_messages_count > 0:
+                # Эффективность = (отвеченные уникальные / всего уникальных) * 100
+                # Не учитываем удаленные как влияющие на общее количество для расчета эффективности, если они не считаются пропущенными
+                # То есть, если сообщение было удалено и не отвечено, оно не должно уменьшать эффективность.
+                # Поэтому total_for_efficiency = total_unique_client_messages_count - deleted_unique_client_messages_count (если мы их не считаем пропущенными)
+                # Но проще: эффективность = отвеченные / (отвеченные + пропущенные)
+                denominator_for_efficiency = responded_unique_client_messages_count + missed_unique_client_messages_count
+                if denominator_for_efficiency > 0:
+                    efficiency = (responded_unique_client_messages_count / denominator_for_efficiency) * 100
             
             return {
-                "active_employees": active_employees,
-                "total_messages_today": total_messages,
-                "responded_today": responded,
-                "missed_today": missed,
+                "active_employees": active_employees_count,
+                "total_messages_today": total_unique_client_messages_count, # Всего УНИКАЛЬНЫХ сообщений от клиентов
+                "responded_today": responded_unique_client_messages_count,    # УНИКАЛЬНЫЕ сообщения, на которые был дан ответ
+                "missed_today": missed_unique_client_messages_count,          # УНИКАЛЬНЫЕ сообщения, которые не были отвечены и не удалены
                 "unique_clients_today": total_unique_clients,
                 "avg_response_time": round(avg_response_time, 1),
-                "urgent_messages": urgent_messages,
-                "efficiency_today": round((responded / total_messages * 100) if total_messages > 0 else 0, 1)
+                "urgent_messages": urgent_messages, # Эта метрика, вероятно, считается по-другому (не по статистике за период, а по текущему состоянию)
+                "efficiency_today": round(efficiency, 1)
             }
         else:
-            # Сотрудник видит только свою статистику
+            # Сотрудник видит только свою статистику (использует get_employee_stats, который вызывает _calculate_stats)
             user_stats = await self.get_employee_stats(user_id, period)
             
             # Количество неотвеченных сообщений

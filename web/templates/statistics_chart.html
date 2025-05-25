@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Статистика сообщений</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Сводная статистика -->
+                    <div class="summary-grid animate-slide-up" style="animation-delay: 0.4s" id="summarySection">
+                        <div class="summary-stat total">
+                            <div class="summary-icon total">
+                                <i class="fas fa-envelope text-white"></i>
+                            </div>
+                            <div class="summary-number total" id="totalMessages">5</div>
+                            <div class="summary-label">Всего сообщений</div>
+                        </div>
+                        <div class="summary-stat success">
+                            <div class="summary-icon success">
+                                <i class="fas fa-check-circle text-white"></i>
+                            </div>
+                            <div class="summary-number success" id="respondedMessages">5</div>
+                            <div class="summary-label">Успешно обработано</div>
+                        </div>
+                        <div class="summary-stat danger">
+                            <div class="summary-icon danger">
+                                <i class="fas fa-times-circle text-white"></i>
+                            </div>
+                            <div class="summary-number danger" id="missedMessages">0</div>
+                            <div class="summary-label">Пропущено</div>
+                        </div>
+                        <div class="summary-stat warning">
+                            <div class="summary-icon warning">
+                                <i class="fas fa-percentage text-white"></i>
+                            </div>
+                            <div class="summary-number warning"><span id="efficiency">100</span>%</div>
+                            <div class="summary-label">Эффективность</div>
+                        </div>
+                    </div>
+
+                    <!-- Диаграмма -->
+                    <div class="chart-container" style="position: relative; height: 300px; width: 100%; margin-top: 20px;">
+                        <canvas id="responsePieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Подключаем Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Подключаем наш скрипт с диаграммой -->
+<script src="/static/js/charts.js"></script>
+{% endblock %} 

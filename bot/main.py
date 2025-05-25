@@ -250,11 +250,11 @@ class MessageTracker:
         logger.info(f"🗑 Сообщение Telegram.ID={message_id} удалено в чате {chat_id}")
         
         # Обновляем в БД ВСЕ копии этого сообщения (для всех сотрудников)
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(DBMessage).where(
-                    and_(
-                        DBMessage.chat_id == chat_id,
+                    async with AsyncSessionLocal() as session:
+                        result = await session.execute(
+                            select(DBMessage).where(
+                                and_(
+                                    DBMessage.chat_id == chat_id,
                         DBMessage.message_id == message_id # Используем Telegram message_id для поиска всех копий
                     )
                 )
@@ -284,7 +284,7 @@ class MessageTracker:
         if chat_id in self.pending_messages and message_id in self.pending_messages[chat_id]:
             del self.pending_messages[chat_id][message_id]
             logger.info(f"🗑 Удалено из pending_messages: Telegram.ID={message_id} в чате {chat_id}")
-
+    
     async def schedule_notifications(self, message_id: int, employee_id: int, chat_id: int):
         """Планирование уведомлений с актуальными настройками из БД"""
         # Используем метод NotificationService который правильно читает настройки из БД
@@ -324,43 +324,92 @@ async def start_command(message: Message):
 @dp.message(Command("stats"))
 async def stats_command(message: Message):
     """Показать статистику сотрудника - ТОЛЬКО в личных сообщениях"""
-    # Игнорируем команды в группах
     if message.chat.type != "private":
         return
     
+    user_telegram_id = message.from_user.id
+    logger.info(f"Запрос /stats от пользователя {user_telegram_id}")
+
     async with AsyncSessionLocal() as session:
         result = await session.execute(
-            select(Employee).where(Employee.telegram_id == message.from_user.id)
+            select(Employee).where(Employee.telegram_id == user_telegram_id)
         )
         employee = result.scalar_one_or_none()
         
         if not employee:
+            logger.warning(f"Пользователь {user_telegram_id} не найден в системе.")
             await message.answer("❌ Вы не зарегистрированы в системе")
             return
         
-        stats = await message_tracker.analytics.get_employee_stats(employee.id, 'daily')
+        logger.info(f"Сотрудник найден: {employee.id} - {employee.full_name}")
+        
+        from web.services.statistics_service import StatisticsService
+        stats_service = StatisticsService(session)
+        
+        # --- Логирование перед вызовом get_employee_stats ---
+        period_start_debug, period_end_debug = stats_service._get_period_dates("today")
+        logger.info(f"[DEBUG /stats] Для employee_id={employee.id}, период: {period_start_debug} - {period_end_debug}")
+        messages_for_stats_debug = await stats_service._get_messages_for_period(employee.id, period_start_debug, period_end_debug)
+        logger.info(f"[DEBUG /stats] Сообщения, полученные _get_messages_for_period для employee_id={employee.id} ({len(messages_for_stats_debug)} шт.):")
+        for i, msg_debug in enumerate(messages_for_stats_debug):
+            logger.info(f"  [DEBUG MSG {i+1}] id={msg_debug.id}, text='{msg_debug.message_text[:20]}...', received_at={msg_debug.received_at}, responded_at={msg_debug.responded_at}, answered_by={msg_debug.answered_by_employee_id}, deleted={msg_debug.is_deleted}")
+        # --- Конец логирования перед вызовом ---
+        
+        stats: EmployeeStats = await stats_service.get_employee_stats(employee.id, period="today")
+        
+        logger.info(f"[DEBUG /stats] Получена статистика для employee_id={employee.id}:")
+        logger.info(f"  Total: {stats.total_messages}, Responded (by this emp): {stats.responded_messages}, Missed (by this emp): {stats.missed_messages}, Deleted: {stats.deleted_messages}")
+        logger.info(f"  Unique Clients: {stats.unique_clients}, Avg Resp Time: {stats.avg_response_time}, Efficiency: {stats.efficiency_percent}")
+        logger.info(f"  Exceeded 15/30/60: {stats.exceeded_15_min}/{stats.exceeded_30_min}/{stats.exceeded_60_min}")
         
         if stats:
-            text = f"📊 Ваша статистика за сегодня:\n\n"
-            text += f"📨 Всего сообщений: {stats['total_messages']}\n"
-            text += f"✅ Отвечено: {stats['responded_messages']}\n"
-            text += f"❌ Пропущено: {stats['missed_messages']}\n"
+            # Форматируем дату как в веб-интерфейсе
+            today = datetime.now().strftime("%d.%m.%Y")
+            
+            text = f"📊 <b>Детализированная статистика</b>\n\n"
+            text += f"📅 <b>Период:</b> {today}\n"
+            text += f"👤 <b>Сотрудник:</b> {employee.full_name}\n\n"
+            
+            # Основные метрики
+            text += f"📨 <b>Всего сообщений:</b> {stats.total_messages}\n"
+            text += f"✅ <b>Отвечено:</b> {stats.responded_messages}\n"
+            text += f"❌ <b>Пропущено:</b> {stats.missed_messages}\n"
+            text += f"👥 <b>Уникальных клиентов:</b> {stats.unique_clients}\n"
+            # Проверка на None для avg_response_time
+            avg_response_time_text = f"{stats.avg_response_time:.1f}м" if stats.avg_response_time is not None else "0.0м"
+            text += f"⏱ <b>Среднее время ответа:</b> {avg_response_time_text}\n\n"
+            
+            # Предупреждения по времени
+            text += f"⚠️ <b>Ответов > 15м:</b> {stats.exceeded_15_min}\n"
+            text += f"⚠️ <b>Ответов > 30м:</b> {stats.exceeded_30_min}\n"
+            text += f"⚠️ <b>Ответов > 60м:</b> {stats.exceeded_60_min}\n\n"
+            
+            # Эффективность
+            # Проверка на None для efficiency_percent (хотя он float и должен быть 0.0 если нет данных)
+            efficiency_percent_text = f"{stats.efficiency_percent:.1f}%" if stats.efficiency_percent is not None else "0.0%"
+            text += f"📈 <b>Эффективность:</b> {efficiency_percent_text}\n"
             
             # Добавляем информацию об удаленных сообщениях если они есть
-            if stats.get('deleted_messages', 0) > 0:
-                text += f"🗑 Удалено клиентами: {stats['deleted_messages']}\n"
-            
-            text += f"👥 Уникальных клиентов: {stats['unique_clients']}\n"
-            text += f"⏱ Среднее время ответа: {stats['avg_response_time']:.1f} мин\n"
-            text += f"⚠️ Ответов > 15 мин: {stats['exceeded_15_min']}\n"
-            text += f"⚠️ Ответов > 30 мин: {stats['exceeded_30_min']}\n"
-            text += f"⚠️ Ответов > 60 мин: {stats['exceeded_60_min']}"
-            
-            # Добавляем примечание об удаленных сообщениях
-            if stats.get('deleted_messages', 0) > 0:
-                text += f"\n\n💡 <i>Удаленные клиентами сообщения не считаются пропущенными</i>"
+            if stats.deleted_messages > 0:
+                text += f"\n🗑 <b>Удалено клиентами:</b> {stats.deleted_messages}\n"
+                text += f"💡 <i>Удаленные клиентами сообщения не считаются пропущенными</i>"
         else:
             text = "📊 Статистика за сегодня пока отсутствует"
+        
+        # Если админ — добавляем общую статистику по всем сотрудникам
+        if employee.is_admin:
+            summary = await stats_service.get_dashboard_overview(user_id=employee.id, is_admin=True, period='today')
+            
+            text += "\n\n📊 <b>Общая статистика по всем сотрудникам:</b>\n\n"
+            text += f"📨 <b>Всего сообщений:</b> {summary['total_messages_today']}\n"
+            text += f"✅ <b>Отвечено:</b> {summary['responded_today']}\n"
+            text += f"❌ <b>Пропущено:</b> {summary['missed_today']}\n"
+            text += f"👥 <b>Уникальных клиентов:</b> {summary['unique_clients_today']}\n"
+            # Проверка на None для avg_response_time в общей статистике
+            summary_avg_response_time_text = f"{summary['avg_response_time']:.1f}м" if summary.get('avg_response_time') is not None else "0.0м"
+            text += f"⏱ <b>Среднее время ответа:</b> {summary_avg_response_time_text}\n"
+            summary_efficiency_text = f"{summary['efficiency_today']:.1f}%" if summary.get('efficiency_today') is not None else "0.0%"
+            text += f"📈 <b>Эффективность:</b> {summary_efficiency_text}"
         
         await message.answer(text, parse_mode="HTML")
 
@@ -394,8 +443,8 @@ async def handle_group_message(message: Message):
         )
         sender_is_employee = sender_employee_result.scalar_one_or_none() is not None
 
-        # Проверяем, является ли сообщение ответом
-        if message.reply_to_message:
+    # Проверяем, является ли сообщение ответом
+    if message.reply_to_message:
             if sender_is_employee:
                 # Это ответ сотрудника на какое-то сообщение
                 logger.info(f"💬 Ответ от сотрудника: {message.from_user.full_name}")
@@ -408,7 +457,6 @@ async def handle_group_message(message: Message):
                 
                 if responding_employee:
                     # Убедимся, что ответ был на сообщение клиента, а не другого сотрудника
-                    # (хотя mark_as_responded теперь ищет сообщения по client_telegram_id из reply_to_message.from_user.id)
                     if message.reply_to_message.from_user:
                         # Проверим, не является ли автор исходного сообщения тоже сотрудником
                         original_sender_employee_result = await session.execute(
@@ -428,18 +476,17 @@ async def handle_group_message(message: Message):
                 # Это ответ НЕ сотрудника (например, клиент отвечает клиенту, или бот отвечает). Игнорируем.
                 logger.info(f"👤 Ответ от НЕ сотрудника ({message.from_user.full_name}). Игнорируем.")
                 return
-        else:
-            # Это новое сообщение (не ответ)
+        else: # Это новое сообщение (не ответ)
             if sender_is_employee:
                 # Новое сообщение от сотрудника - просто логируем и игнорируем для трекинга
                 logger.info(f"🗣️ Новое сообщение от сотрудника {message.from_user.full_name} в группе. Не для отслеживания.")
                 return
-            else:
-                # Это новое сообщение от клиента
+    else:
+        # Это новое сообщение от клиента
                 logger.info(f"📨 Новое сообщение от клиента: {message.from_user.full_name}")
                 active_employees_result = await session.execute(
-                    select(Employee).where(Employee.is_active == True)
-                )
+                select(Employee).where(Employee.is_active == True)
+            )
                 active_employees = active_employees_result.scalars().all()
                 
                 if not active_employees:

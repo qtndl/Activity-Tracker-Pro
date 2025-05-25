@@ -54,7 +54,7 @@ def register_handlers(dp: Dispatcher, message_tracker):
 <b>👑 Команды администратора:</b>
 /admin_stats - Общая статистика по всем сотрудникам
 /mark_deleted - Пометить сообщение как удаленное
-            """
+        """
         
         await message.answer(help_text, parse_mode="HTML")
     

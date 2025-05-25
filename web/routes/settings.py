@@ -192,7 +192,6 @@ async def send_daily_reports_endpoint(
         # Получаем message_tracker из основного бота
         # Поскольку у нас нет прямого доступа к message_tracker из веб-части,
         # мы создадим временный для этой операции
-        from bot.analytics import AnalyticsService  
         from bot.notifications import NotificationService
         from aiogram import Bot
         from config.config import settings as bot_settings
@@ -200,7 +199,7 @@ async def send_daily_reports_endpoint(
         # Создаем временные экземпляры для отправки отчетов
         class TempMessageTracker:
             def __init__(self):
-                self.analytics = AnalyticsService()
+                # self.analytics = AnalyticsService() # Больше не используется в send_daily_reports
                 self.notifications = NotificationService(Bot(token=bot_settings.bot_token))
         
         temp_tracker = TempMessageTracker()

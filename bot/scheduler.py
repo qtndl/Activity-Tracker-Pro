@@ -3,6 +3,7 @@ from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
 import logging
 from .settings_manager import settings_manager
+from web.services.statistics_service import StatisticsService
 
 logger = logging.getLogger(__name__)
 
@@ -75,22 +76,26 @@ async def send_daily_reports(message_tracker):
     from sqlalchemy import select
     
     async with AsyncSessionLocal() as session:
+        stats_service = StatisticsService(session)
+        
         # Получаем всех активных сотрудников
-        result = await session.execute(
+        active_employees_result = await session.execute(
             select(Employee).where(Employee.is_active == True)
         )
-        employees = result.scalars().all()
+        active_employees = active_employees_result.scalars().all()
         
-        all_stats = []
+        individual_employee_stats_list = []
         
-        for employee in employees:
-            stats = await message_tracker.analytics.get_employee_stats(employee.id, 'daily')
-            if stats:
-                # Добавляем employee_id к статистике для админского отчета
-                stats['employee_id'] = employee.id
-                all_stats.append(stats)
+        for employee in active_employees:
+            try:
+                # Получаем статистику сотрудника через StatisticsService
+                employee_stats_obj = await stats_service.get_employee_stats(employee.id, period="today")
+                if employee_stats_obj:
+                    individual_employee_stats_list.append(employee_stats_obj)
                 # Отправляем отчет сотруднику
-                await message_tracker.notifications.send_daily_report(employee.id, stats)
+                    await message_tracker.notifications.send_daily_report(employee.id, employee_stats_obj)
+            except Exception as e:
+                logger.error(f"Ошибка при получении/отправке отчета для сотрудника {employee.id}: {e}")
         
         # Отправляем общий отчет администраторам
         admin_result = await session.execute(
@@ -100,6 +105,16 @@ async def send_daily_reports(message_tracker):
             )
         )
         admins = admin_result.scalars().all()
+        logger.info(f"[SCHEDULER_DEBUG] Found {len(admins)} admin(s) to send reports to.")
+        
+        if admins:
+            try:
+                # Получаем корректную общую статистику для админов
+                admin_user_id_for_overview = admins[0].id 
+                admin_summary_stats = await stats_service.get_dashboard_overview(user_id=admin_user_id_for_overview, is_admin=True, period="today")
         
         for admin in admins:
-            await message_tracker.notifications.send_admin_report(admin.telegram_id, all_stats) 
+                    # Передаем и общую сводку, и детализацию по каждому сотруднику
+                    await message_tracker.notifications.send_admin_report(admin.telegram_id, admin_summary_stats, individual_employee_stats_list)
+            except Exception as e:
+                logger.error(f"Ошибка при подготовке или отправке общего отчета администраторам: {e}") 

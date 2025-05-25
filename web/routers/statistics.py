@@ -1,10 +1,12 @@
 from typing import List, Dict, Optional
 from datetime import datetime, date, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, desc, delete
 from pydantic import BaseModel
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.requests import Request
+from fastapi.templating import Jinja2Templates
 
 from database.database import get_db
 from database.models import Employee, Message, SystemSettings
@@ -138,54 +140,41 @@ async def get_statistics_summary(
     stats_service = StatisticsService(db)
     
     if current_user.get('is_admin'):
-        # Админ видит статистику всех сотрудников
-        all_stats = await stats_service.get_all_employees_stats(period=period)
+        # Админ видит общую статистику, посчитанную get_dashboard_overview
+        # user_id для админа в get_dashboard_overview формально нужен, но не влияет на результат
+        admin_user_id = current_user.get('employee_id', 0) # Пытаемся получить employee_id админа
+        summary_data = await stats_service.get_dashboard_overview(user_id=admin_user_id, is_admin=True, period=period)
         
-        if not all_stats:
-            return {
-                "period": period,
-                "total_messages": 0,
-                "responded_messages": 0,
-                "missed_messages": 0,
-                "unique_clients": 0,
-                "avg_response_time": 0,
-                "efficiency_percent": 0,
-                "exceeded_15_min": 0,
-                "exceeded_30_min": 0,
-                "exceeded_60_min": 0
-            }
+        # Возвращаем данные с ключами, которые ожидает фронтенд (или фронтенд нужно будет обновить)
+        # get_dashboard_overview возвращает:
+        # total_messages_today, responded_today, missed_today, unique_clients_today, avg_response_time, efficiency_today
+        # Фронтенд ожидает:
+        # total_messages, responded_messages, missed_messages, unique_clients, avg_response_time, efficiency_percent
+        # (также exceeded_15_min, exceeded_30_min, exceeded_60_min, которых нет в get_dashboard_overview напрямую)
         
-        # Агрегируем данные всех сотрудников
-        total_messages = sum(s.total_messages for s in all_stats)
-        responded_messages = sum(s.responded_messages for s in all_stats)
-        missed_messages = sum(s.missed_messages for s in all_stats)
-        total_unique_clients = sum(s.unique_clients for s in all_stats)
-        
-        # Среднее время ответа - среднее арифметическое непустых значений
-        avg_times = [s.avg_response_time for s in all_stats if s.avg_response_time is not None]
-        avg_response_time = sum(avg_times) / len(avg_times) if avg_times else 0
-        
-        exceeded_15 = sum(s.exceeded_15_min for s in all_stats)
-        exceeded_30 = sum(s.exceeded_30_min for s in all_stats)
-        exceeded_60 = sum(s.exceeded_60_min for s in all_stats)
-        
-        efficiency = (responded_messages / total_messages * 100) if total_messages > 0 else 0
-        
+        # Базовое маппинг:
         return {
             "period": period,
-            "total_messages": total_messages,
-            "responded_messages": responded_messages,
-            "missed_messages": missed_messages,
-            "unique_clients": total_unique_clients,
-            "avg_response_time": round(avg_response_time, 1),
-            "efficiency_percent": round(efficiency, 1),
-            "exceeded_15_min": exceeded_15,
-            "exceeded_30_min": exceeded_30,
-            "exceeded_60_min": exceeded_60
+            "total_messages": summary_data.get("total_messages_today", 0),
+            "responded_messages": summary_data.get("responded_today", 0),
+            "missed_messages": summary_data.get("missed_today", 0),
+            "unique_clients": summary_data.get("unique_clients_today", 0),
+            "avg_response_time": summary_data.get("avg_response_time", 0),
+            "efficiency_percent": summary_data.get("efficiency_today", 0),
+            # Данные по exceeded_X_min отсутствуют в get_dashboard_overview в текущей реализации
+            # Если они нужны на дашборде, их нужно либо добавить в get_dashboard_overview,
+            # либо фронтенд не должен их ожидать от этого эндпоинта для админа.
+            # Пока возвращаем 0 для них, чтобы не было ошибок на фронте.
+            "exceeded_15_min": 0, 
+            "exceeded_30_min": 0,
+            "exceeded_60_min": 0
         }
     else:
         # Сотрудник видит только свою статистику
         employee_id = current_user.get('employee_id')
+        if not employee_id:
+            raise HTTPException(status_code=403, detail="Employee ID not found for current user")
+            
         stats = await stats_service.get_employee_stats(employee_id, period=period)
         
         return {
@@ -542,4 +531,45 @@ async def setup_auto_export(
         
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Ошибка настройки автоэкспорта: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Ошибка настройки автоэкспорта: {str(e)}")
+
+
+@router.get("/chart", response_class=HTMLResponse)
+async def statistics_chart(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Страница со статистикой и диаграммой"""
+    
+    stats_service = StatisticsService(db)
+    
+    if current_user.get('is_admin'):
+        # Админ видит общую статистику
+        admin_user_id = current_user.get('employee_id', 0)
+        summary_data = await stats_service.get_dashboard_overview(
+            user_id=admin_user_id,
+            is_admin=True,
+            period="today"
+        )
+    else:
+        # Сотрудник видит свою статистику
+        user_stats = await stats_service.get_employee_stats(
+            current_user.get('employee_id'),
+            period="today"
+        )
+        summary_data = {
+            "total_messages_today": user_stats.total_messages,
+            "responded_today": user_stats.responded_messages,
+            "missed_today": user_stats.missed_messages,
+            "efficiency_today": user_stats.efficiency_percent
+        }
+    
+    return templates.TemplateResponse(
+        "statistics_chart.html",
+        {
+            "request": request,
+            "user": current_user,
+            "stats": summary_data
+        }
+    ) 

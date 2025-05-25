@@ -139,23 +139,17 @@
                         <h5><i class="fas fa-chart-pie me-2"></i>Эффективность работы</h5>
                     </div>
                     <div class="card-body text-center">
-                        {% set response_rate = (stats.responded_messages / stats.total_messages * 100) if stats.total_messages > 0 else 0 %}
+                        {% set efficiency = stats.efficiency_percent|default(0) %}
                         <div class="progress mb-3" style="height: 20px;">
-                            <div class="progress-bar 
-                                {% if response_rate >= 90 %}bg-success
-                                {% elif response_rate >= 70 %}bg-warning  
-                                {% else %}bg-danger{% endif %}" 
-                                style="width: {{ response_rate }}%">
-                                {{ "%.1f" | format(response_rate) }}%
+                            <div class="progress-bar {% if efficiency >= 90 %}bg-success{% elif efficiency >= 70 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                 style="width: {{ efficiency }}%">
+                                {{ "%.1f" | format(efficiency) }}%
                             </div>
                         </div>
-                        <span class="badge performance-badge
-                            {% if response_rate >= 90 %}bg-success
-                            {% elif response_rate >= 70 %}bg-warning
-                            {% else %}bg-danger{% endif %}">
-                            {% if response_rate >= 90 %}
+                        <span class="badge performance-badge {% if efficiency >= 90 %}bg-success{% elif efficiency >= 70 %}bg-warning{% else %}bg-danger{% endif %}">
+                            {% if efficiency >= 90 %}
                                 <i class="fas fa-star me-1"></i>Отлично!
-                            {% elif response_rate >= 70 %}
+                            {% elif efficiency >= 70 %}
                                 <i class="fas fa-thumbs-up me-1"></i>Хорошо
                             {% else %}
                                 <i class="fas fa-exclamation-triangle me-1"></i>Нужно улучшить
@@ -168,40 +162,16 @@
             <div class="col-md-6 mb-4">
                 <div class="card">
                     <div class="card-header">
-                        <h5><i class="fas fa-stopwatch me-2"></i>Время ответа</h5>
+                        <h5><i class="fas fa-users me-2"></i>Уникальные клиенты</h5>
                     </div>
-                    <div class="card-body">
-                        {% if stats.avg_response_time %}
-                            {% set avg_time = stats.avg_response_time %}
-                            <div class="text-center">
-                                <div class="stat-number 
-                                    {% if avg_time <= 15 %}success
-                                    {% elif avg_time <= 30 %}warning
-                                    {% else %}danger{% endif %}">
-                                    {{ "%.1f" | format(avg_time) }} мин
-                                </div>
-                                <p class="stat-label">
-                                    {% if avg_time <= 15 %}
-                                        <i class="fas fa-rocket me-1"></i>Очень быстро!
-                                    {% elif avg_time <= 30 %}
-                                        <i class="fas fa-clock me-1"></i>В пределах нормы
-                                    {% else %}
-                                        <i class="fas fa-hourglass-half me-1"></i>Можно быстрее
-                                    {% endif %}
-                                </p>
-                            </div>
-                        {% else %}
-                            <div class="text-center text-muted">
-                                <i class="fas fa-info-circle fa-2x mb-2"></i>
-                                <p>Пока нет данных о времени ответа</p>
-                            </div>
-                        {% endif %}
+                    <div class="card-body text-center">
+                        <div class="display-4 mb-2">{{ stats.unique_clients }}</div>
+                        <p class="text-muted mb-0">Количество уникальных клиентов за сегодня</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Превышения времени -->
         {% if stats.exceeded_15_min > 0 or stats.exceeded_30_min > 0 or stats.exceeded_60_min > 0 %}
         <div class="row">
             <div class="col-12 mb-4">
@@ -240,55 +210,45 @@
         <div class="row">
             <div class="col-12 mb-4">
                 <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="card-header">
                         <h5><i class="fas fa-history me-2"></i>Последняя активность</h5>
-                        <button class="btn btn-sm btn-outline-primary" onclick="refreshData()">
-                            <i class="fas fa-sync-alt me-1"></i>Обновить
-                        </button>
                     </div>
                     <div class="card-body">
-                        <div id="activity-list">
-                            {% if recent_messages %}
-                                {% for message in recent_messages %}
-                                <div class="activity-item">
-                                    <div class="d-flex justify-content-between align-items-start">
-                                        <div>
-                                            <strong>
-                                                {% if message.client_username %}
-                                                    @{{ message.client_username }}
+                        {% if recent_messages %}
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Время</th>
+                                            <th>Клиент</th>
+                                            <th>Сообщение</th>
+                                            <th>Статус</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for message in recent_messages %}
+                                        <tr>
+                                            <td>{{ message.received_at.strftime('%H:%M:%S') }}</td>
+                                            <td>{{ message.client_name or message.client_username or 'Неизвестный' }}</td>
+                                            <td>{{ message.message_text[:50] + '...' if message.message_text|length > 50 else message.message_text }}</td>
+                                            <td>
+                                                {% if message.responded_at %}
+                                                    <span class="badge bg-success">Отвечено</span>
                                                 {% else %}
-                                                    {{ message.client_name or "Клиент" }}
+                                                    <span class="badge bg-danger">Пропущено</span>
                                                 {% endif %}
-                                            </strong>
-                                            <p class="mb-1">{{ message.message_text[:100] }}{% if message.message_text|length > 100 %}...{% endif %}</p>
-                                        </div>
-                                        <div class="text-end">
-                                            {% if message.responded_at %}
-                                                <span class="badge bg-success">
-                                                    <i class="fas fa-check me-1"></i>
-                                                    {{ "%.1f" | format(message.response_time_minutes) }} мин
-                                                </span>
-                                            {% else %}
-                                                <span class="badge bg-warning">
-                                                    <i class="fas fa-clock me-1"></i>
-                                                    Ожидает ответа
-                                                </span>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                    <small class="text-muted">
-                                        <i class="fas fa-clock me-1"></i>
-                                        {{ message.received_at.strftime('%d.%m.%Y %H:%M') }}
-                                    </small>
-                                </div>
-                                {% endfor %}
-                            {% else %}
-                                <div class="text-center text-muted py-4">
-                                    <i class="fas fa-inbox fa-3x mb-3"></i>
-                                    <p>Пока нет сообщений</p>
-                                </div>
-                            {% endif %}
-                        </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="text-center py-4">
+                                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                <p class="lead mb-0">Пока нет сообщений</p>
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>

@@ -9,6 +9,7 @@ import uvicorn
 import aiohttp
 import random
 from datetime import datetime, timedelta
+import logging
 
 from config.config import settings
 from database.database import init_db, get_db
@@ -268,7 +269,12 @@ async def dashboard_page(request: Request, current_user: dict = Depends(get_curr
         try:
             # Используем единый сервис статистики
             stats_service = StatisticsService(db)
-            stats = await stats_service.get_employee_stats(employee_id, period="today")
+            stats = await stats_service.get_employee_stats(
+                employee_id=employee_id,
+                period="today",
+                start_date=datetime.now().date(),
+                end_date=datetime.now().date()
+            )
             
             # Получаем последние 10 сообщений
             messages_result = await db.execute(
@@ -289,12 +295,15 @@ async def dashboard_page(request: Request, current_user: dict = Depends(get_curr
                 'avg_response_time': stats.avg_response_time or 0,
                 'exceeded_15_min': stats.exceeded_15_min,
                 'exceeded_30_min': stats.exceeded_30_min,
-                'exceeded_60_min': stats.exceeded_60_min
+                'exceeded_60_min': stats.exceeded_60_min,
+                'efficiency_percent': stats.efficiency_percent or 0,
+                'response_rate': stats.response_rate or 0,
+                'unique_clients': stats.unique_clients or 0
             }
             
             return templates.TemplateResponse("employee_dashboard.html", {
                 "request": request,
-                "user": current_user,  # Исправлено: используем 'user' вместо 'userInfo'
+                "user": current_user,
                 "stats": stats_obj,
                 "recent_messages": recent_messages
             })
@@ -303,6 +312,7 @@ async def dashboard_page(request: Request, current_user: dict = Depends(get_curr
             # Сотрудник не найден в базе
             return RedirectResponse(url="/login?error=Пользователь не найден", status_code=302)
         except Exception as e:
+            logger.error(f"Ошибка при получении статистики: {str(e)}")
             # Другие ошибки - показываем страницу с пустой статистикой
             stats_obj = {
                 'total_messages': 0,
@@ -311,7 +321,10 @@ async def dashboard_page(request: Request, current_user: dict = Depends(get_curr
                 'avg_response_time': 0,
                 'exceeded_15_min': 0,
                 'exceeded_30_min': 0,
-                'exceeded_60_min': 0
+                'exceeded_60_min': 0,
+                'efficiency_percent': 0,
+                'response_rate': 0,
+                'unique_clients': 0
             }
             
             return templates.TemplateResponse("employee_dashboard.html", {
@@ -377,6 +390,8 @@ async def employees_page(request: Request, current_user: dict = Depends(get_curr
 @app.get("/statistics", response_class=HTMLResponse)
 async def statistics_page(request: Request, current_user: dict = Depends(get_current_user)):
     """Страница статистики"""
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Доступ запрещен")
     return templates.TemplateResponse("statistics.html", {
         "request": request,
         "userInfo": current_user
@@ -386,6 +401,8 @@ async def statistics_page(request: Request, current_user: dict = Depends(get_cur
 @app.get("/profile", response_class=HTMLResponse)
 async def profile_page(request: Request, current_user: dict = Depends(get_current_user)):
     """Личный кабинет сотрудника"""
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Доступ запрещен")
     return templates.TemplateResponse("profile.html", {
         "request": request,
         "userInfo": current_user

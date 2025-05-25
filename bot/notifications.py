@@ -6,6 +6,7 @@ from sqlalchemy import select
 from database.database import AsyncSessionLocal
 from database.models import Employee, Message, Notification
 from .settings_manager import settings_manager
+from web.services.statistics_service import EmployeeStats
 import logging
 
 logger = logging.getLogger(__name__)
@@ -186,150 +187,124 @@ class NotificationService:
         
         return text
     
-    async def send_daily_report(self, employee_id: int, stats):
-        """Отправка ежедневного отчета сотруднику"""
+    async def send_daily_report(self, employee_id: int, stats_obj: EmployeeStats):
+        """Отправка ежедневного отчета сотруднику (принимает объект EmployeeStats)"""
         # Проверяем включены ли ежедневные отчеты
         if not await settings_manager.daily_reports_enabled():
-            logger.info("Ежедневные отчеты отключены в настройках")
+            logger.info(f"Ежедневные отчеты отключены - отчет сотруднику {employee_id} не отправлен")
             return
             
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(Employee).where(Employee.id == employee_id)
-            )
-            employee = result.scalar_one_or_none()
-            
-            # Отправляем отчеты только активным сотрудникам
-            if not employee or not employee.is_active:
-                if employee and not employee.is_active:
-                    logger.info(f"Сотрудник {employee_id} деактивирован - ежедневный отчет не отправлен")
-                return
-            
-            # Обрабатываем и словарь и объект
-            if isinstance(stats, dict):
-                total_messages = stats.get('total_messages', 0)
-                responded_messages = stats.get('responded_messages', 0) 
-                missed_messages = stats.get('missed_messages', 0)
-                unique_clients = stats.get('unique_clients', 0)
-                avg_response_time = stats.get('avg_response_time', 0)
-                exceeded_15_min = stats.get('exceeded_15_min', 0)
-                exceeded_30_min = stats.get('exceeded_30_min', 0)
-                exceeded_60_min = stats.get('exceeded_60_min', 0)
-            else:
-                # Объект со атрибутами
-                total_messages = stats.total_messages
-                responded_messages = stats.responded_messages
-                missed_messages = stats.missed_messages
-                unique_clients = stats.unique_clients
-                avg_response_time = stats.avg_response_time
-                exceeded_15_min = stats.exceeded_15_min
-                exceeded_30_min = stats.exceeded_30_min
-                exceeded_60_min = stats.exceeded_60_min
+        # Получаем данные из объекта EmployeeStats
+        total_messages = stats_obj.total_messages
+        responded_messages = stats_obj.responded_messages
+        missed_messages = stats_obj.missed_messages
+        deleted_messages = stats_obj.deleted_messages
+        unique_clients = stats_obj.unique_clients
+        avg_response_time = stats_obj.avg_response_time # Может быть None
+        exceeded_15_min = stats_obj.exceeded_15_min
+        exceeded_30_min = stats_obj.exceeded_30_min
+        exceeded_60_min = stats_obj.exceeded_60_min
             
             text = "📊 <b>Ваша статистика за сегодня:</b>\n\n"
-            text += f"📨 Всего сообщений: {total_messages}\n"
-            text += f"✅ Отвечено: {responded_messages}\n"
-            text += f"❌ Пропущено: {missed_messages}\n"
+        text += f"📨 Всего сообщений: {total_messages}\n"
+        text += f"✅ Отвечено: {responded_messages}\n"
+        text += f"❌ Пропущено: {missed_messages}\n"
             
-            # Показываем удаленные сообщения если они есть
-            if isinstance(stats, dict):
-                deleted_messages = stats.get('deleted_messages', 0)
-            else:
-                deleted_messages = getattr(stats, 'deleted_messages', 0)
-            
-            if deleted_messages > 0:
-                text += f"🗑 Удалено клиентами: {deleted_messages}\n"
-            
-            text += f"👥 Уникальных клиентов: {unique_clients}\n"
-            
-            if responded_messages > 0:
-                text += f"\n⏱ Среднее время ответа: {avg_response_time:.1f} мин\n"
+        if deleted_messages > 0:
+            text += f"🗑 Удалено клиентами: {deleted_messages}\n"
+        
+        text += f"👥 Уникальных клиентов: {unique_clients}\n"
+        
+        if avg_response_time is not None and responded_messages > 0: # Отображаем только если есть ответы
+            text += f"\n⏱ Среднее время ответа: {avg_response_time:.1f} мин\n"
                 
-                if exceeded_15_min > 0:
+            if exceeded_15_min > 0 or exceeded_30_min > 0 or exceeded_60_min > 0:
                     text += f"\n⚠️ Превышений времени ответа:\n"
-                    text += f"  • Более 15 мин: {exceeded_15_min}\n"
-                    text += f"  • Более 30 мин: {exceeded_30_min}\n"
-                    text += f"  • Более 1 часа: {exceeded_60_min}\n"
+                if exceeded_15_min > 0: text += f"  • Более 15 мин: {exceeded_15_min}\n"
+                if exceeded_30_min > 0: text += f"  • Более 30 мин: {exceeded_30_min}\n"
+                if exceeded_60_min > 0: text += f"  • Более 1 часа: {exceeded_60_min}\n"
+        elif responded_messages == 0:
+             text += f"\n⏱ Среднее время ответа: - (нет ответов)\n"
             
             # Добавляем оценку работы
-            if missed_messages == 0 and avg_response_time < 15:
+        if missed_messages == 0 and responded_messages > 0 and (avg_response_time is None or avg_response_time < 15):
                 text += "\n🌟 Отличная работа! Продолжайте в том же духе!"
-            elif missed_messages > 0:
+        elif missed_messages > 0:
                 text += f"\n⚠️ Обратите внимание на пропущенные сообщения!"
             
-            # Добавляем примечание об удаленных сообщениях
-            if deleted_messages > 0:
-                text += f"\n\n💡 <i>Удаленные клиентами сообщения не считаются пропущенными</i>"
-            
+        if deleted_messages > 0:
+            text += f"\n\n💡 <i>Удаленные клиентами сообщения не считаются пропущенными</i>"
+        
+        # Получаем telegram_id сотрудника для отправки
+        employee_telegram_id = None
+        async with AsyncSessionLocal() as session:
+            employee_obj = await session.get(Employee, employee_id)
+            if employee_obj:
+                employee_telegram_id = employee_obj.telegram_id
+            else:
+                logger.error(f"Не найден сотрудник с ID {employee_id} для отправки ежедневного отчета.")
+                return
+
+        if employee_telegram_id:
             try:
                 await self.bot.send_message(
-                    employee.telegram_id,
+                    employee_telegram_id,
                     text,
                     parse_mode="HTML"
                 )
                 logger.info(f"Отправлен ежедневный отчет сотруднику {employee_id}")
             except Exception as e:
-                logger.error(f"Не удалось отправить ежедневный отчет сотруднику {employee_id}: {e}")
+                logger.error(f"Не удалось отправить ежедневный отчет сотруднику {employee_id} (Telegram ID: {employee_telegram_id}): {e}")
+        else:
+            logger.error(f"Не удалось получить Telegram ID для сотрудника {employee_id}. Отчет не отправлен.")
     
-    async def send_admin_report(self, admin_id: int, all_stats):
-        """Отправка отчета администратору"""
-        # Проверяем включены ли ежедневные отчеты
+    async def send_admin_report(self, admin_telegram_id: int, summary_stats: dict, individual_employee_stats: List[EmployeeStats]):
+        """Отправка отчета администратору.
+        summary_stats: dict - общая статистика из get_dashboard_overview.
+        individual_employee_stats: List[EmployeeStats] - список статистики по каждому сотруднику.
+        """
         if not await settings_manager.daily_reports_enabled():
-            logger.info("Ежедневные отчеты отключены - отчет админу не отправлен")
+            logger.info(f"Ежедневные отчеты отключены - отчет админу {admin_telegram_id} не отправлен")
             return
             
         text = "📊 <b>Общая статистика по всем сотрудникам:</b>\n\n"
         
-        # Функция для получения значения из объекта или словаря
-        def get_stat_value(stat, key):
-            if isinstance(stat, dict):
-                return stat.get(key, 0)
-            else:
-                return getattr(stat, key, 0)
+        # Используем данные из summary_stats (уже корректно посчитаны)
+        text += f"📨 Всего сообщений: {summary_stats.get('total_messages_today', 0)}\n"
+        text += f"✅ Отвечено: {summary_stats.get('responded_today', 0)}\n"
+        text += f"❌ Пропущено: {summary_stats.get('missed_today', 0)}\n"
+        text += f"👥 Уникальных клиентов: {summary_stats.get('unique_clients_today', 0)}\n"
         
-        total_messages = sum(get_stat_value(s, 'total_messages') for s in all_stats)
-        total_responded = sum(get_stat_value(s, 'responded_messages') for s in all_stats)
-        total_missed = sum(get_stat_value(s, 'missed_messages') for s in all_stats)
-        total_unique_clients = sum(get_stat_value(s, 'unique_clients') for s in all_stats)
-        
-        text += f"📨 Всего сообщений: {total_messages}\n"
-        text += f"✅ Отвечено: {total_responded}\n"
-        text += f"❌ Пропущено: {total_missed}\n"
-        text += f"👥 Уникальных клиентов: {total_unique_clients}\n"
-        
-        if total_responded > 0:
-            avg_response = sum(get_stat_value(s, 'avg_response_time') * get_stat_value(s, 'responded_messages') for s in all_stats) / total_responded
-            text += f"⏱ Средний ответ: {avg_response:.1f} мин\n"
+        avg_response_time_admin = summary_stats.get('avg_response_time', 0)
+        text += f"⏱ Средний ответ: {avg_response_time_admin:.1f} мин\n"
+        text += f"📈 Эффективность: {summary_stats.get('efficiency_today', 0):.1f}%\n" # Добавлено
         
         text += "\n<b>По сотрудникам:</b>\n"
         
-        for stat in all_stats:
-            # Получаем employee_id
-            employee_id = get_stat_value(stat, 'employee_id')
-            
-            async with AsyncSessionLocal() as session:
-                result = await session.execute(
-                    select(Employee).where(Employee.id == employee_id)
-                )
-                employee = result.scalar_one_or_none()
-                
-                if employee:
-                    status_emoji = "✅" if employee.is_active else "💤"
-                    status_text = "активен" if employee.is_active else "деактивирован"
+        if not individual_employee_stats:
+            text += "\n<i>Нет данных по сотрудникам для отображения.</i>"
+        else:
+            for stats_obj in individual_employee_stats: # Теперь это список объектов EmployeeStats
+                status_emoji = "✅" if stats_obj.is_active else "💤"
+                status_text = "активен" if stats_obj.is_active else "деактивирован"
                     
-                    text += f"\n{status_emoji} {employee.full_name} ({status_text}):\n"
-                    text += f"  • Сообщений: {get_stat_value(stat, 'total_messages')}\n"
-                    text += f"  • Пропущено: {get_stat_value(stat, 'missed_messages')}\n"
-                    text += f"  • Уникальных клиентов: {get_stat_value(stat, 'unique_clients')}\n"
-                    if get_stat_value(stat, 'responded_messages') > 0:
-                        text += f"  • Среднее время: {get_stat_value(stat, 'avg_response_time'):.1f} мин\n"
+                text += f"\n{status_emoji} {stats_obj.employee_name} ({status_text}):\n"
+                text += f"  • Сообщений: {stats_obj.total_messages}\n"
+                # Отвечено этим сотрудником
+                text += f"  • Отвечено им: {stats_obj.responded_messages}\n" 
+                text += f"  • Пропущено им: {stats_obj.missed_messages}\n"
+                text += f"  • Уникальных клиентов: {stats_obj.unique_clients}\n"
+                if stats_obj.avg_response_time is not None and stats_obj.responded_messages > 0:
+                    text += f"  • Среднее время (его ответов): {stats_obj.avg_response_time:.1f} мин\n"
+                elif stats_obj.responded_messages == 0:
+                    text += f"  • Среднее время (его ответов): - (нет ответов)\n"
         
         try:
             await self.bot.send_message(
-                admin_id,
+                admin_telegram_id,
                 text,
                 parse_mode="HTML"
             )
-            logger.info(f"Отправлен отчет администратору {admin_id}")
+            logger.info(f"Отправлен отчет администратору {admin_telegram_id}")
         except Exception as e:
-            logger.error(f"Не удалось отправить отчет администратору: {e}") 
+            logger.error(f"Не удалось отправить отчет администратору {admin_telegram_id}: {e}") 

@@ -1219,7 +1219,6 @@
     // Response pie chart
     function renderResponsePieChart() {
         console.log('📊 Rendering response pie chart...');
-        console.log('📊 statisticsData for pie chart:', statisticsData);
         
         const ctx = document.getElementById('responsePieChart').getContext('2d');
         
@@ -1227,29 +1226,25 @@
             responsePieChart.destroy();
         }
         
-        if (!statisticsData || statisticsData.length === 0) {
-            console.log('⚠️ No statistics data available for pie chart');
-            return;
-        }
+        // Получаем данные из summary
+        const totalMessages = parseInt(document.getElementById('totalMessages').textContent) || 0;
+        const respondedMessages = parseInt(document.getElementById('respondedMessages').textContent) || 0;
+        const missedMessages = parseInt(document.getElementById('missedMessages').textContent) || 0;
+        const inProgress = Math.max(0, totalMessages - respondedMessages - missedMessages);
         
-        const totalResponded = statisticsData.reduce((sum, stat) => sum + stat.responded_messages, 0);
-        const totalMissed = statisticsData.reduce((sum, stat) => sum + stat.missed_messages, 0);
-        const totalMessages = statisticsData.reduce((sum, stat) => sum + stat.total_messages, 0);
-        const totalPending = totalMessages - totalResponded - totalMissed;
+        console.log('📊 Pie chart data:', {
+            total: totalMessages,
+            responded: respondedMessages,
+            missed: missedMessages,
+            inProgress: inProgress
+        });
         
-        console.log('📊 Pie chart calculations:');
-        console.log('  - totalResponded:', totalResponded);
-        console.log('  - totalMissed:', totalMissed);
-        console.log('  - totalMessages:', totalMessages);
-        console.log('  - totalPending:', totalPending);
-        
-        console.log('📊 Creating pie chart with Chart.js...');
         responsePieChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
                 labels: ['Отвечено', 'Пропущено', 'В обработке'],
                 datasets: [{
-                    data: [totalResponded, totalMissed, Math.max(0, totalPending)],
+                    data: [respondedMessages, missedMessages, inProgress],
                     backgroundColor: ['#4facfe', '#ff6b9d', '#feca57'],
                     borderWidth: 0,
                     hoverBorderWidth: 4,
@@ -1268,6 +1263,16 @@
                             padding: 25,
                             usePointStyle: true,
                             font: { size: 14, weight: 600 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.raw;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = Math.round((value / total) * 100);
+                                return `${context.label}: ${value} (${percentage}%)`;
+                            }
                         }
                     }
                 },

@@ -132,4 +132,19 @@ async def get_my_messages(
         "limit": limit,
         "offset": offset,
         "total": len(formatted_messages)
-    } 
+    }
+
+
+@router.get("/profile", response_class=HTMLResponse)
+async def profile_page(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Страница профиля"""
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Доступ запрещен")
+    return templates.TemplateResponse("profile.html", {
+        "request": request,
+        "userInfo": current_user
+    }) 

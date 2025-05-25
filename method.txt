@@ -1,0 +1,76 @@
+            
+            await session.commit()
+            logger.info(f"✅ Обновлено {updated_count} DBMessage записей для сессии клиента ID {client_telegram_id} в чате {chat_id}. Ответил: сотрудник ID {responding_employee_id}.")
+
+        # Удаляем из отслеживаемых `pending_messages` все обработанные сообщения этого клиента
+        # self.pending_messages теперь не так критичен, если уведомления планируются по-новому
+        if chat_id in self.pending_messages:
+            client_messages_in_pending_keys = list(self.pending_messages[chat_id].keys())
+            removed_from_pending_count = 0
+            for client_message_telegram_id_key in client_messages_in_pending_keys:
+                if client_message_telegram_id_key in processed_client_message_telegram_ids_for_pending_removal:
+                    del self.pending_messages[chat_id][client_message_telegram_id_key]
+                    removed_from_pending_count +=1
+            
+            if removed_from_pending_count > 0:
+                logger.info(f"🗑 Удалено {removed_from_pending_count} записей из pending_messages для чата {chat_id} (клиент {client_telegram_id}).")
+            
+            if not self.pending_messages[chat_id]: 
+                del self.pending_messages[chat_id]
+                logger.info(f"🗑 Удален ключ чата {chat_id} из pending_messages, т.к. он пуст.")
+    
+    async def mark_as_deleted(self, chat_id: int, message_id: int): # message_id здесь это Telegram message_id
+        """Отметка сообщения как удаленного"""
+        logger.info(f"🗑 Сообщение Telegram.ID={message_id} удалено в чате {chat_id}")
+        
+        # Обновляем в БД ВСЕ копии этого сообщения (для всех сотрудников)
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(DBMessage).where(
+                    and_(
+                        DBMessage.chat_id == chat_id,
+                        DBMessage.message_id == message_id # Используем Telegram message_id для поиска всех копий
+                    )
+                )
+            )
+            db_message_copies = result.scalars().all()
+            
+                logger.info(f"🗑 Удалено {removed_from_pending_count} записей из pending_messages для чата {chat_id} (клиент {client_telegram_id}).")
+            
+            if not self.pending_messages[chat_id]: 
+                del self.pending_messages[chat_id]
+                logger.info(f"🗑 Удален ключ чата {chat_id} из pending_messages, т.к. он пуст.")
+    
+    async def mark_as_deleted(self, chat_id: int, message_id: int): # message_id здесь это Telegram message_id
+        """Отметка сообщения как удаленного"""
+        logger.info(f"🗑 Сообщение Telegram.ID={message_id} удалено в чате {chat_id}")
+        
+        # Обновляем в БД ВСЕ копии этого сообщения (для всех сотрудников)
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(DBMessage).where(
+                    and_(
+                        DBMessage.chat_id == chat_id,
+                        DBMessage.message_id == message_id # Используем Telegram message_id для поиска всех копий
+                    )
+                )
+            )
+            db_message_copies = result.scalars().all()
+            
+            if not db_message_copies:
+                logger.warning(f"Не найдено DBMessage записей для Telegram.ID={message_id} в чате {chat_id} для пометки как удаленное.")
+                return
+
+            deleted_count = 0
+            for db_message_copy in db_message_copies:
+                if not db_message_copy.is_deleted:  # Если еще не помечено как удаленное
+                    db_message_copy.is_deleted = True
+                    db_message_copy.deleted_at = datetime.utcnow()
+                    
+                    # Отменяем уведомления для этого конкретного DBMessage.id
+                    await self.notifications.cancel_notifications(db_message_copy.id)
+                    deleted_count +=1 
+                    logger.info(f"✅ Сообщение DBMessage.id={db_message_copy.id} (Telegram.ID={message_id}) помечено как удаленное для сотрудника {db_message_copy.employee_id}")
+            
+            if deleted_count > 0:
+                await session.commit()
