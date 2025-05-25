@@ -103,6 +103,28 @@ init_db_if_needed() {
   fi
 }
 
+# === УДАЛЕНИЕ СТАРОЙ БАЗЫ ПЕРЕД ДЕПЛОЕМ ===
+remove_old_db() {
+  if [ -f data/bot.db ]; then
+    warn "Удаляю старый файл базы данных data/bot.db для корректной инициализации volume..."
+    rm -f data/bot.db
+    log "Файл data/bot.db удалён."
+  fi
+}
+
+# === КОПИРОВАНИЕ БАЗЫ ИЗ КОНТЕЙНЕРА НА ХОСТ ===
+copy_db_from_container() {
+  if [ ! -f data/bot.db ]; then
+    log "Пробую скопировать data/bot.db из контейнера web на хост..."
+    cid=$(docker-compose ps -q web)
+    if [ -n "$cid" ]; then
+      docker cp "$cid:/app/data/bot.db" ./data/bot.db && log "Файл базы данных скопирован из контейнера!" || warn "Не удалось скопировать базу из контейнера."
+    else
+      warn "Контейнер web не найден для копирования базы."
+    fi
+  fi
+}
+
 # Сборка и запуск
 deploy() {
     log "Остановка существующих контейнеров..."
@@ -369,10 +391,12 @@ case "${1:-deploy}" in
         check_docker
         check_env
         create_dirs
+        remove_old_db
         md5sum_db_before
         backup_db
         generate_ssl
         init_db_if_needed
+        copy_db_from_container
         deploy || { print_last_logs; print_last_errors; exit 1; }
         timer_end
         md5sum_db_after
