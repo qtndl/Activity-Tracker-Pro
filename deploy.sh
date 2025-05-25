@@ -89,6 +89,17 @@ generate_ssl() {
     fi
 }
 
+# === ИНИЦИАЛИЗАЦИЯ БАЗЫ ЕСЛИ НУЖНО ===
+init_db_if_needed() {
+  if ! sqlite3 data/bot.db ".tables" | grep -q employees; then
+    log "Таблица employees не найдена, инициализирую базу..."
+    python3 simple_init.py
+    log "База данных инициализирована."
+  else
+    log "Таблица employees найдена, инициализация не требуется."
+  fi
+}
+
 # Сборка и запуск
 deploy() {
     log "Остановка существующих контейнеров..."
@@ -172,6 +183,8 @@ deploy() {
             error "❌ Не удалось создать админа с ID $FIRST_ADMIN_ID из .env!"
           fi
         fi
+        print_db_info
+        print_employees
     else
         error "Развертывание не удалось!"
         echo "Логи ошибок:"
@@ -213,15 +226,156 @@ stop() {
     log "Сервисы остановлены ✅"
 }
 
+# === ДОБАВЛЯЮ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
+print_db_info() {
+    log "Проверка состояния базы данных..."
+    if [ -f data/bot.db ]; then
+        log "Файл базы данных найден: data/bot.db"
+        python3 -c "import sqlite3; db=sqlite3.connect('data/bot.db'); print('Таблицы:', [r[0] for r in db.execute('SELECT name FROM sqlite_master WHERE type=\'table\'' )]); db.close()" || error "Не удалось прочитать таблицы из базы!"
+    else
+        warn "Файл базы данных data/bot.db не найден!"
+    fi
+}
+
+print_employees() {
+    log "Выводим список сотрудников из базы..."
+    python3 -c "import sqlite3; db=sqlite3.connect('data/bot.db');
+rows = db.execute('SELECT id, telegram_id, full_name, is_active, is_admin FROM employees').fetchall();
+print('ID | Telegram ID | Имя | Активен | Админ');
+for r in rows: print(f'{r[0]} | {r[1]} | {r[2]} | {"Да" if r[3] else "Нет"} | {"Да" if r[4] else "Нет"}');
+db.close()" || warn "Не удалось вывести сотрудников из базы!"
+}
+
+# === ASCII-БАННЕР ===
+print_banner() {
+  echo -e "\n${BLUE}"
+  echo "████████╗ ███████╗ ██████╗  ██████╗  ██████╗ ████████╗"
+  echo "╚══██╔══╝ ██╔════╝██╔═══██╗██╔════╝ ██╔═══██╗╚══██╔══╝"
+  echo "   ██║    █████╗  ██║   ██║██║  ███╗██║   ██║   ██║   "
+  echo "   ██║    ██╔══╝  ██║   ██║██║   ██║██║   ██║   ██║   "
+  echo "   ██║    ███████╗╚██████╔╝╚██████╔╝╚██████╔╝   ██║   "
+  echo "   ╚═╝    ╚══════╝ ╚═════╝  ╚═════╝  ╚═════╝    ╚═╝   "
+  echo -e "${NC}\n"
+}
+
+# === ПРОВЕРКА ВЕРСИЙ ===
+check_versions() {
+  log "Проверка версий Python, Docker и docker-compose..."
+  python3 --version || warn "Python3 не найден!"
+  docker --version || warn "Docker не найден!"
+  docker-compose --version || warn "Docker Compose не найден!"
+}
+
+# === ПРОВЕРКА ПОРТОВ ===
+check_ports() {
+  log "Проверка занятости портов 80 и 8000..."
+  for port in 80 8000; do
+    if lsof -i :$port | grep LISTEN; then
+      warn "Порт $port уже занят! Возможен конфликт."
+    else
+      log "Порт $port свободен."
+    fi
+  done
+}
+
+# === БЭКАП БАЗЫ ===
+backup_db() {
+  if [ -f data/bot.db ]; then
+    ts=$(date +'%Y%m%d_%H%M%S')
+    cp data/bot.db data/bot.db.bak_$ts
+    log "Бэкап базы данных создан: data/bot.db.bak_$ts"
+  fi
+}
+
+# === ЛОГИРОВАНИЕ ВРЕМЕНИ ===
+timer_start() {
+  export TIMER_START=$(date +%s)
+}
+timer_end() {
+  local TIMER_END=$(date +%s)
+  local DIFF=$((TIMER_END - TIMER_START))
+  log "⏱️ Этап занял $DIFF секунд."
+}
+
+# === ВЫВОД ПОСЛЕДНИХ ЛОГОВ ПРИ ОШИБКЕ ===
+print_last_logs() {
+  echo "\nПоследние 30 строк логов контейнеров:\n"
+  docker-compose logs --tail=30
+}
+
+# === HEALTHCHECK WEB ===
+healthcheck_web() {
+  # Получаем адрес и порт из .env или переменных окружения
+  WEB_HOST=${WEB_HOST:-$(grep -E '^WEB_HOST=' .env | cut -d'=' -f2 | tr -d '"' | tr -d "'")}
+  WEB_PORT=${WEB_PORT:-$(grep -E '^WEB_PORT=' .env | cut -d'=' -f2 | tr -d '"' | tr -d "'")}
+  if [ -z "$WEB_HOST" ]; then WEB_HOST="localhost"; fi
+  if [ -z "$WEB_PORT" ]; then WEB_PORT=8000; fi
+  log "Проверка доступности web-интерфейса ($WEB_HOST:$WEB_PORT)..."
+  if curl -sSf http://$WEB_HOST:$WEB_PORT/docs > /dev/null; then
+    log "✅ Web-интерфейс доступен (http://$WEB_HOST:$WEB_PORT/docs)"
+  else
+    error "❌ Web-интерфейс НЕ доступен по адресу http://$WEB_HOST:$WEB_PORT/docs!"
+  fi
+}
+
+# === DOCKER STATS ===
+print_docker_stats() {
+  log "Статистика по ресурсам контейнеров (docker stats, 5 сек)..."
+  docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+}
+
+# === ВЫВОД ОШИБОК ИЗ ЛОГОВ WEB/BOT ===
+print_last_errors() {
+  log "Последние ошибки из логов web:"
+  docker-compose logs web | grep -iE 'error|exception|traceback' | tail -n 10 || log "Ошибок не найдено."
+  log "Последние ошибки из логов bot:"
+  docker-compose logs bot | grep -iE 'error|exception|traceback' | tail -n 10 || log "Ошибок не найдено."
+}
+
+# === СРАВНЕНИЕ ХЭША БАЗЫ ДО И ПОСЛЕ ===
+md5_before=""
+md5_after=""
+md5sum_db_before() {
+  if [ -f data/bot.db ]; then
+    md5_before=$(md5sum data/bot.db | awk '{print $1}')
+    log "MD5 базы до деплоя: $md5_before"
+  fi
+}
+md5sum_db_after() {
+  if [ -f data/bot.db ]; then
+    md5_after=$(md5sum data/bot.db | awk '{print $1}')
+    log "MD5 базы после деплоя: $md5_after"
+    if [ "$md5_before" != "" ] && [ "$md5_after" != "" ]; then
+      if [ "$md5_before" = "$md5_after" ]; then
+        log "База данных не изменилась."
+      else
+        warn "База данных изменилась!"
+      fi
+    fi
+  fi
+}
+
 # Основная логика
 case "${1:-deploy}" in
     "deploy")
+        print_banner
+        timer_start
         log "🚀 Начало развертывания Telegram Bot Employee Tracker"
+        check_versions
+        check_ports
         check_docker
         check_env
         create_dirs
+        md5sum_db_before
+        backup_db
         generate_ssl
-        deploy
+        init_db_if_needed
+        deploy || { print_last_logs; print_last_errors; exit 1; }
+        timer_end
+        md5sum_db_after
+        healthcheck_web
+        print_docker_stats
+        print_last_errors
         ;;
     "update")
         log "🔄 Обновление приложения"
