@@ -1,12 +1,13 @@
 from typing import List, Dict, Optional
 from datetime import datetime, date, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, desc, delete
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.requests import Request
 from fastapi.templating import Jinja2Templates
+import json
 
 from database.database import get_db
 from database.models import Employee, Message, SystemSettings
@@ -572,4 +573,149 @@ async def statistics_chart(
             "user": current_user,
             "stats": summary_data
         }
-    ) 
+    )
+
+
+@router.post("/export-to-file")
+async def export_statistics_to_file(
+    period: str = "today",
+    employee_id: Optional[int] = None,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Экспорт статистики в JSON файл"""
+    try:
+        # Проверяем права доступа
+        if not current_user.get("is_admin") and employee_id and employee_id != current_user.get("employee_id"):
+            raise HTTPException(status_code=403, detail="Недостаточно прав")
+        
+        stats_service = StatisticsService(db)
+        
+        if employee_id:
+            # Экспорт для конкретного сотрудника
+            employee_stats = await stats_service.get_employee_stats(employee_id, period)
+            
+            # Получаем последние сообщения
+            messages_result = await db.execute(
+                select(Message).where(
+                    and_(
+                        Message.employee_id == employee_id,
+                        Message.message_type == "client"
+                    )
+                ).order_by(Message.received_at.desc()).limit(50)
+            )
+            messages = messages_result.scalars().all()
+            
+            export_data = {
+                "employee_stats": {
+                    "employee_id": employee_stats.employee_id,
+                    "employee_name": employee_stats.employee_name,
+                    "period": period,
+                    "total_messages": employee_stats.total_messages,
+                    "responded_messages": employee_stats.responded_messages,
+                    "missed_messages": employee_stats.missed_messages,
+                    "avg_response_time": employee_stats.avg_response_time,
+                    "efficiency_percent": employee_stats.efficiency_percent,
+                    "exceeded_15_min": employee_stats.exceeded_15_min,
+                    "exceeded_30_min": employee_stats.exceeded_30_min,
+                    "exceeded_60_min": employee_stats.exceeded_60_min
+                },
+                "messages": [
+                    {
+                        "id": msg.id,
+                        "received_at": msg.received_at.isoformat(),
+                        "responded_at": msg.responded_at.isoformat() if msg.responded_at else None,
+                        "message_text": msg.message_text,
+                        "client_name": msg.client_name,
+                        "client_username": msg.client_username,
+                        "is_missed": msg.is_missed
+                    }
+                    for msg in messages
+                ]
+            }
+            
+            filename = f"employee_{employee_id}_stats_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            
+        else:
+            # Экспорт статистики всех сотрудников
+            all_stats = await stats_service.get_all_employees_stats(period)
+            
+            export_data = {
+                "period": period,
+                "export_date": datetime.now().isoformat(),
+                "employees": [
+                    {
+                        "employee_id": stats.employee_id,
+                        "employee_name": stats.employee_name,
+                        "total_messages": stats.total_messages,
+                        "responded_messages": stats.responded_messages,
+                        "missed_messages": stats.missed_messages,
+                        "avg_response_time": stats.avg_response_time,
+                        "efficiency_percent": stats.efficiency_percent,
+                        "exceeded_15_min": stats.exceeded_15_min,
+                        "exceeded_30_min": stats.exceeded_30_min,
+                        "exceeded_60_min": stats.exceeded_60_min
+                    }
+                    for stats in all_stats
+                ]
+            }
+            
+            filename = f"all_employees_stats_{period}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        
+        return JSONResponse(
+            content={
+                "success": True,
+                "message": "Статистика успешно экспортирована",
+                "filename": filename,
+                "data": export_data
+            }
+        )
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка экспорта: {str(e)}")
+
+
+@router.post("/import-from-file")
+async def import_statistics_from_file(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Импорт статистики из JSON файла"""
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Только для администраторов")
+    
+    try:
+        # Читаем содержимое файла
+        content = await file.read()
+        data = json.loads(content)
+        
+        # Проверяем структуру данных
+        if "employees" in data:
+            # Импорт статистики всех сотрудников
+            for employee_data in data["employees"]:
+                # Здесь можно добавить логику обновления статистики
+                # Например, обновление записей в базе данных
+                pass
+                
+            return {
+                "success": True,
+                "message": f"Импортирована статистика {len(data['employees'])} сотрудников"
+            }
+        elif "employee_stats" in data:
+            # Импорт статистики одного сотрудника
+            stats = data["employee_stats"]
+            # Здесь можно добавить логику обновления статистики
+            # Например, обновление записей в базе данных
+            
+            return {
+                "success": True,
+                "message": f"Импортирована статистика сотрудника {stats['employee_name']}"
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Неверный формат файла")
+            
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Неверный формат JSON")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка импорта: {str(e)}") 

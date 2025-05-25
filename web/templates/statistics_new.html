@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-chart-bar me-2"></i>Статистика</h5>
+                    <div>
+                        <button class="btn btn-outline-primary btn-sm me-2" onclick="exportStatistics()">
+                            <i class="fas fa-download me-1"></i>Экспорт
+                        </button>
+                        <button class="btn btn-outline-success btn-sm" onclick="document.getElementById('importFile').click()">
+                            <i class="fas fa-upload me-1"></i>Импорт
+                        </button>
+                        <input type="file" id="importFile" style="display: none" accept=".json" onchange="importStatistics(this)">
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Существующий контент статистики -->
+                    <div id="statistics-content">
+                        <!-- Здесь будет загружена статистика -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+async function exportStatistics() {
+    try {
+        const response = await fetch('/api/statistics/export-to-file', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Создаем и скачиваем файл
+            const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = data.filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            showNotification('success', 'Статистика успешно экспортирована');
+        } else {
+            showNotification('error', 'Ошибка при экспорте статистики');
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        showNotification('error', 'Ошибка при экспорте статистики');
+    }
+}
+
+async function importStatistics(input) {
+    if (!input.files || !input.files[0]) return;
+    
+    const file = input.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+        const response = await fetch('/api/statistics/import-from-file', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('success', data.message);
+            // Обновляем страницу после успешного импорта
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            showNotification('error', 'Ошибка при импорте статистики');
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        showNotification('error', 'Ошибка при импорте статистики');
+    }
+    
+    // Очищаем input
+    input.value = '';
+}
+
+function showNotification(type, message) {
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+    
+    const container = document.createElement('div');
+    container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+    container.appendChild(toast);
+    document.body.appendChild(container);
+    
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    // Удаляем уведомление после скрытия
+    toast.addEventListener('hidden.bs.toast', () => {
+        container.remove();
+    });
+}
+</script>
+{% endblock %} 

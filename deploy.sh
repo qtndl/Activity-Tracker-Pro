@@ -161,6 +161,14 @@ deploy() {
         echo ""
         echo "📝 Логи можно посмотреть командой:"
         echo "   docker-compose logs -f"
+        echo ""
+        log "Добавление администратора через add_user.py..."
+        docker-compose exec web python /app/add_user.py || true
+        # === ДОБАВЛЯЮ ПОСЛЕ ЗАПУСКА КОНТЕЙНЕРОВ ===
+        # Добавить админа, если переменная FIRST_ADMIN_ID задана
+        if [ ! -z "$FIRST_ADMIN_ID" ]; then
+          python3 add_user.py --admin --telegram_id $FIRST_ADMIN_ID
+        fi
     else
         error "Развертывание не удалось!"
         echo "Логи ошибок:"

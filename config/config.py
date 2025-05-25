@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     # Telegram Bot
     bot_token: str = Field(..., env="BOT_TOKEN")
     admin_chat_id: Optional[str] = Field(None, env="ADMIN_CHAT_ID")
+    first_admin_id: Optional[str] = Field(None, env="FIRST_ADMIN_ID")
     
     # Database
     database_url: str = Field(..., env="DATABASE_URL")

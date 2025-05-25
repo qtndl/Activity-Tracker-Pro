@@ -364,6 +364,31 @@ async def auth_exception_handler(request: Request, exc: HTTPException):
 async def startup_event():
     """Инициализация при запуске"""
     await init_db()
+    
+    # Создание первого админа из env
+    try:
+        if settings.first_admin_id:
+            db = next(get_db())
+            # Проверяем существует ли уже админ
+            result = await db.execute(
+                select(Employee).where(Employee.is_admin == True)
+            )
+            admin = result.scalar_one_or_none()
+            
+            if not admin:
+                # Создаем первого админа
+                new_admin = Employee(
+                    telegram_id=settings.first_admin_id,
+                    telegram_username="admin",
+                    full_name="Администратор",
+                    is_active=True,
+                    is_admin=True
+                )
+                db.add(new_admin)
+                await db.commit()
+                print(f"Создан первый админ с ID: {settings.first_admin_id}")
+    except Exception as e:
+        print(f"Ошибка при создании первого админа: {str(e)}")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -392,7 +417,7 @@ async def statistics_page(request: Request, current_user: dict = Depends(get_cur
     """Страница статистики"""
     if not current_user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Доступ запрещен")
-    return templates.TemplateResponse("statistics.html", {
+    return templates.TemplateResponse("statistics_new.html", {
         "request": request,
         "userInfo": current_user
     })

@@ -248,13 +248,12 @@ class MessageTracker:
     async def mark_as_deleted(self, chat_id: int, message_id: int): # message_id здесь это Telegram message_id
         """Отметка сообщения как удаленного"""
         logger.info(f"🗑 Сообщение Telegram.ID={message_id} удалено в чате {chat_id}")
-
         # Обновляем в БД ВСЕ копии этого сообщения (для всех сотрудников)
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(DBMessage).where(
-                    and_(
-                        DBMessage.chat_id == chat_id,
+                    async with AsyncSessionLocal() as session:
+                        result = await session.execute(
+                            select(DBMessage).where(
+                                and_(
+                                    DBMessage.chat_id == chat_id,
                         DBMessage.message_id == message_id  # Используем Telegram message_id для поиска всех копий
                     )
                 )
@@ -277,7 +276,7 @@ class MessageTracker:
                     logger.info(f"✅ Сообщение DBMessage.id={db_message_copy.id} (Telegram.ID={message_id}) помечено как удаленное для сотрудника {db_message_copy.employee_id}")
 
             if deleted_count > 0:
-                await session.commit()
+                            await session.commit()
                 logger.info(f"✅ Помечено как удаленные {deleted_count} DBMessage записей для Telegram.ID={message_id}.")
 
         # Удаляем из отслеживаемых pending_messages (если такой ключ там был)
@@ -485,7 +484,7 @@ async def handle_group_message(message: Message):
         # Это новое сообщение от клиента
         logger.info(f"📨 Новое сообщение от клиента: {message.from_user.full_name}")
         active_employees_result = await session.execute(
-        select(Employee).where(Employee.is_active == True)
+                select(Employee).where(Employee.is_active == True)
             )
         active_employees = active_employees_result.scalars().all()
         

@@ -140,7 +140,7 @@ class StatisticsService:
         
         period_start, period_end = self._get_period_dates(period) # Определяем период один раз
         logger.info(f"[STAT_DEBUG|get_dashboard_overview] Period: {period}, Start: {period_start}, End: {period_end}, Called for user_id: {user_id}, is_admin: {is_admin}")
-
+        
         if is_admin:
             # Админ видит общую статистику, посчитанную по УНИКАЛЬНЫМ сообщениям
             
