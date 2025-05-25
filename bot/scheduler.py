@@ -112,8 +112,7 @@ async def send_daily_reports(message_tracker):
                 # Получаем корректную общую статистику для админов
                 admin_user_id_for_overview = admins[0].id 
                 admin_summary_stats = await stats_service.get_dashboard_overview(user_id=admin_user_id_for_overview, is_admin=True, period="today")
-        
-        for admin in admins:
+                for admin in admins:
                     # Передаем и общую сводку, и детализацию по каждому сотруднику
                     await message_tracker.notifications.send_admin_report(admin.telegram_id, admin_summary_stats, individual_employee_stats_list)
             except Exception as e:
