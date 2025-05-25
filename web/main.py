@@ -260,38 +260,66 @@ async def dashboard_page(request: Request, current_user: dict = Depends(get_curr
         # Сотрудник видит личный кабинет с его статистикой
         employee_id = current_user.get('employee_id')
         
-        # Используем единый сервис статистики
-        stats_service = StatisticsService(db)
-        stats = await stats_service.get_employee_stats(employee_id, period="today")
+        # Проверяем что employee_id существует
+        if employee_id is None:
+            # Если employee_id отсутствует, перенаправляем на логин
+            return RedirectResponse(url="/login?error=Необходимо войти заново", status_code=302)
         
-        # Получаем последние 10 сообщений
-        messages_result = await db.execute(
-            select(Message).where(
-                and_(
-                    Message.employee_id == employee_id,
-                    Message.message_type == "client"
-                )
-            ).order_by(Message.received_at.desc()).limit(10)
-        )
-        recent_messages = messages_result.scalars().all()
-        
-        # Создаем объект статистики
-        stats_obj = {
-            'total_messages': stats.total_messages,
-            'responded_messages': stats.responded_messages,
-            'missed_messages': stats.missed_messages,
-            'avg_response_time': stats.avg_response_time or 0,
-            'exceeded_15_min': stats.exceeded_15_min,
-            'exceeded_30_min': stats.exceeded_30_min,
-            'exceeded_60_min': stats.exceeded_60_min
-        }
-        
-        return templates.TemplateResponse("employee_dashboard.html", {
-            "request": request,
-            "userInfo": current_user,
-            "stats": stats_obj,
-            "recent_messages": recent_messages
-        })
+        try:
+            # Используем единый сервис статистики
+            stats_service = StatisticsService(db)
+            stats = await stats_service.get_employee_stats(employee_id, period="today")
+            
+            # Получаем последние 10 сообщений
+            messages_result = await db.execute(
+                select(Message).where(
+                    and_(
+                        Message.employee_id == employee_id,
+                        Message.message_type == "client"
+                    )
+                ).order_by(Message.received_at.desc()).limit(10)
+            )
+            recent_messages = messages_result.scalars().all()
+            
+            # Создаем объект статистики
+            stats_obj = {
+                'total_messages': stats.total_messages,
+                'responded_messages': stats.responded_messages,
+                'missed_messages': stats.missed_messages,
+                'avg_response_time': stats.avg_response_time or 0,
+                'exceeded_15_min': stats.exceeded_15_min,
+                'exceeded_30_min': stats.exceeded_30_min,
+                'exceeded_60_min': stats.exceeded_60_min
+            }
+            
+            return templates.TemplateResponse("employee_dashboard.html", {
+                "request": request,
+                "user": current_user,  # Исправлено: используем 'user' вместо 'userInfo'
+                "stats": stats_obj,
+                "recent_messages": recent_messages
+            })
+            
+        except ValueError as e:
+            # Сотрудник не найден в базе
+            return RedirectResponse(url="/login?error=Пользователь не найден", status_code=302)
+        except Exception as e:
+            # Другие ошибки - показываем страницу с пустой статистикой
+            stats_obj = {
+                'total_messages': 0,
+                'responded_messages': 0,
+                'missed_messages': 0,
+                'avg_response_time': 0,
+                'exceeded_15_min': 0,
+                'exceeded_30_min': 0,
+                'exceeded_60_min': 0
+            }
+            
+            return templates.TemplateResponse("employee_dashboard.html", {
+                "request": request,
+                "user": current_user,
+                "stats": stats_obj,
+                "recent_messages": []
+            })
 
 # Подключение роутеров
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
