@@ -29,11 +29,13 @@ if __name__ == "__main__":
     host = os.getenv("WEB_HOST", "0.0.0.0")
     port = int(os.getenv("WEB_PORT", "8000"))
     
-    print(f"🌐 Сервер доступен по адресу: http://{host}:{port}")
+    print(f"🌐 Сервер доступен по адресу: https://{host}:{port}")
     
     uvicorn.run(
         app,
         host=host,
         port=port,
-        reload=False
+        reload=False,
+        ssl_keyfile="certs/privkey.pem",
+        ssl_certfile="certs/fullchain.pem"
     ) 
