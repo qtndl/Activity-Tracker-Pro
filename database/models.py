@@ -19,7 +19,7 @@ class Employee(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relationships
-    messages = relationship("Message", back_populates="employee")
+    messages = relationship("Message", back_populates="employee", foreign_keys="Message.employee_id")
 
 
 class Message(Base):
@@ -39,12 +39,14 @@ class Message(Base):
     received_at = Column(DateTime, default=datetime.utcnow)
     responded_at = Column(DateTime, nullable=True)
     response_time_minutes = Column(Float, nullable=True)
+    answered_by_employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
     is_missed = Column(Boolean, default=False)
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)
     
     # Relationships
-    employee = relationship("Employee", back_populates="messages")
+    employee = relationship("Employee", back_populates="messages", foreign_keys=[employee_id])
+    answered_by = relationship("Employee", foreign_keys=[answered_by_employee_id])
 
 
 class Notification(Base):

@@ -175,7 +175,7 @@ async def reset_settings(
         import logging
         logging.getLogger(__name__).warning(f"Не удалось обновить планировщик: {e}")
     
-    return {"message": "Настройки сброшены к значениям по умолчанию"}
+    return {"message": "Настройки сброшены к значениям по умолчанию"} 
 
 
 @router.post("/send-daily-reports")

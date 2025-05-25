@@ -257,34 +257,65 @@ class StatisticsService:
         return filtered_messages
     
     def _calculate_stats(self, messages: List[Message]) -> Dict[str, Any]:
-        """Вычислить статистику по списку сообщений"""
+        """Вычислить статистику по списку сообщений с учетом answered_by_employee_id"""
+        
+        if not messages:
+            return {
+                "total_messages": 0,
+                "responded_messages": 0,
+                "missed_messages": 0,
+                "deleted_messages": 0,
+                "unique_clients": 0,
+                "avg_response_time": None,
+                "exceeded_15_min": 0,
+                "exceeded_30_min": 0,
+                "exceeded_60_min": 0,
+                "response_rate": 0,
+                "efficiency_percent": 0
+            }
+        
+        # Получаем employee_id первого сообщения (все сообщения одного сотрудника)
+        employee_id = messages[0].employee_id
         
         total_messages = len(messages)
-        responded_messages = len([m for m in messages if m.responded_at is not None])
+        
+        # Сообщения где ЭТОТ сотрудник ответил (answered_by_employee_id == employee_id)
+        responded_by_me = [m for m in messages if m.answered_by_employee_id == employee_id]
+        responded_messages = len(responded_by_me)
         
         # Удаленные сообщения не считаются пропущенными
         deleted_messages = len([m for m in messages if m.is_deleted])
-        # Пропущенные = всего - отвечено - удалено
-        missed_messages = total_messages - responded_messages - deleted_messages
         
-        # Уникальные клиенты (по Telegram ID) - включая клиентов удаленных сообщений
+        # Сообщения где ответил другой сотрудник (не этот, но кто-то ответил)
+        answered_by_others = len([m for m in messages 
+                                 if m.answered_by_employee_id is not None 
+                                 and m.answered_by_employee_id != employee_id])
+        
+        # Пропущенные = всего - отвечено мной - удалено - отвечено другими
+        missed_messages = total_messages - responded_messages - deleted_messages - answered_by_others
+        
+        # Защита от отрицательных значений
+        missed_messages = max(0, missed_messages)
+        
+        # Уникальные клиенты (по Telegram ID) - включая всех клиентов
         unique_client_ids = set()
         for msg in messages:
             if msg.client_telegram_id is not None:
                 unique_client_ids.add(msg.client_telegram_id)
         unique_clients = len(unique_client_ids)
         
-        # Время ответа (только для отвеченных сообщений)
-        response_times = [m.response_time_minutes for m in messages if m.response_time_minutes is not None]
+        # Время ответа (только для сообщений где ЭТОТ сотрудник ответил)
+        response_times = [m.response_time_minutes for m in responded_by_me if m.response_time_minutes is not None]
         avg_response_time = sum(response_times) / len(response_times) if response_times else None
         
-        # Превышения времени (только для отвеченных сообщений)
+        # Превышения времени (только для ответов этого сотрудника)
         exceeded_15_min = len([t for t in response_times if t > 15])
         exceeded_30_min = len([t for t in response_times if t > 30])
         exceeded_60_min = len([t for t in response_times if t > 60])
         
-        # Эффективность (отвеченные + удаленные считаются "обработанными")
-        processed_messages = responded_messages + deleted_messages
+        # Эффективность = (отвечено мной + удалено + отвечено другими) / всего * 100
+        # Суть: считаем эффективными все обработанные сообщения, не важно кем
+        processed_messages = responded_messages + deleted_messages + answered_by_others
         response_rate = (processed_messages / total_messages * 100) if total_messages > 0 else 0
         efficiency_percent = response_rate
         
@@ -303,14 +334,14 @@ class StatisticsService:
         }
     
     async def _get_urgent_messages_count(self) -> int:
-        """Получить количество срочных сообщений (без ответа более 30 минут, исключая удаленные)"""
+        """Получить количество срочных сообщений (без ответа более 30 минут, исключая удаленные и отвеченные)"""
         
         threshold_time = datetime.utcnow() - timedelta(minutes=30)
         
         result = await self.db.execute(
             select(Message).where(
                 and_(
-                    Message.responded_at.is_(None),
+                    Message.answered_by_employee_id.is_(None),  # Никто еще не ответил
                     Message.is_deleted == False,  # Исключаем удаленные сообщения
                     Message.received_at <= threshold_time,
                     Message.message_type == "client"
@@ -320,13 +351,13 @@ class StatisticsService:
         return len(result.scalars().all())
     
     async def _get_unanswered_messages_count(self, employee_id: int) -> int:
-        """Получить количество неотвеченных сообщений сотрудника (исключая удаленные)"""
+        """Получить количество неотвеченных сообщений сотрудника (исключая удаленные и отвеченные другими)"""
         
         result = await self.db.execute(
             select(Message).where(
                 and_(
                     Message.employee_id == employee_id,
-                    Message.responded_at.is_(None),
+                    Message.answered_by_employee_id.is_(None),  # Никто еще не ответил
                     Message.is_deleted == False,  # Исключаем удаленные сообщения
                     Message.message_type == "client"
                 )
