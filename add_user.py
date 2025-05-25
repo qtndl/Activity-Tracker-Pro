@@ -2,22 +2,31 @@ import asyncio
 from datetime import datetime
 from database.database import AsyncSessionLocal, init_db
 from database.models import Employee
+from sqlalchemy import select
 
 TELEGRAM_ID = 896737668
 TELEGRAM_USERNAME = "admin"
-FULL_NAME = "Администратор"
+FULL_NAME = "Лео"
 IS_ADMIN = True
 
 async def add_user():
     await init_db()
     async with AsyncSessionLocal() as session:
-        existing = await session.execute(
-            Employee.__table__.select().where(Employee.telegram_id == TELEGRAM_ID)
+        # Проверяем существование пользователя
+        result = await session.execute(
+            select(Employee).where(Employee.telegram_id == TELEGRAM_ID)
         )
-        if existing.first():
-            print("Пользователь с таким Telegram ID уже существует!")
+        existing_user = result.scalar_one_or_none()
+        
+        if existing_user:
+            print(f"Пользователь с таким Telegram ID уже существует!")
+            print(f"ID: {existing_user.id}")
+            print(f"Имя: {existing_user.full_name}")
+            print(f"Админ: {existing_user.is_admin}")
+            print(f"Активен: {existing_user.is_active}")
             return
 
+        # Создаем нового пользователя
         user = Employee(
             telegram_id=TELEGRAM_ID,
             telegram_username=TELEGRAM_USERNAME,
