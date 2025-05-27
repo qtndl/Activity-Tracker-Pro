@@ -3,6 +3,7 @@
 
 import os
 import uvicorn
+import sys
 
 # Проверка обязательных переменных окружения
 required_vars = ["BOT_TOKEN", "SECRET_KEY"]
@@ -23,19 +24,26 @@ if missing_vars:
 from web.main import app
 
 if __name__ == "__main__":
+    use_ssl = True
+    if len(sys.argv) > 1 and sys.argv[1] == "--no-ssl":
+        use_ssl = False
+
     print("🚀 Запуск веб-сервера...")
-    
-    # Получаем настройки из переменных окружения
-    host = os.getenv("WEB_HOST", "0.0.0.0")
-    port = int(os.getenv("WEB_PORT", "8000"))
-    
-    print(f"🌐 Сервер доступен по адресу: https://{host}:{port}")
-    
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
-        reload=False,
-        ssl_keyfile="certs/privkey.pem",
-        ssl_certfile="certs/fullchain.pem"
-    ) 
+    if use_ssl:
+        print("🌐 Сервер доступен по адресу: https://0.0.0.0:8000")
+        uvicorn.run(
+            "web.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=True,
+            ssl_keyfile="certs/key.pem",
+            ssl_certfile="certs/cert.pem"
+        )
+    else:
+        print("🌐 Сервер доступен по адресу: http://0.0.0.0:8000 (без SSL)")
+        uvicorn.run(
+            "web.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=True
+        ) 

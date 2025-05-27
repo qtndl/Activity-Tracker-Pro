@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.config import settings
 from database.database import init_db, AsyncSessionLocal
-from database.models import Employee, Message as DBMessage, Notification
+from database.models import Employee, Message as DBMessage, Notification, ChatEmployee
 from .analytics import AnalyticsService
 from .notifications import NotificationService
 from .handlers import register_handlers_and_scheduler
@@ -56,26 +56,28 @@ class MessageTracker:
             await session.commit()
             # db_message.id теперь доступен (PK из нашей БД)
 
-            # Проверяем, нужно ли планировать уведомления для ЭТОГО сотрудника
-            # (может быть уже есть активная сессия с этим клиентом, и уведомления по ней уже тикают)
-            
-            # Ищем ДРУГИЕ активные (неотвеченные, не удаленные) DBMessage от этого клиента 
-            # в этом чате, назначенные этому же сотруднику, которые были получены РАНЬШЕ текущего.
-            # Исключаем текущее db_message.id, если оно уже есть (хотя на этом этапе еще не должно быть в scheduled_tasks)
-            earlier_active_messages_stmt = select(DBMessage.id).where(
+            # --- Подробное логирование: ищем активные сессии ---
+            earlier_active_messages_stmt = select(DBMessage.id, DBMessage.responded_at, DBMessage.is_deleted, DBMessage.received_at).where(
                 and_(
                     DBMessage.chat_id == chat_id,
                     DBMessage.client_telegram_id == client_telegram_id,
-                    DBMessage.employee_id == employee_id, # Для этого конкретного сотрудника
+                    DBMessage.employee_id == employee_id,
                     DBMessage.responded_at.is_(None),
                     DBMessage.is_deleted == False,
-                    DBMessage.id != db_message.id, # Исключаем текущее обрабатываемое сообщение
-                    DBMessage.received_at < db_message.received_at # Только те, что получены раньше
+                    DBMessage.id != db_message.id,
+                    DBMessage.received_at < db_message.received_at
                 )
-            ).limit(1) # Нам достаточно одного, чтобы понять, что сессия уже активна
-            
+            )
             earlier_active_result = await session.execute(earlier_active_messages_stmt)
-            already_active_session_for_employee = earlier_active_result.scalar_one_or_none() is not None
+            earlier_msgs = earlier_active_result.all()
+            if earlier_msgs:
+                logger.info(f"[DEBUG] Для сотрудника {employee_id} и клиента {client_telegram_id} в чате {chat_id} найдены активные DBMessage:")
+                for row in earlier_msgs:
+                    logger.info(f"  [DEBUG ACTIVE] id={row.id}, responded_at={row.responded_at}, is_deleted={row.is_deleted}, received_at={row.received_at}")
+            else:
+                logger.info(f"[DEBUG] Нет других активных DBMessage для сотрудника {employee_id} и клиента {client_telegram_id} в чате {chat_id}")
+
+            already_active_session_for_employee = len(earlier_msgs) > 0
 
             if not already_active_session_for_employee:
                 # Это первое сообщение в сессии для этого сотрудника, или предыдущие были отвечены.
@@ -103,7 +105,7 @@ class MessageTracker:
         
     async def mark_as_responded(self, employee_reply_message: Message, responding_employee_id: int):
         """Отметка сообщения как отвеченного.
-        Если сотрудник отвечает на одно из сообщений клиента,
+        Если сотрудник отвечает на ЛЮБОЕ сообщение клиента,
         все активные сообщения от этого клиента в этом чате считаются отвеченными этим сотрудником.
         Время ответа считается от самого раннего неотвеченного сообщения этого клиента в чате."""
         if not employee_reply_message.reply_to_message:
@@ -111,140 +113,34 @@ class MessageTracker:
             return
 
         chat_id = employee_reply_message.chat.id
-        # ID конкретного сообщения клиента, на которое ответил сотрудник
-        replied_to_client_message_telegram_id = employee_reply_message.reply_to_message.message_id
-        # ID самого клиента
         client_telegram_id = employee_reply_message.reply_to_message.from_user.id
 
-        logger.info(f"🔄 Сотрудник ID {responding_employee_id} ответил на сообщение клиента ID {client_telegram_id} (Telegram ID сообщения клиента: {replied_to_client_message_telegram_id}) в чате {chat_id}.")
-
-        calculated_response_time = None
-        time_response_anchor_message_id = None # ID сообщения, от которого считаем время ответа
-
+        # Закрываем сессию: отмечаем все неотвеченные сообщения этого клиента в этом чате для всех сотрудников
         async with AsyncSessionLocal() as session:
-            # Найдем ВСЕ активные (неотвеченные, не удаленные) DBMessage от ЭТОГО КЛИЕНТА в ЭТОМ ЧАТЕ, 
-            # которые были назначены ЭТОМУ ОТВЕЧАЮЩЕМУ СОТРУДНИКУ.
-            # Нам нужно найти самое раннее из них для расчета времени ответа.
-            all_pending_messages_for_this_employee_stmt = select(DBMessage).where(
-                and_(
-                    DBMessage.chat_id == chat_id,
-                    DBMessage.client_telegram_id == client_telegram_id,
-                    DBMessage.employee_id == responding_employee_id, # Только сообщения, назначенные этому сотруднику
-                    DBMessage.responded_at.is_(None),
-                    DBMessage.is_deleted == False
-                )
-            ).order_by(DBMessage.received_at.asc()) # Сортируем по возрастанию времени получения
-            
-            pending_messages_for_employee_result = await session.execute(all_pending_messages_for_this_employee_stmt)
-            pending_db_messages_for_this_employee = pending_messages_for_employee_result.scalars().all()
-
-            if pending_db_messages_for_this_employee:
-                # Самое раннее сообщение этого клиента, назначенное этому сотруднику
-                earliest_message_for_this_employee = pending_db_messages_for_this_employee[0]
-                if earliest_message_for_this_employee.received_at:
-                    calculated_response_time = (datetime.utcnow() - earliest_message_for_this_employee.received_at).total_seconds() / 60
-                    time_response_anchor_message_id = earliest_message_for_this_employee.message_id # Telegram ID этого самого раннего сообщения
-                    logger.info(f"⏱ Время ответа для сессии клиента {client_telegram_id} сотрудником {responding_employee_id}: {calculated_response_time:.1f} мин. (отсчет от сообщения Telegram ID: {time_response_anchor_message_id})")
-            else:
-                logger.warning(f"Не найдено активных сообщений от клиента {client_telegram_id} для сотрудника {responding_employee_id} для расчета времени ответа. Возможно, все уже обработано.")
-
-            # Теперь найдем ВСЕ активные (неотвеченные, не удаленные) DBMessage от ЭТОГО КЛИЕНТА в ЭТОМ ЧАТЕ 
-            # для ВСЕХ СОТРУДНИКОВ, чтобы пометить их как отвеченные.
-            all_active_messages_from_client_globally_stmt = select(DBMessage).where(
-                and_(
-                    DBMessage.chat_id == chat_id,
-                    DBMessage.client_telegram_id == client_telegram_id, # Все сообщения от этого клиента
-                    DBMessage.responded_at.is_(None),
-                    DBMessage.is_deleted == False
-                )
-            ).order_by(DBMessage.received_at.asc()) # Добавим сортировку, чтобы найти самое раннее для отмены уведомлений
-            
-            all_active_messages_result = await session.execute(all_active_messages_from_client_globally_stmt)
-            all_active_db_messages_from_client_globally = all_active_messages_result.scalars().all()
-
-            if not all_active_db_messages_from_client_globally:
-                logger.info(f"⚠️ Не найдено активных неотвеченных сообщений от клиента ID {client_telegram_id} в чате {chat_id} для глобального обновления. Возможно, уже обработаны.")
-                # Если calculated_response_time был вычислен (т.е. было сообщение для этого сотрудника), но глобальный список пуст,
-                # это странно, но можно попробовать обновить хотя бы то, на которое ответили, если оно еще существует.
-                # Эта логика может быть избыточной, если pending_db_messages_for_this_employee уже покрывает это.
-                # Но оставлю для безопасности, если вдруг гонка состояний.
-                if calculated_response_time is not None:
-                    direct_reply_target_stmt = select(DBMessage).where(
-                        and_(
-                            DBMessage.chat_id == chat_id,
-                            DBMessage.message_id == replied_to_client_message_telegram_id, 
-                            DBMessage.employee_id == responding_employee_id,
-                            DBMessage.responded_at.is_(None)
-                        )
+            all_db_messages_for_client = await session.execute(
+                select(DBMessage).where(
+                    and_(
+                        DBMessage.chat_id == chat_id,
+                        DBMessage.client_telegram_id == client_telegram_id,
+                        DBMessage.responded_at.is_(None),
+                        DBMessage.is_deleted == False
                     )
-                    direct_reply_target_res = await session.execute(direct_reply_target_stmt)
-                    direct_reply_target_db_msg = direct_reply_target_res.scalar_one_or_none()
-                    if direct_reply_target_db_msg:
-                        direct_reply_target_db_msg.responded_at = datetime.utcnow()
-                        direct_reply_target_db_msg.answered_by_employee_id = responding_employee_id
-                        direct_reply_target_db_msg.response_time_minutes = calculated_response_time
-                        await self.notifications.cancel_notifications(direct_reply_target_db_msg.id)
-                        await session.commit()
-                        logger.info(f"✅ Обновлено (через запасной механизм) DBMessage.id {direct_reply_target_db_msg.id} для сотрудника {responding_employee_id}.")
-                return
+                )
+            )
+            db_messages_to_update = all_db_messages_for_client.scalars().all()
+            if db_messages_to_update:
+                logger.info(f"[SESSION-CLOSE] Найдено {len(db_messages_to_update)} DBMessage для клиента {client_telegram_id} в чате {chat_id} — закрываем сессию.")
+                for db_msg in db_messages_to_update:
+                    logger.info(f"[SESSION-CLOSE] Закрываем DBMessage.id={db_msg.id}, employee_id={db_msg.employee_id}, message_id={db_msg.message_id}, received_at={db_msg.received_at}")
+                    db_msg.responded_at = datetime.utcnow()
+                    db_msg.answered_by_employee_id = responding_employee_id
+                    await self.notifications.cancel_notifications(db_msg.id)
+                await session.commit()
+                logger.info(f"[SESSION-CLOSE] Сессия клиента {client_telegram_id} в чате {chat_id} закрыта для всех сотрудников.")
+            else:
+                logger.info(f"[SESSION-CLOSE] Не найдено DBMessage для клиента {client_telegram_id} в чате {chat_id} — возможно, уже отвечено или удалено.")
+        # Остальной старый код можно оставить для совместимости, но сессия уже будет закрыта выше
 
-            updated_count = 0
-            processed_client_message_telegram_ids_for_pending_removal = set()
-            db_message_id_for_notification_cancel = None
-
-            if all_active_db_messages_from_client_globally:
-                # Определяем ID самого раннего сообщения в этой сессии (глобально для всех сотрудников)
-                # Уведомления должны были быть запланированы только для него (для каждой копии сотрудника)
-                # Однако, текущая логика NotificationService хранит задачи по DBMessage.id (уникальный PK)
-                # Если мы перешли на новую логику планирования (только для первого сообщения сессии для КАЖДОГО сотрудника),
-                # то отмена должна быть более таргетированной.
-
-                # Найдем все УНИКАЛЬНЫЕ DBMessage.id, для которых МОГЛИ БЫТЬ запланированы уведомления
-                # по новой логике (т.е. это были первые сообщения сессии для каждого сотрудника)
-                # Это будут все all_active_db_messages_from_client_globally, т.к. для каждого из них (для его employee_id)
-                # track_message решал, планировать или нет.
-                # При ответе мы должны отменить ВСЕ активные уведомления для этого клиента в этом чате.
-                # Поэтому проходим по всем и отменяем.
-                pass # Эта логика остается прежней - отменяем для всех обновляемых db_message_to_update.id
-
-            for db_message_to_update in all_active_db_messages_from_client_globally:
-                db_message_to_update.responded_at = datetime.utcnow()
-                db_message_to_update.answered_by_employee_id = responding_employee_id
-                processed_client_message_telegram_ids_for_pending_removal.add(db_message_to_update.message_id) 
-
-                # Время ответа (calculated_response_time, посчитанное от САМОГО РАННЕГО сообщения клиента для ЭТОГО СОТРУДНИКА) 
-                # записываем только для той записи DBMessage, которая принадлежит ЭТОМУ ОТВЕТИВШЕМУ СОТРУДНИКУ 
-                # и соответствует тому сообщению, НА КОТОРОЕ ОН НЕПОСРЕДСТВЕННО ОТВЕТИЛ (replied_to_client_message_telegram_id).
-                # Это гарантирует, что response_time ставится только один раз за сессию ответа сотрудника.
-                if db_message_to_update.employee_id == responding_employee_id and \
-                   db_message_to_update.message_id == replied_to_client_message_telegram_id and \
-                   calculated_response_time is not None:
-                    db_message_to_update.response_time_minutes = calculated_response_time
-                    logger.info(f"⏱ -> Записано время ответа {calculated_response_time:.1f} мин для DBMessage.id {db_message_to_update.id} (сотрудник {responding_employee_id}, ответил на Telegram ID {replied_to_client_message_telegram_id}). Отсчет от Telegram ID {time_response_anchor_message_id}.")
-                \
-                updated_count += 1
-                await self.notifications.cancel_notifications(db_message_to_update.id)
-            
-            await session.commit()
-            logger.info(f"✅ Обновлено {updated_count} DBMessage записей для сессии клиента ID {client_telegram_id} в чате {chat_id}. Ответил: сотрудник ID {responding_employee_id}.")
-
-        # Удаляем из отслеживаемых `pending_messages` все обработанные сообщения этого клиента
-        # self.pending_messages теперь не так критичен, если уведомления планируются по-новому
-        if chat_id in self.pending_messages:
-            client_messages_in_pending_keys = list(self.pending_messages[chat_id].keys())
-            removed_from_pending_count = 0
-            for client_message_telegram_id_key in client_messages_in_pending_keys:
-                if client_message_telegram_id_key in processed_client_message_telegram_ids_for_pending_removal:
-                    del self.pending_messages[chat_id][client_message_telegram_id_key]
-                    removed_from_pending_count +=1
-            
-            if removed_from_pending_count > 0:
-                logger.info(f"🗑 Удалено {removed_from_pending_count} записей из pending_messages для чата {chat_id} (клиент {client_telegram_id}).")
-            
-            if not self.pending_messages[chat_id]: 
-                del self.pending_messages[chat_id]
-                logger.info(f"🗑 Удален ключ чата {chat_id} из pending_messages, т.к. он пуст.")
-    
     async def mark_as_deleted(self, chat_id: int, message_id: int): # message_id здесь это Telegram message_id
         """Отметка сообщения как удаленного"""
         logger.info(f"🗑 Сообщение Telegram.ID={message_id} удалено в чате {chat_id}")
@@ -434,65 +330,38 @@ async def handle_group_message(message: Message):
         return
     
     logger.info(f"📩 Получено сообщение от {message.from_user.full_name} (ID: {message.from_user.id}) в чате {message.chat.id}: '{message.text[:50]}...' ")
-    
     async with AsyncSessionLocal() as session:
-        # Проверяем, является ли отправитель сообщения сотрудником
-        sender_employee_result = await session.execute(
-            select(Employee).where(Employee.telegram_id == message.from_user.id)
-        )
-        sender_is_employee = sender_employee_result.scalar_one_or_none() is not None
-
-    # Проверяем, является ли сообщение ответом
-    if message.reply_to_message:
-        if sender_is_employee:
-            # Это ответ сотрудника на какое-то сообщение
-            logger.info(f"💬 Ответ от сотрудника: {message.from_user.full_name}")
-            
-            # Получаем информацию об ответившем сотруднике (для employee_id)
-            responding_employee_result = await session.execute(
-                select(Employee).where(and_(Employee.telegram_id == message.from_user.id, Employee.is_active == True))
-            )
-            responding_employee = responding_employee_result.scalar_one_or_none()
-            
-            if responding_employee:
-                # Убедимся, что ответ был на сообщение клиента, а не другого сотрудника
-                if message.reply_to_message.from_user:
-                    # Проверим, не является ли автор исходного сообщения тоже сотрудником
-                    original_sender_employee_result = await session.execute(
-                        select(Employee).where(Employee.telegram_id == message.reply_to_message.from_user.id)
-                    )
-                    original_sender_is_employee = original_sender_employee_result.scalar_one_or_none() is not None
-                    
-                    if original_sender_is_employee:
-                        logger.info(f"👨‍💼 Сотрудник {responding_employee.full_name} ответил на сообщение другого сотрудника. Игнорируем для статистики ответа.")
-                        return # Не трекаем ответ сотрудника на сотрудника
-
-                await message_tracker.mark_as_responded(message, responding_employee.id)
-                logger.info(f"✅ Отмечен ответ сотрудника: {responding_employee.full_name}")
-            else:
-                logger.info(f"⚠️ Сотрудник {message.from_user.full_name} (ID: {message.from_user.id}) не найден или неактивен. Ответ не засчитан.")
-                return
-    else:
-        # Это новое сообщение (не ответ)
-        if sender_is_employee:
-            # Новое сообщение от сотрудника - просто логируем и игнорируем для трекинга
-            logger.info(f"🗣️ Новое сообщение от сотрудника {message.from_user.full_name} в группе. Не для отслеживания.")
-            return
-        
-        # Это новое сообщение от клиента
-        logger.info(f"📨 Новое сообщение от клиента: {message.from_user.full_name}")
+        # Получаем всех активных сотрудников и админов из БД
         active_employees_result = await session.execute(
-                select(Employee).where(Employee.is_active == True)
-            )
-        active_employees = active_employees_result.scalars().all()
-        
-        if not active_employees:
-            logger.warning(f"Нет активных сотрудников для назначения сообщения от клиента {message.from_user.full_name}")
+            select(Employee).where(Employee.is_active == True)
+        )
+        all_active_employees = active_employees_result.scalars().all()
+        sender_is_employee = any(emp.telegram_id == message.from_user.id for emp in all_active_employees)
+        if sender_is_employee:
+            # Если это reply на сообщение клиента — засчитываем как ответ
+            if message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.id != message.from_user.id:
+                logger.info(f"✅ Сотрудник/админ {message.from_user.full_name} (ID: {message.from_user.id}) отвечает на сообщение клиента — засчитываем как ответ.")
+                await message_tracker.mark_as_responded(message, message.from_user.id)
+            else:
+                logger.info(f"🗣️ Сообщение от сотрудника/админа {message.from_user.full_name} (ID: {message.from_user.id}) — не трекаем как клиента.")
             return
-
-        for employee_obj in active_employees:
+        # Проверяем, кто реально состоит в чате
+        real_group_members = []
+        for employee_obj in all_active_employees:
+            try:
+                member = await bot.get_chat_member(message.chat.id, employee_obj.telegram_id)
+                if member.status not in ("left", "kicked"):
+                    real_group_members.append(employee_obj)
+                else:
+                    logger.info(f"Сотрудник {employee_obj.full_name} (id={employee_obj.id}) не состоит в группе, не уведомляем.")
+            except Exception as e:
+                logger.warning(f"Не удалось проверить членство сотрудника {employee_obj.full_name} (id={employee_obj.id}) в группе: {e}")
+        if not real_group_members:
+            logger.warning(f"Нет сотрудников/админов, реально состоящих в группе {message.chat.id} для уведомления.")
+            return
+        for employee_obj in real_group_members:
             await message_tracker.track_message(message, employee_obj.id)
-            logger.info(f"📊 Трекаем сообщение для сотрудника: {employee_obj.full_name} (ID: {employee_obj.id})")
+            logger.info(f"📊 Трекаем сообщение для сотрудника: {employee_obj.full_name} (ID: {employee_obj.id}) [реально в группе]")
 
 
 async def setup_bot_commands():

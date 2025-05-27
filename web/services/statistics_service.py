@@ -321,25 +321,16 @@ class StatisticsService:
         start_date: datetime, 
         end_date: datetime
     ) -> List[Message]:
-        """Получить сообщения сотрудника за период"""
-        
-        # Получаем все сообщения сотрудника
+        """Получить сообщения сотрудника за период (оптимизировано: фильтрация по дате сразу в SQL)"""
         result = await self.db.execute(
             select(Message).where(
-                Message.employee_id == employee_id
+                Message.employee_id == employee_id,
+                Message.received_at >= start_date,
+                Message.received_at <= end_date
             ).order_by(Message.received_at)
         )
         messages = result.scalars().all()
-        
-        # Фильтруем по времени вручную
-        filtered_messages = []
-        for msg in messages:
-            # Приводим время сообщения к UTC
-            msg_time = msg.received_at.replace(tzinfo=None)
-            if start_date <= msg_time <= end_date:
-                filtered_messages.append(msg)
-        
-        return filtered_messages
+        return messages
     
     def _calculate_stats(self, messages: List[Message]) -> Dict[str, Any]:
         """Вычислить статистику по списку сообщений с учетом answered_by_employee_id"""

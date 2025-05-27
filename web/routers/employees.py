@@ -17,6 +17,7 @@ class EmployeeCreate(BaseModel):
     telegram_username: str
     full_name: str
     is_active: bool = True
+    is_admin: bool = False
 
 
 class EmployeeUpdate(BaseModel):
@@ -108,7 +109,7 @@ async def create_employee(
         telegram_username=employee_data.telegram_username,
         full_name=employee_data.full_name,
         is_active=employee_data.is_active,
-        is_admin=False  # По умолчанию не админ
+        is_admin=employee_data.is_admin
     )
     
     db.add(employee)

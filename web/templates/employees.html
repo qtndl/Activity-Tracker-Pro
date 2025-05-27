@@ -1105,16 +1105,23 @@
         
         try {
             const response = await axios.post(`/api/employees/${id}/toggle-active`);
-            showAlert(response.data.message, 'success');
+            if (response.data.success) {
+                showAlert(`Статус сотрудника успешно изменён`, 'success');
+            } else {
+                showAlert('Не удалось изменить статус сотрудника', 'danger');
+            }
             loadEmployees();
-            
             // Если боковая панель открыта, обновляем статистику
             if (currentEmployeeId === id) {
                 setTimeout(() => loadEmployeeStats(currentPeriod), 500);
             }
         } catch (error) {
+            let msg = 'Ошибка при изменении статуса';
+            if (error.response && error.response.data && error.response.data.detail) {
+                msg = error.response.data.detail;
+            }
+            showAlert(msg, 'danger');
             console.error('Error toggling status:', error);
-            showAlert('Ошибка при изменении статуса', 'danger');
         }
     }
     

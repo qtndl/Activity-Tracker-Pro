@@ -150,42 +150,21 @@ class NotificationService:
     
     def _get_warning_text(self, delay_minutes: int, message: Message) -> str:
         """Генерация текста предупреждения"""
-        client_info = f"@{message.client_username}" if message.client_username else message.client_name
+        # Получаем ссылку на чат
+        chat_id = message.chat_id if hasattr(message, 'chat_id') else message.chat.id
+        abs_chat_id = abs(chat_id)
+        chat_link = f"https://t.me/c/{abs_chat_id}"
         
-        # Выбираем emoji в зависимости от времени
-        if delay_minutes <= 5:
-            emoji = "⚠️"
-        elif delay_minutes <= 15:
-            emoji = "🚨"
-        else:
-            emoji = "🔴"
-        
-        # Формируем правильный текст времени
-        if delay_minutes == 1:
-            urgency = "1 минуту"
-        elif delay_minutes < 5:
-            urgency = f"{delay_minutes} минуты"
-        elif delay_minutes < 60:
-            urgency = f"{delay_minutes} минут"
-        elif delay_minutes == 60:
-            urgency = "1 час"
-        else:
-            hours = delay_minutes // 60
-            minutes = delay_minutes % 60
-            if minutes == 0:
-                urgency = f"{hours} час{'а' if hours < 5 else 'ов'}"
-            else:
-                urgency = f"{hours} час{'а' if hours < 5 else 'ов'} {minutes} мин"
-        
-        text = f"{emoji} <b>Внимание!</b>\n\n"
-        text += f"Вы не ответили на сообщение от {client_info} уже <b>{urgency}</b>!\n"
-        text += f"Чат ID: <code>{message.chat_id}</code>\n"
-        
-        if message.message_text:
-            preview = message.message_text[:100] + "..." if len(message.message_text) > 100 else message.message_text
-            text += f"\nТекст сообщения:\n<i>{preview}</i>"
-        
-        return text
+        # Формируем текст уведомления
+        return (
+            f"⚠️ <b>Вам не ответили на сообщение клиента!</b>\n"
+            f"\n"
+            f"Чат: <a href='{chat_link}'>Перейти в чат</a>\n"
+            f"ID клиента: <code>{message.client_telegram_id}</code>\n"
+            f"Текст: {message.message_text[:50]}...\n"
+            f"\n"
+            f"⏱ <b>Время ожидания:</b> {delay_minutes} мин."
+        )
     
     async def send_daily_report(self, employee_id: int, stats_obj: EmployeeStats):
         """Отправка ежедневного отчета сотруднику (принимает объект EmployeeStats)"""
