@@ -104,12 +104,32 @@ class NotificationService:
             chat_link = f"https://t.me/{chat_username}"
             chat_line = f"Чат: <a href='{chat_link}'>Перейти в чат</a>"
         else:
-            chat_line = f"Чат: <code>{chat_id}</code> (приватный, ссылка недоступна)"
+            # Пробуем получить пригласительную ссылку из message
+            invite_link = getattr(message, 'chat_invite_link', None) or getattr(message, 'invite_link', None)
+            # Если нет — пробуем получить через API
+            if not invite_link:
+                try:
+                    invite_link = await self.bot.export_chat_invite_link(chat_id)
+                except Exception as e:
+                    logger.warning(f"[NOTIFY] Не удалось получить invite-ссылку для чата {chat_id}: {e}")
+                    invite_link = None
+            if invite_link:
+                chat_line = f"Чат: <a href='{invite_link}'>Рабочий чат</a>"
+            else:
+                chat_line = f"Чат: <code>{chat_id}</code> (приватный, ссылка недоступна)"
+
+        # Формируем ссылку на профиль клиента
+        client_profile = None
+        if getattr(message, 'client_username', None):
+            client_profile = f"<a href='https://t.me/{message.client_username}'>@{message.client_username}</a> (ID: {message.client_telegram_id})"
+        else:
+            client_profile = f"ID клиента: <code>{message.client_telegram_id}</code>"
+
         return (
             f"⚠️ <b>Вы не ответили на сообщение клиента!</b>\n"
             f"\n"
             f"{chat_line}\n"
-            f"ID клиента: <code>{message.client_telegram_id}</code>\n"
+            f"{client_profile}\n"
             f"Текст: {message.message_text[:50]}...\n"
             f"\n"
             f"⏱ <b>Время ожидания:</b> {delay_minutes} мин."
