@@ -31,8 +31,6 @@ def register_handlers(dp: Dispatcher, message_tracker):
 
 /start - Начало работы и вход в веб-панель
 /stats - Показать вашу статистику за сегодня
-/report_weekly - Недельный отчет
-/report_monthly - Месячный отчет
 /help - Это сообщение
 
 <b>Как работает бот:</b>
