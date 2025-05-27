@@ -48,7 +48,7 @@ class NotificationService:
                     emp_result = await session.execute(select(Employee).where(Employee.id == employee_id))
                     employee = emp_result.scalar_one_or_none()
                     if employee and employee.is_active:
-                        warning_text = self._get_warning_text(delay_minutes, message)
+                        warning_text = await self._get_warning_text(delay_minutes, message)
                         try:
                             await self.bot.send_message(employee.telegram_id, warning_text, parse_mode="HTML")
                             notification = Notification(employee_id=employee_id, notification_type=notification_type, message_id=message_id)
@@ -78,8 +78,7 @@ class NotificationService:
         else:
             logger.info(f"[NOTIFY] Нет задач для отмены: DBMessage={message_id}")
     
-    def _get_warning_text(self, delay_minutes: int, message: Message) -> str:
-        """Генерация текста предупреждения"""
+    async def _get_warning_text(self, delay_minutes, message):
         chat_id = message.chat_id if hasattr(message, 'chat_id') else message.chat.id
         abs_chat_id = abs(chat_id)
         chat_username = getattr(message, 'chat_username', None)
@@ -91,7 +90,7 @@ class NotificationService:
             logger.warning(f"[NOTIFY-DEBUG] Не удалось залогировать message.chat: {e}")
         if not chat_username and hasattr(self.bot, 'get_chat'):
             try:
-                chat = asyncio.get_event_loop().run_until_complete(self.bot.get_chat(chat_id))
+                chat = await self.bot.get_chat(chat_id)
                 logger.info(f"[NOTIFY-DEBUG] self.bot.get_chat({chat_id}): {chat}")
                 chat_username = getattr(chat, 'username', None)
                 if chat_username:
@@ -106,8 +105,6 @@ class NotificationService:
             chat_line = f"Чат: <a href='{chat_link}'>Перейти в чат</a>"
         else:
             chat_line = f"Чат: <code>{chat_id}</code> (приватный, ссылка недоступна)"
-        
-        # Формируем текст уведомления
         return (
             f"⚠️ <b>Вы не ответили на сообщение клиента!</b>\n"
             f"\n"
