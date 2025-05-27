@@ -104,15 +104,12 @@ class NotificationService:
             chat_link = f"https://t.me/{chat_username}"
             chat_line = f"Чат: <a href='{chat_link}'>Перейти в чат</a>"
         else:
-            # Пробуем получить пригласительную ссылку из message
-            invite_link = getattr(message, 'chat_invite_link', None) or getattr(message, 'invite_link', None)
-            # Если нет — пробуем получить через API
-            if not invite_link:
-                try:
-                    invite_link = await self.bot.export_chat_invite_link(chat_id)
-                except Exception as e:
-                    logger.warning(f"[NOTIFY] Не удалось получить invite-ссылку для чата {chat_id}: {e}")
-                    invite_link = None
+            # ВСЕГДА пробуем получить новую invite_link через API
+            try:
+                invite_link = await self.bot.export_chat_invite_link(chat_id)
+            except Exception as e:
+                logger.warning(f"[NOTIFY] Не удалось получить invite-ссылку для чата {chat_id}: {e}")
+                invite_link = None
             if invite_link:
                 chat_line = f"Чат: <a href='{invite_link}'>Рабочий чат</a>"
             else:

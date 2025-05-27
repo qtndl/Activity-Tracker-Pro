@@ -701,6 +701,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
     // Получаем данные пользователя из серверного шаблона
     const serverUserData = {
@@ -1478,6 +1479,47 @@
         setTimeout(() => {
             loadStatistics();
         }, 100);
+    });
+
+    async function updateSummarySection() {
+        try {
+            // Получаем выбранный период из селектора
+            const periodSelect = document.getElementById('periodSelect');
+            let period = 'today';
+            if (periodSelect) {
+                if (periodSelect.value === 'daily') period = 'today';
+                else if (periodSelect.value === 'weekly') period = 'week';
+                else if (periodSelect.value === 'monthly') period = 'month';
+            }
+
+            const response = await axios.get(`/api/statistics/summary?period=${period}`);
+            const data = response.data;
+
+            document.getElementById('totalMessages').textContent = data.total_messages || 0;
+            document.getElementById('respondedMessages').textContent = data.responded_messages || 0;
+            document.getElementById('missedMessages').textContent = data.missed_messages || 0;
+            document.getElementById('efficiency').textContent = data.efficiency_percent !== undefined ? Math.round(data.efficiency_percent) : 0;
+
+            if (document.getElementById('exceeded15')) document.getElementById('exceeded15').textContent = data.exceeded_15_min || 0;
+            if (document.getElementById('exceeded30')) document.getElementById('exceeded30').textContent = data.exceeded_30_min || 0;
+            if (document.getElementById('exceeded60')) document.getElementById('exceeded60').textContent = data.exceeded_60_min || 0;
+
+            if (typeof createResponsePieChart === 'function') createResponsePieChart();
+        } catch (e) {
+            console.error('Ошибка загрузки summary:', e);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        updateSummarySection();
+        const periodSelect = document.getElementById('periodSelect');
+        if (periodSelect) {
+            periodSelect.addEventListener('change', updateSummarySection);
+        }
+        const analyzeBtn = document.querySelector('button.btn-gradient-primary[onclick*="loadStatistics"]');
+        if (analyzeBtn) {
+            analyzeBtn.addEventListener('click', updateSummarySection);
+        }
     });
 </script>
 {% endblock %} 
