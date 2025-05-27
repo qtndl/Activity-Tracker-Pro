@@ -224,32 +224,6 @@
         background: rgba(26, 26, 46, 0.3);
     }
 
-    /* Chart Section */
-    .chart-section {
-        background: var(--glass-bg);
-        backdrop-filter: blur(20px);
-        border: 1px solid var(--glass-border);
-        border-radius: 25px;
-        overflow: hidden;
-    }
-
-    [data-bs-theme="dark"] .chart-section {
-        background: var(--dark-glass-bg);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .chart-header {
-        background: var(--secondary);
-        color: white;
-        padding: 1.5rem 2rem;
-        font-weight: 600;
-    }
-
-    .chart-body {
-        padding: 2rem;
-        height: 400px;
-    }
-
     /* Badges */
     .modern-badge {
         padding: 8px 16px;
@@ -510,18 +484,11 @@
                             </tr>
                         </tbody>
                     </table>
-                </div>
-            </div>
-
-            <!-- Performance Chart -->
-            <div class="chart-section">
-                <div class="chart-header">
-                    <h5 class="mb-0">
-                        <i class="fas fa-chart-area me-2"></i>Производительность за неделю
-                    </h5>
-                </div>
-                <div class="chart-body">
-                    <canvas id="performanceChart"></canvas>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <button class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-bold" id="prevMessagesBtn" disabled><i class="fas fa-chevron-left me-1"></i>Назад</button>
+                        <span id="messagesPageInfo" class="mx-2"></span>
+                        <button class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-bold" id="nextMessagesBtn">Вперёд<i class="fas fa-chevron-right ms-1"></i></button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -598,9 +565,6 @@
             // Load recent messages
             await loadRecentMessages();
             
-            // Load performance chart
-            await loadPerformanceChart();
-            
         } catch (error) {
             console.error('Error loading profile:', error);
         }
@@ -624,60 +588,86 @@
         }
     }
     
-    // Load recent messages
-    async function loadRecentMessages() {
+    let messagesPage = 0;
+    const messagesPageSize = 10;
+    let messagesTotal = 0;
+
+    async function getMessagesTotalCount() {
         try {
-            const response = await axios.get('/api/statistics/messages?limit=10');
+            const response = await axios.get('/api/statistics/messages/count');
+            return response.data.count || 0;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    async function loadRecentMessages(page = messagesPage) {
+        try {
+            const offset = page * messagesPageSize;
+            const response = await axios.get(`/api/statistics/messages?limit=${messagesPageSize}&offset=${offset}`);
             const messages = response.data;
-            
+            // Получаем total только при первой загрузке или смене страницы на 0
+            if (page === 0) {
+                messagesTotal = await getMessagesTotalCount();
+            }
+            const totalPages = Math.ceil(messagesTotal / messagesPageSize);
             const tbody = document.getElementById('recentMessagesBody');
-            
             if (messages.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">Нет сообщений</td></tr>';
-                return;
+            } else {
+                tbody.innerHTML = messages.map((msg, index) => {
+                    let responseTime = msg.response_time_minutes;
+                    if ((responseTime === undefined || responseTime === null) && msg.responded_at && msg.received_at) {
+                        const received = new Date(msg.received_at);
+                        const responded = new Date(msg.responded_at);
+                        responseTime = ((responded - received) / 60000).toFixed(1);
+                    }
+                    return `
+                    <tr>
+                        <td>
+                            <span class="badge bg-secondary">
+                                ${new Date(msg.received_at).toLocaleString('ru-RU', { 
+                                    hour: '2-digit', 
+                                    minute: '2-digit',
+                                    day: '2-digit',
+                                    month: '2-digit'
+                                })}
+                            </span>
+                        </td>
+                        <td>
+                            <strong>
+                                ${
+                                    msg.client_name
+                                        ? (msg.client_username
+                                            ? `${msg.client_name} (<a href=\"https://t.me/${msg.client_username}\" target=\"_blank\">@${msg.client_username}</a>)`
+                                            : msg.client_name)
+                                        : (msg.client_username ? `<a href=\"https://t.me/${msg.client_username}\" target=\"_blank\">@${msg.client_username}</a>` : 'Неизвестный')
+                                }
+                            </strong>
+                        </td>
+                        <td class="text-truncate" style="max-width: 200px;" title="${msg.message_text || ''}">
+                            ${msg.message_text ? msg.message_text.substring(0, 50) + (msg.message_text.length > 50 ? '...' : '') : '-'}
+                        </td>
+                        <td>
+                            ${responseTime ? 
+                                `<span class="badge ${getResponseTimeClass(responseTime)} fs-6">${responseTime} мин</span>` : 
+                                '<span class="badge bg-secondary fs-6">-</span>'}
+                        </td>
+                        <td>
+                            ${msg.responded_at ? 
+                                '<span class="badge bg-success fs-6"><i class="fas fa-check me-1"></i>Отвечено</span>' : 
+                                (msg.is_missed ? 
+                                    '<span class="badge bg-danger fs-6"><i class="fas fa-times me-1"></i>Пропущено</span>' : 
+                                    '<span class="badge bg-warning fs-6"><i class="fas fa-clock me-1"></i>Ожидает</span>')}
+                        </td>
+                    </tr>
+                    `;
+                }).join('');
             }
-            
-            tbody.innerHTML = messages.map((msg, index) => `
-                <tr>
-                    <td>
-                        <span class="badge bg-secondary">
-                            ${new Date(msg.received_at).toLocaleString('ru-RU', { 
-                                hour: '2-digit', 
-                                minute: '2-digit',
-                                day: '2-digit',
-                                month: '2-digit'
-                            })}
-                        </span>
-                    </td>
-                    <td>
-                        <strong>
-                            ${
-                                msg.client_name
-                                    ? msg.client_username
-                                        ? `${msg.client_name} (@${msg.client_username})`
-                                        : msg.client_name
-                                    : (msg.client_username ? `@${msg.client_username}` : 'Неизвестный')
-                            }
-                        </strong>
-                    </td>
-                    <td class="text-truncate" style="max-width: 200px;" title="${msg.message_text || ''}">
-                        ${msg.message_text ? msg.message_text.substring(0, 50) + '...' : '-'}
-                    </td>
-                    <td>
-                        ${msg.response_time_minutes ? 
-                            `<span class="badge ${getResponseTimeClass(msg.response_time_minutes)} fs-6">${msg.response_time_minutes.toFixed(1)} мин</span>` : 
-                            '<span class="badge bg-secondary fs-6">-</span>'}
-                    </td>
-                    <td>
-                        ${msg.responded_at ? 
-                            '<span class="badge bg-success fs-6"><i class="fas fa-check me-1"></i>Отвечено</span>' : 
-                            (msg.is_missed ? 
-                                '<span class="badge bg-danger fs-6"><i class="fas fa-times me-1"></i>Пропущено</span>' : 
-                                '<span class="badge bg-warning fs-6"><i class="fas fa-clock me-1"></i>Ожидает</span>')}
-                    </td>
-                </tr>
-            `).join('');
-            
+            document.getElementById('messagesPageInfo').innerHTML = `Страница <b>${page + 1}</b> из <b>${totalPages || 1}</b> &nbsp; <span class='text-muted' style='font-size:0.95em'>(всего ${messagesTotal} сообщений)</span>`;
+            document.getElementById('prevMessagesBtn').disabled = page === 0;
+            document.getElementById('nextMessagesBtn').disabled = (page + 1) >= totalPages;
+            messagesPage = page;
         } catch (error) {
             console.error('Error loading messages:', error);
             document.getElementById('recentMessagesBody').innerHTML = 
@@ -692,93 +682,6 @@
         return 'bg-danger';
     }
     
-    // Load performance chart
-    async function loadPerformanceChart() {
-        try {
-            const response = await axios.get('/api/statistics/charts/response-time?period=week');
-            const data = response.data;
-            
-            const ctx = document.getElementById('performanceChart').getContext('2d');
-            
-            if (performanceChart) {
-                performanceChart.destroy();
-            }
-            
-            // Create gradient
-            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-            gradient.addColorStop(0, 'rgba(240, 147, 251, 0.4)');
-            gradient.addColorStop(1, 'rgba(245, 87, 108, 0.1)');
-            
-            performanceChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        label: 'Среднее время ответа (мин)',
-                        data: data.data,
-                        borderColor: '#f093fb',
-                        backgroundColor: gradient,
-                        tension: 0.4,
-                        borderWidth: 4,
-                        pointBackgroundColor: '#f5576c',
-                        pointBorderColor: '#fff',
-                        pointBorderWidth: 3,
-                        pointRadius: 8,
-                        pointHoverRadius: 12,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                            titleColor: '#fff',
-                            bodyColor: '#fff',
-                            borderColor: '#f093fb',
-                            borderWidth: 2,
-                            cornerRadius: 15,
-                            displayColors: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: 'rgba(255, 255, 255, 0.7)',
-                                callback: function(value) {
-                                    return value + ' мин';
-                                }
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
-                            },
-                            ticks: {
-                                color: 'rgba(255, 255, 255, 0.7)'
-                            }
-                        }
-                    },
-                    animation: {
-                        duration: 2000,
-                        easing: 'easeOutQuart'
-                    }
-                }
-            });
-            
-        } catch (error) {
-            console.error('Error loading chart:', error);
-        }
-    }
-    
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
         updateCurrentTime();
@@ -790,6 +693,13 @@
             loadTodayStats();
             loadRecentMessages();
         }, 300000);
+
+        document.getElementById('prevMessagesBtn').addEventListener('click', () => {
+            if (messagesPage > 0) loadRecentMessages(messagesPage - 1);
+        });
+        document.getElementById('nextMessagesBtn').addEventListener('click', () => {
+            loadRecentMessages(messagesPage + 1);
+        });
     });
 </script>
 {% endblock %} 

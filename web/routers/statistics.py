@@ -45,6 +45,9 @@ class MessageResponse(BaseModel):
     responded_at: Optional[datetime]
     response_time_minutes: Optional[float]
     is_missed: bool
+    client_name: Optional[str]
+    client_username: Optional[str]
+    message_text: Optional[str]
     
     class Config:
         from_attributes = True
@@ -199,16 +202,16 @@ async def get_messages(
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
     limit: int = Query(100, le=1000),
+    offset: int = Query(0, ge=0),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получить список сообщений"""
-    # Обычный сотрудник может видеть только свои сообщения
+    """Получить список сообщений (уникальные по паре client_telegram_id, message_id) с корректной пагинацией"""
     if not current_user.get('is_admin'):
         employee_id = current_user.get('employee_id')
-    
+
+    # Получаем все сообщения с фильтрами
     query = select(Message)
-    
     if employee_id:
         query = query.where(Message.employee_id == employee_id)
     if is_missed is not None:
@@ -217,19 +220,73 @@ async def get_messages(
         query = query.where(Message.received_at >= datetime.combine(start_date, datetime.min.time()))
     if end_date:
         query = query.where(Message.received_at <= datetime.combine(end_date, datetime.max.time()))
-    
-    query = query.order_by(Message.received_at.desc()).limit(limit)
-    
+    query = query.order_by(Message.received_at.desc())
+    result = await db.execute(query)
+    all_messages = result.scalars().all()
+
+    # Собираем уникальные ключи (client_telegram_id, message_id) в порядке убывания времени
+    unique_keys = []
+    seen = set()
+    for msg in all_messages:
+        key = (msg.client_telegram_id, msg.message_id)
+        if key not in seen:
+            seen.add(key)
+            unique_keys.append(key)
+    # Пагинируем по уникальным ключам
+    page_keys = unique_keys[offset:offset+limit]
+    # Для каждого ключа ищем самое свежее сообщение
+    key_to_msg = {}
+    for msg in all_messages:
+        key = (msg.client_telegram_id, msg.message_id)
+        if key in page_keys and key not in key_to_msg:
+            key_to_msg[key] = msg
+    response = []
+    for key in page_keys:
+        msg = key_to_msg[key]
+        response.append({
+            "id": msg.id,
+            "employee_id": msg.employee_id,
+            "message_type": msg.message_type,
+            "received_at": msg.received_at,
+            "responded_at": msg.responded_at,
+            "response_time_minutes": msg.response_time_minutes,
+            "is_missed": msg.is_missed,
+            "client_name": msg.client_name,
+            "client_username": msg.client_username,
+            "message_text": msg.message_text
+        })
+    return response
+
+
+@router.get("/messages/count")
+async def get_messages_count(
+    employee_id: Optional[int] = None,
+    is_missed: Optional[bool] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Получить общее количество уникальных сообщений для пагинации"""
+    if not current_user.get('is_admin'):
+        employee_id = current_user.get('employee_id')
+
+    query = select(Message)
+    if employee_id:
+        query = query.where(Message.employee_id == employee_id)
+    if is_missed is not None:
+        query = query.where(Message.is_missed == is_missed)
+    if start_date:
+        query = query.where(Message.received_at >= datetime.combine(start_date, datetime.min.time()))
+    if end_date:
+        query = query.where(Message.received_at <= datetime.combine(end_date, datetime.max.time()))
     result = await db.execute(query)
     messages = result.scalars().all()
-    
-    # Оставляем только уникальные сообщения по паре (client_telegram_id, message_id)
-    unique = {}
+    unique = set()
     for msg in messages:
         key = (msg.client_telegram_id, msg.message_id)
-        if key not in unique:
-            unique[key] = msg
-    return list(unique.values())
+        unique.add(key)
+    return {"count": len(unique)}
 
 
 @router.get("/employee/{employee_id}")
@@ -724,4 +781,21 @@ async def import_statistics_from_file(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Неверный формат JSON")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка импорта: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Ошибка импорта: {str(e)}")
+
+
+@router.get("/employees/active-delta")
+async def get_active_employees_delta(db: AsyncSession = Depends(get_db)):
+    """Возвращает количество активных сотрудников за сегодня и за прошлую неделю для расчёта динамики"""
+    today = datetime.utcnow().date()
+    week_ago = today - timedelta(days=7)
+
+    # Считаем активных сотрудников сегодня
+    result_today = await db.execute(select(Employee).where(Employee.is_active == True))
+    active_today = len(result_today.scalars().all())
+
+    # Считаем активных сотрудников неделю назад (по дате создания)
+    result_week = await db.execute(select(Employee).where(Employee.is_active == True, Employee.created_at <= week_ago))
+    active_week = len(result_week.scalars().all())
+
+    return {"active_today": active_today, "active_week": active_week} 

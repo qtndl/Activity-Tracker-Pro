@@ -790,6 +790,9 @@
             console.log('📊 Loading charts');
             await loadCharts();
             
+            // Вызываем updateActiveTeamDelta после загрузки дашборда
+            await updateActiveTeamDelta();
+            
             console.log('✅ Dashboard loaded successfully');
             
         } catch (error) {
@@ -1103,5 +1106,30 @@
             clearInterval(refreshInterval);
         }
     });
+
+    // Функция для обновления прироста активной команды
+    async function updateActiveTeamDelta() {
+        try {
+            const response = await axios.get('/api/statistics/employees/active-delta');
+            const activeToday = response.data.active_today || 0;
+            const activeWeek = response.data.active_week || 0;
+            
+            let delta = 0;
+            if (activeWeek > 0) {
+                delta = Math.round(((activeToday - activeWeek) / activeWeek) * 100);
+            } else if (activeToday > 0) {
+                delta = 100;
+            }
+
+            const statCard = document.querySelector('#activeEmployees').closest('.stat-card');
+            const deltaElement = statCard.querySelector('.stat-change span');
+            
+            deltaElement.innerHTML = `${delta >= 0 ? '+' : ''}${delta}% за неделю`;
+            deltaElement.parentElement.classList.toggle('text-success', delta >= 0);
+            deltaElement.parentElement.classList.toggle('text-danger', delta < 0);
+        } catch (error) {
+            console.error('Ошибка при обновлении прироста команды:', error);
+        }
+    }
 </script>
 {% endblock %} 
