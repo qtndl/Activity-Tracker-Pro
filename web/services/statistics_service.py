@@ -4,7 +4,7 @@
 from typing import List, Dict, Optional, Any
 from datetime import datetime, date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
 from dataclasses import dataclass
 import logging
 
@@ -324,7 +324,10 @@ class StatisticsService:
         """Получить сообщения сотрудника за период (оптимизировано: фильтрация по дате сразу в SQL)"""
         result = await self.db.execute(
             select(Message).where(
+                or_(
                 Message.employee_id == employee_id,
+                    Message.addressed_to_employee_id == employee_id
+                ),
                 Message.received_at >= start_date,
                 Message.received_at <= end_date
             ).order_by(Message.received_at)
@@ -432,7 +435,10 @@ class StatisticsService:
         result = await self.db.execute(
             select(Message).where(
                 and_(
+                    or_(
                     Message.employee_id == employee_id,
+                        Message.addressed_to_employee_id == employee_id
+                    ),
                     Message.answered_by_employee_id.is_(None),  # Никто еще не ответил
                     Message.is_deleted == False,  # Исключаем удаленные сообщения
                     Message.message_type == "client"

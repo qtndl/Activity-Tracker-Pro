@@ -784,54 +784,23 @@
         toggleDateFields(); // Это установит правильные даты
     }
 
-    // Animate number counters
+    // Animate number counters - упрощенная версия без requestAnimationFrame
     function animateCounter(elementId, targetValue) {
         const element = document.getElementById(elementId);
-        const startValue = parseInt(element.textContent) || 0;
-        const duration = 1500;
-        const startTime = performance.now();
-        
-        function updateCounter(currentTime) {
-            const elapsed = currentTime - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            
-            const easeOut = 1 - Math.pow(1 - progress, 3);
-            const currentValue = Math.round(startValue + (targetValue - startValue) * easeOut);
-            
-            element.textContent = currentValue;
-            
-            if (progress < 1) {
-                requestAnimationFrame(updateCounter);
-            }
-        }
-        
-        requestAnimationFrame(updateCounter);
+        element.textContent = targetValue;
     }
 
-    // Load statistics
+    // Load statistics - оптимизированная версия
     async function loadStatistics() {
-        console.log('🔄 Starting to load statistics...');
+        try {
+            document.getElementById('loadingState').style.display = 'block';
+            document.getElementById('statisticsContent').style.display = 'none';
         
+            // Загружаем все данные одним запросом
         const periodType = document.getElementById('periodSelect').value;
         const startDate = document.getElementById('startDate').value;
         const endDate = document.getElementById('endDate').value;
         
-        console.log('📋 Parameters:');
-        console.log('  - periodType:', periodType);
-        console.log('  - startDate:', startDate);
-        console.log('  - endDate:', endDate);
-        console.log('  - userInfo:', userInfo);
-        
-        document.getElementById('loadingState').style.display = 'block';
-        document.getElementById('statisticsContent').style.display = 'none';
-        document.getElementById('noDataState').style.display = 'none';
-        
-        try {
-            // Load summary data with selected period and dates
-            console.log('📊 Loading summary data...');
-            await loadSummaryData(periodType, startDate, endDate);
-            
-            // Build URL for detailed statistics
             let url = `/api/statistics/${userInfo.is_admin ? 'all' : 'my'}?period_type=${periodType}`;
             if (startDate && startDate.trim() !== '') {
                 url += `&start_date=${startDate}`;
@@ -840,108 +809,31 @@
                 url += `&end_date=${endDate}`;
             }
             
-            console.log('📡 Making API request to:', url);
             const response = await axios.get(url);
             statisticsData = response.data;
             
-            console.log('✅ API response received:');
-            console.log('  - status:', response.status);
-            console.log('  - data length:', statisticsData ? statisticsData.length : 'null');
-            console.log('  - data sample:', statisticsData ? statisticsData.slice(0, 2) : 'null');
-            
             if (!statisticsData || statisticsData.length === 0) {
-                console.log('⚠️ No data received, showing no data state');
                 showNoDataState();
                 return;
             }
             
-            console.log('🔄 Rendering table and charts...');
             renderStatisticsTable();
             renderCharts();
             
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('statisticsContent').style.display = 'block';
             
-            console.log('✅ Statistics loaded successfully');
-            
         } catch (error) {
-            console.error('❌ Error loading statistics:', error);
-            console.error('Error details:', error.response?.data || error.message);
-            console.error('Error status:', error.response?.status);
-            
-            if (error.response?.status === 400) {
-                showNotification('error', 'Ошибка запроса', error.response.data?.error || 'Неверные параметры запроса');
-            } else if (error.response?.status === 404) {
-                showNotification('info', 'Данные не найдены', 'За указанный период данные отсутствуют');
-            } else {
-                showNotification('error', 'Ошибка загрузки', 'Произошла ошибка при загрузке статистики');
-            }
-            
-            document.getElementById('loadingState').style.display = 'none';
+            console.error('Error loading statistics:', error);
             showNoDataState();
         }
     }
 
-    // Load summary data with selected parameters
-    async function loadSummaryData(periodType = 'daily', startDate = null, endDate = null) {
-        try {
-            // Build summary URL with parameters
-            let summaryUrl = '/api/statistics/summary';
-            const params = new URLSearchParams();
-            
-            // Determine period based on date range if provided
-            if (startDate && endDate) {
-                const start = new Date(startDate);
-                const end = new Date(endDate);
-                const diffTime = Math.abs(end - start);
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                
-                if (diffDays <= 1) {
-                    params.append('period', 'today');
-                } else if (diffDays <= 7) {
-                    params.append('period', 'week');
-                } else {
-                    params.append('period', 'month');
-                }
-                
-                params.append('start_date', startDate);
-                params.append('end_date', endDate);
-            } else {
-                // Default period
-                params.append('period', 'month');
-            }
-            
-            if (params.toString()) {
-                summaryUrl += '?' + params.toString();
-            }
-            
-            console.log('Loading summary with URL:', summaryUrl);
-            
-            const summaryResponse = await axios.get(summaryUrl);
-            const summary = summaryResponse.data;
-            
-            console.log('Summary data received:', summary);
-            
-            // Animate counters
-            setTimeout(() => animateCounter('totalMessages', summary.total_messages || 0), 100);
-            setTimeout(() => animateCounter('respondedMessages', summary.responded_messages || 0), 200);
-            setTimeout(() => animateCounter('missedMessages', summary.missed_messages || 0), 300);
-            setTimeout(() => animateCounter('efficiency', summary.efficiency_percent || 0), 400);
-            setTimeout(() => animateCounter('exceeded15', summary.exceeded_15_min || 0), 500);
-            setTimeout(() => animateCounter('exceeded30', summary.exceeded_30_min || 0), 600);
-            setTimeout(() => animateCounter('exceeded60', summary.exceeded_60_min || 0), 700);
-            
-        } catch (error) {
-            console.error('Error loading summary:', error);
-            // Set fallback values
-            animateCounter('totalMessages', 0);
-            animateCounter('respondedMessages', 0);
-            animateCounter('missedMessages', 0);
-            animateCounter('efficiency', 0);
-            animateCounter('exceeded15', 0);
-            animateCounter('exceeded30', 0);
-            animateCounter('exceeded60', 0);
-        }
+    // Auto refresh - уменьшаем частоту обновлений
+    function startAutoRefresh() {
+        refreshInterval = setInterval(() => {
+            loadStatistics();
+        }, 600000); // 10 minutes вместо 5
     }
 
     // Render statistics table

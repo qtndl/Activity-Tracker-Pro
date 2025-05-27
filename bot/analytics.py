@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.database import AsyncSessionLocal
@@ -24,7 +24,10 @@ class AnalyticsService:
             result = await session.execute(
                 select(DBMessage).where(
                     and_(
-                        DBMessage.employee_id == employee_id,
+                        or_(
+                            DBMessage.employee_id == employee_id,
+                            DBMessage.answered_by_employee_id == employee_id
+                        ),
                         DBMessage.received_at >= start_time
                     )
                 )

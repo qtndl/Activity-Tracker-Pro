@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import List, Dict, Any
 from aiogram.types import Message as TelegramMessage
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.database import AsyncSessionLocal
@@ -149,12 +149,14 @@ class SmartMonitoringService:
         employee = emp_result.scalar_one_or_none()
         
         if not employee:
+            logger.error(f"Сотрудник с Telegram ID {sender_telegram_id} не найден в базе данных")
             return
+        
+        logger.info(f"Найден сотрудник: id={employee.id}, telegram_id={employee.telegram_id}, name={employee.full_name}")
         
         # 1. Сначала находим сообщение, на которое отвечают, чтобы определить клиента
         replied_message_result = await db.execute(
             select(Message).where(
-                Message.employee_id == employee.id,
                 Message.chat_id == telegram_message.chat.id,
                 Message.message_id == reply_to_message_id,
                 Message.message_type == "client"
@@ -166,6 +168,16 @@ class SmartMonitoringService:
             logger.info(f"Не найдено исходное сообщение для reply {reply_to_message_id}")
             return
         
+        # Обновляем сообщение, на которое отвечают, если оно еще не отвечено
+        if replied_message.responded_at is None:
+            replied_message.responded_at = datetime.utcnow()
+            time_diff = replied_message.responded_at - replied_message.received_at
+            replied_message.response_time_minutes = time_diff.total_seconds() / 60
+            replied_message.answered_by_employee_id = employee.id  # Используем ID сотрудника из базы данных
+            await db.commit()  # Явно сохраняем изменения
+            await self.notification_service.cancel_notifications(replied_message.id)
+            logger.info(f"Сообщение {replied_message.id} отмечено как отвеченное сотрудником {employee.id} (время ответа: {replied_message.response_time_minutes:.1f} мин)")
+        
         client_telegram_id = replied_message.client_telegram_id
         if not client_telegram_id:
             logger.info(f"У сообщения {reply_to_message_id} нет ID клиента")
@@ -174,11 +186,14 @@ class SmartMonitoringService:
         # 2. Теперь находим ВСЕ неотвеченные сообщения от этого клиента для данного сотрудника
         all_messages_result = await db.execute(
             select(Message).where(
-                Message.employee_id == employee.id,
                 Message.chat_id == telegram_message.chat.id,
                 Message.client_telegram_id == client_telegram_id,
                 Message.responded_at.is_(None),
-                Message.message_type == "client"
+                Message.message_type == "client",
+                or_(
+                    Message.employee_id == employee.id,
+                    Message.addressed_to_employee_id == employee.id
+                )
             ).order_by(Message.received_at)  # Сортируем по времени для логирования
         )
         
@@ -198,12 +213,14 @@ class SmartMonitoringService:
             # Вычисляем время ответа ИНДИВИДУАЛЬНО для каждого сообщения
             time_diff = message.responded_at - message.received_at
             message.response_time_minutes = time_diff.total_seconds() / 60
+            message.answered_by_employee_id = employee.id  # Используем ID сотрудника из базы данных
+            await db.commit()  # Явно сохраняем изменения после каждого обновления
             
             # Отменяем запланированные уведомления для каждого сообщения
             await self.notification_service.cancel_notifications(message.id)
             
             updated_count += 1
-            logger.info(f"Сообщение {message.id} отмечено как отвеченное (время ответа: {message.response_time_minutes:.1f} мин)")
+            logger.info(f"Сообщение {message.id} отмечено как отвеченное сотрудником {employee.id} (время ответа: {message.response_time_minutes:.1f} мин)")
         
         logger.info(f"Ответ сотрудника {employee.full_name} закрыл {updated_count} сообщений от клиента {client_telegram_id}")
         

@@ -114,32 +114,51 @@ class MessageTracker:
 
         chat_id = employee_reply_message.chat.id
         client_telegram_id = employee_reply_message.reply_to_message.from_user.id
+        logger.info(f"[DEBUG] Начало mark_as_responded: chat_id={chat_id}, client_telegram_id={client_telegram_id}, responding_employee_id={responding_employee_id}")
 
-        # Закрываем сессию: отмечаем все неотвеченные сообщения этого клиента в этом чате для всех сотрудников
+        # Получаем ID сотрудника из базы данных
         async with AsyncSessionLocal() as session:
+            employee_result = await session.execute(
+                select(Employee).where(Employee.telegram_id == responding_employee_id)
+            )
+            employee = employee_result.scalar_one_or_none()
+            
+            if not employee:
+                logger.error(f"Сотрудник с Telegram ID {responding_employee_id} не найден в базе данных")
+                return
+            
+            logger.info(f"[ASSERT DEBUG] employee.id={employee.id}, employee.telegram_id={employee.telegram_id}, employee.full_name={employee.full_name}")
+            assert employee.id != employee.telegram_id, f"BUG: employee.id == telegram_id! {employee.id}"
+            
+            logger.info(f"[DEBUG] Найден сотрудник: id={employee.id}, telegram_id={employee.telegram_id}, name={employee.full_name}")
+            
+            # Закрываем сессию: отмечаем все неотвеченные сообщения этого клиента в этом чате для этого сотрудника
             all_db_messages_for_client = await session.execute(
                 select(DBMessage).where(
                     and_(
                         DBMessage.chat_id == chat_id,
                         DBMessage.client_telegram_id == client_telegram_id,
+                        DBMessage.employee_id == employee.id,  # Только сообщения, назначенные этому сотруднику
                         DBMessage.responded_at.is_(None),
                         DBMessage.is_deleted == False
                     )
                 )
             )
             db_messages_to_update = all_db_messages_for_client.scalars().all()
+            logger.info(f"[DEBUG] Найдено {len(db_messages_to_update)} неотвеченных сообщений для обновления")
+            
             if db_messages_to_update:
                 logger.info(f"[SESSION-CLOSE] Найдено {len(db_messages_to_update)} DBMessage для клиента {client_telegram_id} в чате {chat_id} — закрываем сессию.")
                 for db_msg in db_messages_to_update:
                     logger.info(f"[SESSION-CLOSE] Закрываем DBMessage.id={db_msg.id}, employee_id={db_msg.employee_id}, message_id={db_msg.message_id}, received_at={db_msg.received_at}")
                     db_msg.responded_at = datetime.utcnow()
-                    db_msg.answered_by_employee_id = responding_employee_id
+                    db_msg.answered_by_employee_id = employee.id  # Используем ID сотрудника из базы данных
+                    logger.info(f"[DEBUG] Установлен answered_by_employee_id={employee.id} для сообщения {db_msg.id}")
                     await self.notifications.cancel_notifications(db_msg.id)
                 await session.commit()
-                logger.info(f"[SESSION-CLOSE] Сессия клиента {client_telegram_id} в чате {chat_id} закрыта для всех сотрудников.")
+                logger.info(f"[SESSION-CLOSE] Сессия клиента {client_telegram_id} в чате {chat_id} закрыта для сотрудника {employee.id}.")
             else:
                 logger.info(f"[SESSION-CLOSE] Не найдено DBMessage для клиента {client_telegram_id} в чате {chat_id} — возможно, уже отвечено или удалено.")
-        # Остальной старый код можно оставить для совместимости, но сессия уже будет закрыта выше
 
     async def mark_as_deleted(self, chat_id: int, message_id: int): # message_id здесь это Telegram message_id
         """Отметка сообщения как удаленного"""
