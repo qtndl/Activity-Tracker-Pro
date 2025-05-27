@@ -132,13 +132,12 @@ class MessageTracker:
             
             logger.info(f"[DEBUG] Найден сотрудник: id={employee.id}, telegram_id={employee.telegram_id}, name={employee.full_name}")
             
-            # Закрываем сессию: отмечаем все неотвеченные сообщения этого клиента в этом чате для этого сотрудника
+            # Закрываем сессию: отмечаем все неотвеченные сообщения этого клиента в этом чате для всех сотрудников
             all_db_messages_for_client = await session.execute(
                 select(DBMessage).where(
                     and_(
                         DBMessage.chat_id == chat_id,
                         DBMessage.client_telegram_id == client_telegram_id,
-                        DBMessage.employee_id == employee.id,  # Только сообщения, назначенные этому сотруднику
                         DBMessage.responded_at.is_(None),
                         DBMessage.is_deleted == False
                     )
