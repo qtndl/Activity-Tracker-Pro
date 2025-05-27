@@ -18,148 +18,100 @@ class NotificationService:
         self.scheduled_tasks: Dict[int, List[asyncio.Task]] = {}  # message_id (DBMessage.id): [tasks]
     
     async def schedule_warnings_for_message(self, message_id: int, employee_id: int, chat_id: int):
-        """Планирование всех предупреждений для сообщения (DBMessage.id)"""
-        logger.info(f"[TASK_CREATE_INIT] Инициировано планирование для DBMessage.id={message_id}, Employee.id={employee_id}")
-        # Проверяем включены ли уведомления
+        delays = await settings_manager.get_notification_delays()
+        types = ["warning_15", "warning_30", "warning_60"]
+        logger.info(f"[NOTIFY] Планирование уведомлений: DBMessage={message_id}, Employee={employee_id}, Delays={delays}m, Types={types}")
         if not await settings_manager.notifications_enabled():
-            logger.info("Уведомления отключены в настройках")
+            logger.info("[NOTIFY] Уведомления отключены в настройках")
             return
-        
-        # Получаем настройки задержек
-        delay1, delay2, delay3 = await settings_manager.get_notification_delays()
-        
-        # Планируем уведомления
-        await self.schedule_warning(message_id, employee_id, chat_id, delay1, "warning_15")
-        await self.schedule_warning(message_id, employee_id, chat_id, delay2, "warning_30")
-        await self.schedule_warning(message_id, employee_id, chat_id, delay3, "warning_60")
+        for delay, ntype in zip(delays, types):
+            await self.schedule_warning(message_id, employee_id, chat_id, delay, ntype)
     
-    async def schedule_warning(self, message_id: int, employee_id: int, 
-                             chat_id: int, delay_minutes: int, notification_type: str):
-        """Планирование предупреждения о неотвеченном сообщении (DBMessage.id)"""
-        logger.info(f"[TASK_CREATE_SCHEDULE] Планирование задачи для DBMessage.id={message_id}, Employee.id={employee_id}, Delay={delay_minutes}m, Type={notification_type}")
+    async def schedule_warning(self, message_id: int, employee_id: int, chat_id: int, delay_minutes: int, notification_type: str):
         task = asyncio.create_task(
             self._send_delayed_warning(message_id, employee_id, chat_id, delay_minutes, notification_type)
         )
-        
         if message_id not in self.scheduled_tasks:
             self.scheduled_tasks[message_id] = []
-        
         self.scheduled_tasks[message_id].append(task)
     
-    async def _send_delayed_warning(self, message_id: int, employee_id: int, 
-                                  chat_id: int, delay_minutes: int, notification_type: str):
-        """Отправка отложенного предупреждения (DBMessage.id)"""
-        task_id = id(asyncio.current_task()) # Получаем ID текущей задачи asyncio
-        logger.info(f"[TASK_START] DBMessage.id={message_id}, Employee.id={employee_id}, TaskID={task_id}, Delay={delay_minutes}m, Type={notification_type} - Ожидание {delay_minutes*60} сек.")
+    async def _send_delayed_warning(self, message_id: int, employee_id: int, chat_id: int, delay_minutes: int, notification_type: str):
+        # Группируем логи ожидания по DBMessage и Employee
+        if delay_minutes == 1:
+            logger.info(f"[NOTIFY] Ожидание: DBMessage={message_id}, Employee={employee_id}, Delays=[1m, 2m, 60m], Types=[warning_15, warning_30, warning_60]")
         try:
-            # Ждем указанное время
             await asyncio.sleep(delay_minutes * 60)
-            
-            logger.info(f"[TASK_AWAKE] DBMessage.id={message_id}, Employee.id={employee_id}, TaskID={task_id} - Проснулся после ожидания. Проверка статуса сообщения.")
-            
-            # Проверяем, было ли сообщение отвечено
             async with AsyncSessionLocal() as session:
-                result = await session.execute(
-                    select(Message).where(Message.id == message_id)
-                )
+                result = await session.execute(select(Message).where(Message.id == message_id))
                 message = result.scalar_one_or_none()
-                
                 if message and not message.responded_at:
-                    # Получаем информацию о сотруднике
-                    emp_result = await session.execute(
-                        select(Employee).where(Employee.id == employee_id)
-                    )
+                    emp_result = await session.execute(select(Employee).where(Employee.id == employee_id))
                     employee = emp_result.scalar_one_or_none()
-                    
-                    # Отправляем уведомление только активным сотрудникам
-                    # Деактивированные = на выходных/в отпуске/на больничном
                     if employee and employee.is_active:
-                        # Отправляем уведомление
                         warning_text = self._get_warning_text(delay_minutes, message)
-                        
                         try:
-                            await self.bot.send_message(
-                                employee.telegram_id,
-                                warning_text,
-                                parse_mode="HTML"
-                            )
-                            
-                            # Сохраняем уведомление в БД
-                            notification = Notification(
-                                employee_id=employee_id,
-                                notification_type=notification_type,
-                                message_id=message_id
-                            )
+                            await self.bot.send_message(employee.telegram_id, warning_text, parse_mode="HTML")
+                            notification = Notification(employee_id=employee_id, notification_type=notification_type, message_id=message_id)
                             session.add(notification)
                             await session.commit()
-                            
-                            logger.info(f"[TASK_SENT] DBMessage.id={message_id}, Employee.id={employee_id}, TaskID={task_id} - Уведомление отправлено.")
-                            
+                            logger.info(f"[NOTIFY] Уведомление отправлено: DBMessage={message_id}, Employee={employee_id}, Type={notification_type}")
                         except Exception as e:
-                            logger.error(f"[TASK_ERROR_SEND] DBMessage.id={message_id}, Employee.id={employee_id}, TaskID={task_id} - Не удалось отправить: {e}")
+                            logger.error(f"[NOTIFY] Ошибка отправки: DBMessage={message_id}, Employee={employee_id}, Type={notification_type}: {e}")
                     else:
-                        if employee and not employee.is_active:
-                            logger.info(f"[TASK_INACTIVE_EMP] DBMessage.id={message_id}, Employee.id={employee_id}, TaskID={task_id} - Сотрудник неактивен.")
-                        elif not employee:
-                            logger.info(f"[TASK_NO_EMP] DBMessage.id={message_id}, TaskID={task_id} - Сотрудник не найден для Employee.id={employee_id}.")
+                        logger.info(f"[NOTIFY] Сотрудник неактивен или не найден: Employee={employee_id}")
                 else:
-                    if message and message.responded_at:
-                        logger.info(f"[TASK_ALREADY_RESPONDED] DBMessage.id={message_id}, TaskID={task_id} - Сообщение уже отвечено, уведомление не нужно.")
-                    elif not message:
-                        logger.info(f"[TASK_NO_MESSAGE] DBMessage.id={message_id}, TaskID={task_id} - Сообщение не найдено в БД, отмена уведомления.")
-        
+                    logger.info(f"[NOTIFY] Сообщение уже отвечено или не найдено: DBMessage={message_id}")
         except asyncio.CancelledError:
-            logger.info(f"[TASK_CANCELLED_EXCEPTION] DBMessage.id={message_id}, TaskID={task_id} - Задача отменена через исключение.")
-            pass
-        
+            logger.info(f"[NOTIFY] Уведомление отменено: DBMessage={message_id}, Employee={employee_id}, Type={notification_type}")
         finally:
-            logger.info(f"[TASK_FINALLY] DBMessage.id={message_id}, TaskID={task_id} - Вход в блок finally.")
-            # Удаляем задачу из списка
             if message_id in self.scheduled_tasks:
-                original_task_count = len(self.scheduled_tasks[message_id])
-                self.scheduled_tasks[message_id] = [
-                    t for t in self.scheduled_tasks[message_id] if not t.done()
-                ]
-                new_task_count = len(self.scheduled_tasks[message_id])
-                logger.info(f"[TASK_FINALLY_CLEANUP] DBMessage.id={message_id}, TaskID={task_id} - Задач было: {original_task_count}, стало: {new_task_count}. Текущая задача {'выполнена' if asyncio.current_task().done() else 'НЕ выполнена'}.")
+                self.scheduled_tasks[message_id] = [t for t in self.scheduled_tasks[message_id] if not t.done()]
                 if not self.scheduled_tasks[message_id]:
                     del self.scheduled_tasks[message_id]
-                    logger.info(f"[TASK_FINALLY_DELETED_KEY] DBMessage.id={message_id}, TaskID={task_id} - Ключ удален из scheduled_tasks.")
-            else:
-                logger.warning(f"[TASK_FINALLY_NO_KEY] DBMessage.id={message_id}, TaskID={task_id} - Ключ уже отсутствует в scheduled_tasks.")
     
     async def cancel_notifications(self, message_id: int):
-        """Отмена всех запланированных уведомлений для сообщения (DBMessage.id)"""
-        logger.info(f"[TASK_CANCEL_INIT] Инициирована отмена для DBMessage.id={message_id}")
+        logger.info(f"[NOTIFY] Отмена уведомлений: DBMessage={message_id}")
         if message_id in self.scheduled_tasks:
-            tasks_to_cancel = self.scheduled_tasks[message_id]
-            logger.info(f"[TASK_CANCEL_FOUND] DBMessage.id={message_id} - Найдено {len(tasks_to_cancel)} задач для отмены.")
-            for task_index, task in enumerate(tasks_to_cancel):
-                task_id = id(task)
+            for task in self.scheduled_tasks[message_id]:
                 if not task.done():
                     task.cancel()
-                    logger.info(f"[TASK_CANCEL_ATTEMPT] DBMessage.id={message_id}, TaskIndex={task_index}, TaskID={task_id} - Вызван cancel().")
-                else:
-                    logger.info(f"[TASK_CANCEL_ALREADY_DONE] DBMessage.id={message_id}, TaskIndex={task_index}, TaskID={task_id} - Задача уже выполнена, не отменяем.")
-            
-            # Важно: НЕ удаляем ключ self.scheduled_tasks[message_id] здесь.
-            # Блок finally в _send_delayed_warning сам очистит этот список и ключ, когда все задачи завершатся.
-            # Если удалить здесь, а задачи еще выполняют finally, будет ошибка.
         else:
-            logger.info(f"[TASK_CANCEL_NOT_FOUND] DBMessage.id={message_id} - Задачи для отмены не найдены (ключ отсутствует).")
+            logger.info(f"[NOTIFY] Нет задач для отмены: DBMessage={message_id}")
     
     def _get_warning_text(self, delay_minutes: int, message: Message) -> str:
         """Генерация текста предупреждения"""
-        # Получаем ссылку на чат
         chat_id = message.chat_id if hasattr(message, 'chat_id') else message.chat.id
         abs_chat_id = abs(chat_id)
-        chat_link = f"https://t.me/c/{abs_chat_id}"
+        chat_username = getattr(message, 'chat_username', None)
+        chat_link = None
+        # Логируем содержимое message.chat
+        try:
+            logger.info(f"[NOTIFY-DEBUG] message.chat: {getattr(message, 'chat', None)}")
+        except Exception as e:
+            logger.warning(f"[NOTIFY-DEBUG] Не удалось залогировать message.chat: {e}")
+        if not chat_username and hasattr(self.bot, 'get_chat'):
+            try:
+                chat = asyncio.get_event_loop().run_until_complete(self.bot.get_chat(chat_id))
+                logger.info(f"[NOTIFY-DEBUG] self.bot.get_chat({chat_id}): {chat}")
+                chat_username = getattr(chat, 'username', None)
+                if chat_username:
+                    logger.info(f"[NOTIFY-DEBUG] Получен username чата: {chat_username}")
+                else:
+                    logger.info(f"[NOTIFY-DEBUG] Username чата отсутствует")
+            except Exception as e:
+                logger.warning(f"[NOTIFY-DEBUG] Ошибка при self.bot.get_chat({chat_id}): {e}")
+                chat_username = None
+        if chat_username:
+            chat_link = f"https://t.me/{chat_username}"
+            chat_line = f"Чат: <a href='{chat_link}'>Перейти в чат</a>"
+        else:
+            chat_line = f"Чат: <code>{chat_id}</code> (приватный, ссылка недоступна)"
         
         # Формируем текст уведомления
         return (
-            f"⚠️ <b>Вам не ответили на сообщение клиента!</b>\n"
+            f"⚠️ <b>Вы не ответили на сообщение клиента!</b>\n"
             f"\n"
-            f"Чат: <a href='{chat_link}'>Перейти в чат</a>\n"
+            f"{chat_line}\n"
             f"ID клиента: <code>{message.client_telegram_id}</code>\n"
             f"Текст: {message.message_text[:50]}...\n"
             f"\n"
