@@ -223,7 +223,13 @@ async def get_messages(
     result = await db.execute(query)
     messages = result.scalars().all()
     
-    return messages
+    # Оставляем только уникальные сообщения по паре (client_telegram_id, message_id)
+    unique = {}
+    for msg in messages:
+        key = (msg.client_telegram_id, msg.message_id)
+        if key not in unique:
+            unique[key] = msg
+    return list(unique.values())
 
 
 @router.get("/employee/{employee_id}")
