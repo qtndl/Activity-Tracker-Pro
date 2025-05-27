@@ -138,7 +138,7 @@
     .summary-stat.danger::before { background: var(--danger); }
     .summary-stat.warning::before { background: var(--warning); }
 
-    .summary-stat:hover {
+    /*    .summary-stat:hover {
         transform: translateY(-10px) scale(1.02);
         box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
     }
@@ -146,7 +146,7 @@
     .summary-stat:hover::before {
         height: 100%;
         opacity: 0.1;
-    }
+    }*/
 
     .summary-icon {
         width: 100px;
@@ -285,6 +285,7 @@
         color: var(--dark-text);
     }
 
+    /*
     .table tbody tr {
         transition: all 0.3s ease;
     }
@@ -293,6 +294,7 @@
         transform: scale(1.01);
         box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
     }
+    */
 
     .badge {
         border-radius: 15px;
@@ -458,7 +460,7 @@
 {% block content %}
 <div class="container-fluid">
     <!-- Analytics Hero -->
-    <div class="analytics-hero animate-fade-in">
+    <div class="analytics-hero">
         <div class="hero-content">
             <div class="row align-items-center">
                 <div class="col-lg-8">
@@ -484,7 +486,7 @@
     </div>
 
     <!-- Period Control -->
-    <div class="period-control" style="animation-delay: 0.2s">
+    <div class="period-control">
         <div class="row align-items-end">
             <div class="col-lg-3">
                 <label class="form-label fw-bold">
@@ -550,7 +552,7 @@
     <!-- Statistics Content -->
     <div id="statisticsContent">
         <!-- Summary Statistics -->
-        <div class="summary-grid animate-slide-up" style="animation-delay: 0.4s" id="summarySection">
+        <div class="summary-grid" id="summarySection">
             <div class="summary-stat total">
                 <div class="summary-icon total">
                     <i class="fas fa-envelope text-white"></i>
@@ -582,7 +584,7 @@
         </div>
 
         <!-- Violations Section -->
-        <div class="violations-section animate-slide-up" style="animation-delay: 0.6s">
+        <div class="violations-section">
             <div class="violations-header">
                 <h5 class="mb-0">
                     <i class="fas fa-stopwatch me-2"></i>
@@ -620,7 +622,7 @@
         </div>
 
         <!-- Data Table -->
-        <div class="data-table-section animate-slide-up" style="animation-delay: 0.8s">
+        <div class="data-table-section">
             <div class="table-header">
                 <h5 class="mb-0">
                     <i class="fas fa-table me-2"></i>
@@ -660,7 +662,7 @@
         <!-- Charts Section -->
         <div class="row">
             <div class="col-lg-8 mb-4">
-                <div class="chart-container animate-slide-up" style="animation-delay: 1s">
+                <div class="chart-container">
                     <div class="chart-title">
                         <i class="fas fa-chart-area"></i>
                         <span>Динамика времени ответа</span>
@@ -671,7 +673,7 @@
                 </div>
             </div>
             <div class="col-lg-4 mb-4">
-                <div class="chart-container animate-slide-up" style="animation-delay: 1.2s">
+                <div class="chart-container">
                     <div class="chart-title">
                         <i class="fas fa-chart-pie"></i>
                         <span>Распределение результатов</span>
