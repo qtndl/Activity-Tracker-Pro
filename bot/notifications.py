@@ -113,7 +113,7 @@ class NotificationService:
             if invite_link:
                 chat_line = f"Чат: <a href='{invite_link}'>Рабочий чат</a>"
             else:
-                chat_line = f"Чат: <code>{chat_id}</code> (приватный, ссылка недоступна)"
+            chat_line = f"Чат: <code>{chat_id}</code> (приватный, ссылка недоступна)"
 
         # Формируем ссылку на профиль клиента
         client_profile = None

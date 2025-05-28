@@ -69,6 +69,7 @@ class GoogleSheetsService:
                 "Превышений 60 мин",
                 "Процент ответов (%)",
                 "Эффективность (%)",
+                "Отложено",
                 "Период"
             ]
             
@@ -80,6 +81,13 @@ class GoogleSheetsService:
             ]
             
             for emp in employees_stats:
+                # Считаем отложенные сообщения для сотрудника
+                deferred_count = 0
+                if hasattr(emp, 'deferred_messages'):
+                    deferred_count = emp.deferred_messages
+                elif hasattr(emp, 'employee_id'):
+                    # fallback: если нет поля, пробуем посчитать вручную (можно доработать через сервис)
+                    deferred_count = 0
                 row = [
                     emp.employee_id,
                     emp.employee_name,
@@ -97,6 +105,7 @@ class GoogleSheetsService:
                     emp.exceeded_60_min,
                     round(emp.response_rate, 1),
                     round(emp.efficiency_percent, 1),
+                    deferred_count,
                     f"{emp.period_start.strftime('%Y-%m-%d')} - {emp.period_end.strftime('%Y-%m-%d')}"
                 ]
                 data.append(row)
@@ -117,6 +126,7 @@ class GoogleSheetsService:
                     sum(emp.exceeded_60_min for emp in employees_stats),
                     round(sum(emp.response_rate for emp in employees_stats) / len(employees_stats), 1),
                     round(sum(emp.efficiency_percent for emp in employees_stats) / len(employees_stats), 1),
+                    "",
                     ""
                 ])
             

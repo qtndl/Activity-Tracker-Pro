@@ -644,11 +644,12 @@
                             <th><i class="fas fa-exclamation me-2"></i>>30м</th>
                             <th><i class="fas fa-exclamation me-2"></i>>60м</th>
                             <th><i class="fas fa-chart-line me-2"></i>Результат</th>
+                            {% if userInfo and userInfo.is_admin %}<th><i class="fab fa-google me-2"></i>Экспорт</th>{% endif %}
                         </tr>
                     </thead>
                     <tbody id="statisticsTableBody">
                         <tr>
-                            <td colspan="10" class="text-center py-5">
+                            <td colspan="{% if userInfo and userInfo.is_admin %}12{% else %}11{% endif %}" class="text-center py-5">
                                 <div class="loading-skeleton"></div>
                                 <div class="loading-skeleton"></div>
                                 <div class="loading-skeleton"></div>
@@ -846,7 +847,8 @@
         }
         
         if (statisticsData.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" class="text-center py-5">Нет данных за выбранный период</td></tr>';
+            const colCount = userInfo.is_admin ? 12 : 11;
+            tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-center py-5">Нет данных за выбранный период</td></tr>`;
             return;
         }
         
@@ -878,8 +880,56 @@
                         </div>
                     </div>
                 </td>
+                ${userInfo.is_admin ? `<td><button class="btn btn-outline-success btn-sm" title="Экспортировать детальный отчёт" onclick="exportToSheetsByEmployee(${stat.employee_id}, this)"><i class="fab fa-google"></i></button></td>` : ''}
             </tr>
         `).join('');
+    }
+
+    // Экспорт детального отчёта по сотруднику (для админа)
+    async function exportToSheetsByEmployee(employeeId, btn) {
+        const periodType = document.getElementById('periodSelect').value;
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        // Показываем индикатор загрузки
+        const originalContent = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>';
+        btn.disabled = true;
+        try {
+            let period = 'today';
+            if (startDate && endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                const diffTime = Math.abs(end - start);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays <= 1) period = 'today';
+                else if (diffDays <= 7) period = 'week';
+                else period = 'month';
+            } else if (periodType === 'weekly') {
+                period = 'week';
+            } else if (periodType === 'monthly') {
+                period = 'month';
+            }
+            const params = new URLSearchParams({ period, employee_id: employeeId });
+            if (startDate) params.append('start_date', startDate);
+            if (endDate) params.append('end_date', endDate);
+            const response = await axios.post(`/api/statistics/export-to-sheets?${params.toString()}`);
+            if (response.data.success) {
+                showNotification('success', 'Экспорт завершен!', 
+                    `${response.data.message}<br>
+                     <a href="${response.data.url}" target="_blank" class="btn btn-sm btn-light mt-2">
+                         <i class="fas fa-external-link-alt me-1"></i>Открыть таблицу
+                     </a>`
+                );
+            } else {
+                throw new Error(response.data.error || 'Ошибка экспорта');
+            }
+        } catch (error) {
+            console.error('Export error:', error);
+            showNotification('error', 'Ошибка экспорта', 'Не удалось экспортировать детальный отчёт по сотруднику');
+        } finally {
+            btn.innerHTML = originalContent;
+            btn.disabled = false;
+        }
     }
 
     // Get efficiency class

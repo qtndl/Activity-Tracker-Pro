@@ -620,7 +620,10 @@
                     if ((responseTime === undefined || responseTime === null) && msg.responded_at && msg.received_at) {
                         const received = new Date(msg.received_at);
                         const responded = new Date(msg.responded_at);
-                        responseTime = ((responded - received) / 60000).toFixed(1);
+                        responseTime = ((responded - received) / 60000).toFixed(2);
+                    }
+                    if (responseTime !== undefined && responseTime !== null) {
+                        responseTime = Number(responseTime).toFixed(2);
                     }
                     return `
                     <tr>

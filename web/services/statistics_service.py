@@ -43,6 +43,7 @@ class EmployeeStats:
     period_start: datetime
     period_end: datetime
     period_name: str
+    deferred_messages: int
 
 
 class StatisticsService:
@@ -81,6 +82,12 @@ class StatisticsService:
         # Вычисляем статистику
         stats = self._calculate_stats(messages)
         
+        # Считаем отложенные сообщения для сотрудника за период
+        deferred_count = len([
+            m for m in messages
+            if m.is_deferred and not m.is_deleted and m.answered_by_employee_id == employee_id
+        ])
+        
         return EmployeeStats(
             employee_id=employee.id,
             employee_name=employee.full_name,
@@ -91,6 +98,7 @@ class StatisticsService:
             period_start=period_start,
             period_end=period_end,
             period_name=period,
+            deferred_messages=deferred_count,
             **stats
         )
     
@@ -120,6 +128,12 @@ class StatisticsService:
             messages = await self._get_messages_for_period(employee.id, period_start, period_end)
             stats = self._calculate_stats(messages)
             
+            # Считаем отложенные сообщения для сотрудника за период
+            deferred_count = len([
+                m for m in messages
+                if m.is_deferred and not m.is_deleted and m.answered_by_employee_id == employee.id
+            ])
+            
             all_stats.append(EmployeeStats(
                 employee_id=employee.id,
                 employee_name=employee.full_name,
@@ -130,6 +144,7 @@ class StatisticsService:
                 period_start=period_start,
                 period_end=period_end,
                 period_name=period,
+                deferred_messages=deferred_count,
                 **stats
             ))
         
