@@ -109,31 +109,41 @@ class StatisticsService:
         end_date: Optional[date] = None,
         employee_id: Optional[int] = None
     ) -> List[EmployeeStats]:
-        """Получить статистику всех сотрудников"""
-        
+        """Получить статистику всех сотрудников (оптимизировано: все сообщения одним запросом)"""
         # Получаем список сотрудников
         employee_query = select(Employee)
         if employee_id:
             employee_query = employee_query.where(Employee.id == employee_id)
-        
         employees_result = await self.db.execute(employee_query)
         employees = employees_result.scalars().all()
-        
+        employees_by_id = {e.id: e for e in employees}
+        if not employees:
+            return []
         # Определяем период
         period_start, period_end = self._get_period_dates(period, start_date, end_date)
-        
-        # Получаем статистику для каждого сотрудника
+        # Получаем все сообщения за период одним запросом
+        result = await self.db.execute(
+            select(Message).where(
+                Message.employee_id.in_(employees_by_id.keys()),
+                Message.received_at >= period_start,
+                Message.received_at <= period_end
+            )
+        )
+        all_messages = result.scalars().all()
+        # Группируем сообщения по сотрудникам
+        from collections import defaultdict
+        messages_by_employee = defaultdict(list)
+        for msg in all_messages:
+            messages_by_employee[msg.employee_id].append(msg)
+        # Считаем статистику для каждого сотрудника
         all_stats = []
         for employee in employees:
-            messages = await self._get_messages_for_period(employee.id, period_start, period_end)
+            messages = messages_by_employee.get(employee.id, [])
             stats = self._calculate_stats(messages)
-            
-            # Считаем отложенные сообщения для сотрудника за период
             deferred_count = len([
                 m for m in messages
                 if m.is_deferred and not m.is_deleted and m.answered_by_employee_id == employee.id
             ])
-            
             all_stats.append(EmployeeStats(
                 employee_id=employee.id,
                 employee_name=employee.full_name,
@@ -147,7 +157,6 @@ class StatisticsService:
                 deferred_messages=deferred_count,
                 **stats
             ))
-        
         return all_stats
     
     async def get_dashboard_overview(self, user_id: int, is_admin: bool, period: str = "today") -> Dict[str, Any]:
