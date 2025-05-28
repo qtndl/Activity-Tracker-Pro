@@ -108,30 +108,31 @@ async def get_my_statistics(
     return grouped_stats
 
 
-@router.get("/all", response_model=List[StatisticsResponse])
+@router.get("/all")
 async def get_all_statistics(
     period_type: str = Query("daily", regex="^(daily|weekly|monthly)$"),
     employee_id: Optional[int] = None,
     start_date: Optional[date] = None,
     end_date: Optional[date] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
     current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получить детальную статистику всех сотрудников - ЕДИНЫЙ ИСТОЧНИК ДАННЫХ"""
-    
+    """Получить детальную статистику всех сотрудников с серверной пагинацией"""
     stats_service = StatisticsService(db)
-    
-    # Получаем статистику
     all_stats = await stats_service.get_all_employees_stats(
         period=period_type,
         start_date=start_date,
         end_date=end_date,
         employee_id=employee_id
     )
-    
-    # Конвертируем в формат ответа
+    total = len(all_stats)
+    start_idx = (page - 1) * page_size
+    end_idx = start_idx + page_size
+    page_data = all_stats[start_idx:end_idx]
     result = []
-    for stats in all_stats:
+    for stats in page_data:
         result.append(StatisticsResponse(
             employee_id=stats.employee_id,
             employee_name=stats.employee_name,
@@ -147,8 +148,12 @@ async def get_all_statistics(
             exceeded_60_min=stats.exceeded_60_min,
             efficiency_percent=stats.efficiency_percent
         ))
-    
-    return sorted(result, key=lambda x: x.date, reverse=True)
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "data": sorted(result, key=lambda x: x.date, reverse=True)
+    }
 
 
 @router.get("/summary")

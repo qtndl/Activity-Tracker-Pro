@@ -660,32 +660,6 @@
                 <div id="statisticsPagination" class="mt-3"></div>
             </div>
         </div>
-
-        <!-- Charts Section -->
-        <div class="row">
-            <div class="col-lg-8 mb-4">
-                <div class="chart-container">
-                    <div class="chart-title">
-                        <i class="fas fa-chart-area"></i>
-                        <span>Динамика времени ответа</span>
-                    </div>
-                    <div class="chart-body">
-                        <canvas id="efficiencyChart"></canvas>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-4 mb-4">
-                <div class="chart-container">
-                    <div class="chart-title">
-                        <i class="fas fa-chart-pie"></i>
-                        <span>Распределение результатов</span>
-                    </div>
-                    <div class="chart-body">
-                        <canvas id="responsePieChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- No Data State -->
@@ -706,14 +680,14 @@
 <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
     // Получаем данные пользователя из серверного шаблона
+    window.userInfo = window.userInfo || {};
     const serverUserData = {
-        employee_id: {{ userInfo.employee_id or 0 }},
-        telegram_id: {{ userInfo.telegram_id or 0 }},
+        employee_id: '{{ userInfo.employee_id or 0 }}',
+        telegram_id: '{{ userInfo.telegram_id or 0 }}',
         full_name: '{{ userInfo.full_name or "Guest" }}',
-        is_admin: {% if userInfo.is_admin %}true{% else %}false{% endif %},
-        is_active: {% if userInfo.is_active %}true{% else %}false{% endif %}
+        is_admin: '{{ "true" if userInfo.is_admin else "false" }}',
+        is_active: '{{ "true" if userInfo.is_active else "false" }}'
     };
-    
     // Обновляем userInfo из base.html актуальными серверными данными
     Object.assign(userInfo, serverUserData);
     
@@ -722,8 +696,7 @@
     let statisticsData = [];
     let currentPage = 1;
     const pageSize = 10;
-    let efficiencyChart = null;
-    let responsePieChart = null;
+    let totalRows = 0;
 
     // Update current time
     function updateCurrentTime() {
@@ -796,16 +769,14 @@
     }
 
     // Load statistics - оптимизированная версия
-    async function loadStatistics() {
+    async function loadStatistics(page = 1) {
         try {
-            document.getElementById('loadingState').style.display = 'block';
-            document.getElementById('statisticsContent').style.display = 'none';
-        
-            // Загружаем все данные одним запросом
-        const periodType = document.getElementById('periodSelect').value;
-        const startDate = document.getElementById('startDate').value;
-        const endDate = document.getElementById('endDate').value;
-        
+            const tbody = document.getElementById('statisticsTableBody');
+            const colCount = userInfo.is_admin ? 12 : 11;
+            tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-center py-5"><div class="loading-skeleton"></div></td></tr>`;
+            const periodType = document.getElementById('periodSelect').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
             let url = `/api/statistics/${userInfo.is_admin ? 'all' : 'my'}?period_type=${periodType}`;
             if (startDate && startDate.trim() !== '') {
                 url += `&start_date=${startDate}`;
@@ -813,21 +784,24 @@
             if (endDate && endDate.trim() !== '') {
                 url += `&end_date=${endDate}`;
             }
-            
+            if (userInfo.is_admin) {
+                url += `&page=${page}&page_size=${pageSize}`;
+            }
             const response = await axios.get(url);
-            statisticsData = response.data;
-            
+            if (userInfo.is_admin) {
+                statisticsData = response.data.data;
+                totalRows = response.data.total;
+                currentPage = response.data.page;
+            } else {
+                statisticsData = response.data;
+                totalRows = statisticsData.length;
+                currentPage = 1;
+            }
             if (!statisticsData || statisticsData.length === 0) {
                 showNoDataState();
                 return;
             }
-            
             renderStatisticsTable();
-            renderCharts();
-            
-            document.getElementById('loadingState').style.display = 'none';
-            document.getElementById('statisticsContent').style.display = 'block';
-            
         } catch (error) {
             console.error('Error loading statistics:', error);
             showNoDataState();
@@ -855,10 +829,17 @@
             return;
         }
         // Пагинация
-        const totalPages = Math.ceil(statisticsData.length / pageSize);
-        const startIdx = (currentPage - 1) * pageSize;
-        const endIdx = startIdx + pageSize;
-        const pageData = statisticsData.slice(startIdx, endIdx);
+        let totalPages = 1;
+        let pageData = statisticsData;
+        if (userInfo.is_admin) {
+            totalPages = Math.ceil(totalRows / pageSize);
+            pageData = statisticsData;
+        } else {
+            totalPages = Math.ceil(statisticsData.length / pageSize);
+            const startIdx = (currentPage - 1) * pageSize;
+            const endIdx = startIdx + pageSize;
+            pageData = statisticsData.slice(startIdx, endIdx);
+        }
         tbody.innerHTML = pageData.map((stat) => `
             <tr>
                 <td>
@@ -906,8 +887,12 @@
 
     // Глобальная функция для перехода по страницам пагинации
     window.gotoStatisticsPage = function(page) {
-        currentPage = page;
-        renderStatisticsTable();
+        if (userInfo.is_admin) {
+            loadStatistics(page);
+        } else {
+            currentPage = page;
+            renderStatisticsTable();
+        }
     }
 
     // Экспорт детального отчёта по сотруднику (для админа)
@@ -972,288 +957,6 @@
         if (time <= 15) return 'bg-success';
         if (time <= 30) return 'bg-warning text-dark';
         return 'bg-danger';
-    }
-
-    // Render charts
-    function renderCharts() {
-        renderEfficiencyChart();
-        renderResponsePieChart();
-    }
-
-    // Efficiency chart
-    function renderEfficiencyChart() {
-        console.log('📊 Rendering efficiency chart...');
-        console.log('📊 statisticsData:', statisticsData);
-        
-        const ctx = document.getElementById('efficiencyChart').getContext('2d');
-        
-        if (efficiencyChart) {
-            efficiencyChart.destroy();
-        }
-        
-        if (!statisticsData || statisticsData.length === 0) {
-            console.log('⚠️ No statistics data available for chart, showing empty chart');
-            
-            // Создаем пустой график с заглушкой
-            efficiencyChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['Нет данных'],
-                    datasets: [{
-                        label: 'Среднее время ответа (мин)',
-                        data: [0],
-                        borderColor: '#ff9f40',
-                        backgroundColor: 'rgba(255, 159, 64, 0.1)',
-                        tension: 0.4,
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { enabled: false }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 120,
-                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                            ticks: {
-                                color: 'rgba(255, 255, 255, 0.7)',
-                                callback: function(value) { return value + ' мин'; }
-                            }
-                        },
-                        x: {
-                            grid: { display: false },
-                            ticks: { color: 'rgba(255, 255, 255, 0.7)' }
-                        }
-                    },
-                    animation: { duration: 0 }
-                }
-            });
-            return;
-        }
-        
-        const chartData = {};
-        statisticsData.forEach((stat, index) => {
-            console.log(`📊 Processing stat ${index}:`, stat);
-            
-            // Проверяем, что есть реальные данные для этой записи
-            if (stat.total_messages > 0 && stat.avg_response_time && stat.avg_response_time > 0) {
-                const date = new Date(stat.date).toLocaleDateString('ru-RU');
-                if (!chartData[date]) {
-                    chartData[date] = { totalTime: 0, count: 0, totalMessages: 0 };
-                }
-                chartData[date].totalTime += stat.avg_response_time;
-                chartData[date].count += 1;
-                chartData[date].totalMessages += stat.total_messages;
-                
-                console.log(`📊 Added data for ${date}: time=${stat.avg_response_time}, total=${stat.total_messages}`);
-            } else {
-                console.log(`📊 Skipped stat ${index} - no valid data (messages: ${stat.total_messages}, time: ${stat.avg_response_time})`);
-            }
-        });
-        
-        console.log('📊 Processed chart data:', chartData);
-        
-        // Берем только даты с реальными данными
-        const labels = Object.keys(chartData).slice(-14);
-        const responseTimeData = labels.map(date => {
-            const data = chartData[date];
-            return data.count > 0 ? Math.round(data.totalTime / data.count) : 0;
-        });
-        
-        console.log('📊 Final chart data:');
-        console.log('  - labels:', labels);
-        console.log('  - responseTimeData:', responseTimeData);
-        
-        // Если нет данных вообще, показываем пустой график
-        if (labels.length === 0 || responseTimeData.every(val => val === 0)) {
-            console.log('⚠️ No valid data for chart, showing empty state');
-            
-            efficiencyChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['Нет данных'],
-                    datasets: [{
-                        label: 'Среднее время ответа (мин)',
-                        data: [0],
-                        borderColor: '#ff9f40',
-                        backgroundColor: 'rgba(255, 159, 64, 0.1)',
-                        tension: 0.4,
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { enabled: false }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            max: 120,
-                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                            ticks: {
-                                color: 'rgba(255, 255, 255, 0.7)',
-                                callback: function(value) { return value + ' мин'; }
-                            }
-                        },
-                        x: {
-                            grid: { display: false },
-                            ticks: { color: 'rgba(255, 255, 255, 0.7)' }
-                        }
-                    },
-                    animation: { duration: 0 }
-                }
-            });
-            return;
-        }
-        
-        const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-        gradient.addColorStop(0, 'rgba(255, 159, 64, 0.4)');
-        gradient.addColorStop(1, 'rgba(255, 159, 64, 0.05)');
-        
-        console.log('📊 Creating response time chart with Chart.js...');
-        efficiencyChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Среднее время ответа (мин)',
-                    data: responseTimeData,
-                    borderColor: '#ff9f40',
-                    backgroundColor: gradient,
-                    tension: 0.4,
-                    borderWidth: 4,
-                    pointBackgroundColor: '#ff6384',
-                    pointBorderColor: '#fff',
-                    pointBorderWidth: 3,
-                    pointRadius: 8,
-                    pointHoverRadius: 12,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                        titleColor: '#fff',
-                        bodyColor: '#fff',
-                        borderColor: '#ff9f40',
-                        borderWidth: 2,
-                        cornerRadius: 15,
-                        callbacks: {
-                            label: function(context) {
-                                return `Время ответа: ${context.parsed.y} мин`;
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 120,
-                        grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                        ticks: {
-                            color: 'rgba(255, 255, 255, 0.7)',
-                            callback: function(value) { return value + ' мин'; }
-                        }
-                    },
-                    x: {
-                        grid: { display: false },
-                        ticks: { color: 'rgba(255, 255, 255, 0.7)' }
-                    }
-                },
-                animation: {
-                    duration: 2000,
-                    easing: 'easeOutQuart'
-                }
-            }
-        });
-        
-        console.log('✅ Efficiency chart created successfully');
-    }
-
-    // Response pie chart
-    function renderResponsePieChart() {
-        console.log('📊 Rendering response pie chart...');
-        
-        const ctx = document.getElementById('responsePieChart').getContext('2d');
-        
-        if (responsePieChart) {
-            responsePieChart.destroy();
-        }
-        
-        // Получаем данные из summary
-        const totalMessages = parseInt(document.getElementById('totalMessages').textContent) || 0;
-        const respondedMessages = parseInt(document.getElementById('respondedMessages').textContent) || 0;
-        const missedMessages = parseInt(document.getElementById('missedMessages').textContent) || 0;
-        const inProgress = Math.max(0, totalMessages - respondedMessages - missedMessages);
-        
-        console.log('📊 Pie chart data:', {
-            total: totalMessages,
-            responded: respondedMessages,
-            missed: missedMessages,
-            inProgress: inProgress
-        });
-        
-        responsePieChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Отвечено', 'Пропущено', 'В обработке'],
-                datasets: [{
-                    data: [respondedMessages, missedMessages, inProgress],
-                    backgroundColor: ['#4facfe', '#ff6b9d', '#feca57'],
-                    borderWidth: 0,
-                    hoverBorderWidth: 4,
-                    hoverBorderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '70%',
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: {
-                            color: 'rgba(255, 255, 255, 0.8)',
-                            padding: 25,
-                            usePointStyle: true,
-                            font: { size: 14, weight: 600 }
-                        }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const value = context.raw;
-                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const percentage = Math.round((value / total) * 100);
-                                return `${context.label}: ${value} (${percentage}%)`;
-                            }
-                        }
-                    }
-                },
-                animation: {
-                    duration: 2000,
-                    easing: 'easeOutBounce'
-                }
-            }
-        });
-        
-        console.log('✅ Pie chart created successfully');
     }
 
     // Show no data state
