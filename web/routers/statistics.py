@@ -123,7 +123,7 @@ async def get_all_statistics(
     
     # Получаем статистику
     all_stats = await stats_service.get_all_employees_stats(
-        period="today",  # Базовый период для детализации
+        period=period_type,
         start_date=start_date,
         end_date=end_date,
         employee_id=employee_id
