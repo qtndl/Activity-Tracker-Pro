@@ -868,4 +868,71 @@ async def get_deferred_messages(
             answered_by_name=answered_by_name,
             deferred_minutes=round(deferred_minutes, 1)
         ))
+    return response
+
+
+@router.get("/my-deferred-messages", response_model=List[DeferredMessageResponse])
+async def get_my_deferred_messages(
+    period: str = Query("today", regex="^(today|week|month)$"),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Получить свои отложенные сообщения (только для сотрудника, с фильтром по периоду)"""
+    employee_id = current_user.get('employee_id')
+    if not employee_id:
+        raise HTTPException(status_code=403, detail="Нет прав")
+    now = datetime.utcnow()
+    # Определяем границы периода
+    if period == "today":
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif period == "week":
+        start_date = now - timedelta(days=now.weekday())
+        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif period == "month":
+        start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    result = await db.execute(
+        select(Message)
+        .options(
+            selectinload(Message.employee),
+            selectinload(Message.answered_by)
+        )
+        .where(
+            Message.is_deferred == True,
+            Message.is_deleted == False,
+            Message.message_type == "client",
+            Message.answered_by_employee_id == employee_id,
+            Message.received_at >= start_date
+        )
+        .order_by(Message.received_at.desc())
+    )
+    messages = result.scalars().all()
+    # Оставляем только уникальные по (chat_id, message_id), самую свежую по id
+    unique = {}
+    for msg in messages:
+        key = (msg.chat_id, msg.message_id)
+        if key not in unique or msg.id > unique[key].id:
+            unique[key] = msg
+    response = []
+    for msg in unique.values():
+        employee_name = msg.employee.full_name if msg.employee else None
+        answered_by_name = msg.answered_by.full_name if msg.answered_by else None
+        if msg.responded_at:
+            deferred_minutes = (msg.responded_at - msg.received_at).total_seconds() / 60
+        else:
+            deferred_minutes = (now - msg.received_at).total_seconds() / 60
+        response.append(DeferredMessageResponse(
+            id=msg.id,
+            received_at=msg.received_at,
+            client_name=msg.client_name,
+            client_username=msg.client_username,
+            client_telegram_id=msg.client_telegram_id,
+            message_text=msg.message_text,
+            employee_id=msg.employee_id,
+            employee_name=employee_name,
+            answered_by_employee_id=msg.answered_by_employee_id,
+            answered_by_name=answered_by_name,
+            deferred_minutes=round(deferred_minutes, 1)
+        ))
     return response 

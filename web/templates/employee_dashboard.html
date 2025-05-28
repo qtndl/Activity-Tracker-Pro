@@ -78,6 +78,15 @@
     </nav>
 
     <div class="container mt-4">
+        <!-- Селектор периода -->
+        <div class="mb-3 text-end">
+            <div class="btn-group" role="group" aria-label="Выбор периода">
+                <button type="button" class="btn btn-outline-primary period-btn active" data-period="today">Сегодня</button>
+                <button type="button" class="btn btn-outline-primary period-btn" data-period="week">Неделя</button>
+                <button type="button" class="btn btn-outline-primary period-btn" data-period="month">Месяц</button>
+            </div>
+        </div>
+
         <!-- Приветствие -->
         <div class="card welcome-card">
             <div class="card-body text-center">
@@ -249,6 +258,35 @@
                 </div>
             </div>
         </div>
+
+        <!-- Мои отложенные сообщения -->
+        <div class="row">
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-pause-circle me-2"></i>Мои отложенные сообщения</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Время</th>
+                                        <th>Клиент</th>
+                                        <th>Ссылка</th>
+                                        <th>Текст</th>
+                                        <th>Отложено (мин)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="myDeferredMessagesBody">
+                                    <tr><td colspan="5" class="text-center text-muted">Загрузка...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -274,6 +312,80 @@
         
         // Показать уведомление при загрузке
         console.log('Личный кабинет загружен для:', '{{ user.full_name }}');
+
+        let currentPeriod = 'today';
+
+        // Обработка выбора периода
+        const periodBtns = document.querySelectorAll('.period-btn');
+        periodBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                periodBtns.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentPeriod = this.getAttribute('data-period');
+                loadStatsAndDeferred(currentPeriod);
+            });
+        });
+
+        // Загрузка статистики и отложенных сообщений по периоду
+        async function loadStatsAndDeferred(period) {
+            // 1. Статистика
+            try {
+                const resp = await fetch(`/api/statistics/summary?period=${period}`);
+                const stats = await resp.json();
+                document.getElementById('total-messages').textContent = stats.total_messages || 0;
+                document.getElementById('responded-messages').textContent = stats.responded_messages || 0;
+                document.getElementById('missed-messages').textContent = stats.missed_messages || 0;
+                document.getElementById('avg-response-time').textContent = stats.avg_response_time !== undefined ? stats.avg_response_time.toFixed(1) : '0';
+                // Эффективность
+                const efficiency = stats.efficiency_percent || 0;
+                const progressBar = document.querySelector('.progress-bar');
+                progressBar.style.width = efficiency + '%';
+                progressBar.className = 'progress-bar ' + (efficiency >= 90 ? 'bg-success' : (efficiency >= 70 ? 'bg-warning' : 'bg-danger'));
+                progressBar.textContent = efficiency.toFixed(1) + '%';
+                // Бейдж
+                const badge = document.querySelector('.performance-badge');
+                badge.className = 'badge performance-badge ' + (efficiency >= 90 ? 'bg-success' : (efficiency >= 70 ? 'bg-warning' : 'bg-danger'));
+                badge.innerHTML = efficiency >= 90 ? '<i class="fas fa-star me-1"></i>Отлично!' : (efficiency >= 70 ? '<i class="fas fa-thumbs-up me-1"></i>Хорошо' : '<i class="fas fa-exclamation-triangle me-1"></i>Нужно улучшить');
+                // Уникальные клиенты
+                document.querySelector('.display-4.mb-2').textContent = stats.unique_clients || 0;
+                // Превышения времени
+                document.querySelector('.stat-number.warning').textContent = stats.exceeded_15_min || 0;
+                document.querySelectorAll('.stat-number.warning')[1].textContent = stats.exceeded_30_min || 0;
+                document.querySelector('.stat-number.danger').textContent = stats.exceeded_60_min || 0;
+            } catch (e) {
+                // fallback
+            }
+            // 2. Отложенные сообщения
+            loadMyDeferredMessages(period);
+        }
+
+        // Модифицируем функцию для загрузки отложенных сообщений с учётом периода
+        async function loadMyDeferredMessages(period = 'today') {
+            const tbody = document.getElementById('myDeferredMessagesBody');
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Загрузка...</td></tr>';
+            try {
+                const resp = await fetch(`/api/statistics/my-deferred-messages?period=${period}`);
+                const data = await resp.json();
+                if (!data.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Нет отложенных сообщений</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.map(msg => `
+                    <tr>
+                        <td>${msg.received_at ? new Date(msg.received_at).toLocaleString('ru-RU') : '-'}</td>
+                        <td>${msg.client_name || msg.client_username || msg.client_telegram_id || '-'}</td>
+                        <td>${msg.client_username ? `<a href='https://t.me/${msg.client_username}' target='_blank'>@${msg.client_username}</a>` : ''}</td>
+                        <td class='text-truncate' style='max-width:300px' title='${msg.message_text || ''}'>${msg.message_text ? msg.message_text.substring(0, 80) + (msg.message_text.length > 80 ? '...' : '') : '-'}</td>
+                        <td>${msg.deferred_minutes != null ? msg.deferred_minutes : '-'}</td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Ошибка загрузки</td></tr>';
+            }
+        }
+
+        // При загрузке страницы — today
+        loadStatsAndDeferred('today');
     </script>
 </body>
 </html> 
