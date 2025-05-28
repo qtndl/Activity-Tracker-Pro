@@ -449,13 +449,13 @@
             <div class="col-xl-3 col-lg-6 mb-4">
                 <div class="stat-card danger animate-slide-up" style="animation-delay: 0.4s">
                     <div class="stat-icon danger">
-                        <i class="fas fa-exclamation-triangle text-white"></i>
+                        <i class="fas fa-pause-circle text-white"></i>
                     </div>
-                    <div class="stat-number danger" id="urgentMessages">0</div>
-                    <div class="stat-label">Требует внимания</div>
-                    <div class="stat-change" id="urgentStatus">
-                        <i class="fas fa-clock"></i>
-                        <span>Мониторинг</span>
+                    <div class="stat-number danger" id="deferredMessages">0</div>
+                    <div class="stat-label">Отложено</div>
+                    <div class="stat-change text-warning" id="deferredStatus" style="display:none;">
+                        <i class="fas fa-pause-circle"></i>
+                        <span>Отложено: <span id="deferredMessagesText">0</span></span>
                     </div>
                 </div>
             </div>
@@ -710,7 +710,7 @@
             // Проверяем наличие элементов и их текущие значения
             const elements = [
                 'activeEmployees', 'totalMessagesToday', 'respondedToday', 
-                'uniqueClientsToday', 'urgentMessages', 'avgResponseTime', 'efficiencyToday', 'missedToday'
+                'uniqueClientsToday', 'avgResponseTime', 'efficiencyToday', 'missedToday'
             ];
             
             elements.forEach(id => {
@@ -736,11 +736,9 @@
             console.log('  - uniqueClientsToday:', data.unique_clients_today || 0);
             animateNumber('uniqueClientsToday', data.unique_clients_today || 0);
             
-            console.log('  - urgentMessages:', data.urgent_messages || 0);
-            animateNumber('urgentMessages', data.urgent_messages || 0);
-            
+            // avgResponseTime — дробное число, 1 знак после запятой
             console.log('  - avgResponseTime:', data.avg_response_time || 0);
-            animateNumber('avgResponseTime', data.avg_response_time || 0);
+            animateNumber('avgResponseTime', data.avg_response_time || 0, true);
             
             console.log('  - efficiencyToday:', data.efficiency_today || 0);
             animateNumber('efficiencyToday', data.efficiency_today || 0);
@@ -770,20 +768,22 @@
                 setProgressRing('missedProgress', missedPercentage);
             }, 1000);
             
-            // Update urgent status
-            const urgentStatus = document.getElementById('urgentStatus');
-            if (urgentStatus) {
-                if (data.urgent_messages > 0) {
-                    urgentStatus.className = 'stat-change text-danger';
-                    urgentStatus.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>Требует действий!</span>';
-                    console.log('🚨 Urgent status: action required');
+            // Обновление блока отложенных
+            const deferredStatus = document.getElementById('deferredStatus');
+            const deferredMessages = document.getElementById('deferredMessages');
+            const deferredMessagesText = document.getElementById('deferredMessagesText');
+            if (deferredMessages) {
+                deferredMessages.textContent = data.deferred_messages || 0;
+            }
+            if (deferredMessagesText) {
+                deferredMessagesText.textContent = data.deferred_messages || 0;
+            }
+            if (deferredStatus) {
+                if (data.deferred_messages > 0) {
+                    deferredStatus.style.display = '';
                 } else {
-                    urgentStatus.className = 'stat-change text-success';
-                    urgentStatus.innerHTML = '<i class="fas fa-check-circle"></i><span>Всё под контролем</span>';
-                    console.log('✅ Urgent status: all good');
+                    deferredStatus.style.display = 'none';
                 }
-            } else {
-                console.error('❌ Element urgentStatus NOT FOUND!');
             }
             
             // Load charts
@@ -807,29 +807,26 @@
             animateNumber('activeEmployees', 0);
             animateNumber('totalMessagesToday', 0);
             animateNumber('respondedToday', 0);
-            animateNumber('urgentMessages', 0);
-            animateNumber('avgResponseTime', 0);
-            animateNumber('efficiencyToday', 0);
             animateNumber('missedToday', 0);
             
         }
     }
 
     // Animate numbers
-    function animateNumber(elementId, targetValue) {
+    function animateNumber(elementId, targetValue, isFloat = false) {
         const element = document.getElementById(elementId);
         if (!element) {
             console.error(`❌ animateNumber: Element ${elementId} not found!`);
             return;
         }
         
-        const startValue = parseInt(element.textContent) || 0;
+        const startValue = isFloat ? parseFloat(element.textContent.replace(',', '.')) || 0 : parseInt(element.textContent) || 0;
         console.log(`🎯 animateNumber ${elementId}: ${startValue} → ${targetValue}`);
         
         // Если значения одинаковые, просто обновляем без анимации
         if (startValue === targetValue) {
             console.log(`⚡ animateNumber ${elementId}: values are the same, no animation needed`);
-            element.textContent = targetValue;
+            element.textContent = isFloat ? Number(targetValue).toFixed(1) : targetValue;
             return;
         }
         
@@ -842,14 +839,18 @@
             
             // Easing function
             const easeOut = 1 - Math.pow(1 - progress, 3);
-            const currentValue = Math.round(startValue + (targetValue - startValue) * easeOut);
+            const currentValue = startValue + (targetValue - startValue) * easeOut;
             
-            element.textContent = currentValue;
+            if (isFloat) {
+                element.textContent = Number(currentValue).toFixed(1);
+            } else {
+                element.textContent = Math.round(currentValue);
+            }
             
             if (progress < 1) {
                 requestAnimationFrame(updateNumber);
             } else {
-                console.log(`✅ animateNumber ${elementId}: animation completed, final value = ${currentValue}`);
+                console.log(`✅ animateNumber ${elementId}: animation completed, final value = ${isFloat ? Number(targetValue).toFixed(1) : targetValue}`);
             }
         }
         

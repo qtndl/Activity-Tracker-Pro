@@ -43,6 +43,7 @@ class Message(Base):
     is_missed = Column(Boolean, default=False)
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)
+    is_deferred = Column(Boolean, default=False)
     
     # Relationships
     employee = relationship("Employee", back_populates="messages", foreign_keys=[employee_id])

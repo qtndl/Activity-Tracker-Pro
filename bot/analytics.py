@@ -25,7 +25,7 @@ class AnalyticsService:
                 select(DBMessage).where(
                     and_(
                         or_(
-                            DBMessage.employee_id == employee_id,
+                        DBMessage.employee_id == employee_id,
                             DBMessage.answered_by_employee_id == employee_id
                         ),
                         DBMessage.received_at >= start_time

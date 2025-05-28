@@ -488,7 +488,7 @@
                         <button class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-bold" id="prevMessagesBtn" disabled><i class="fas fa-chevron-left me-1"></i>Назад</button>
                         <span id="messagesPageInfo" class="mx-2"></span>
                         <button class="btn btn-outline-secondary rounded-pill px-4 py-2 fw-bold" id="nextMessagesBtn">Вперёд<i class="fas fa-chevron-right ms-1"></i></button>
-                    </div>
+                </div>
                 </div>
             </div>
         </div>
@@ -624,43 +624,43 @@
                     }
                     return `
                     <tr>
-                        <td>
-                            <span class="badge bg-secondary">
-                                ${new Date(msg.received_at).toLocaleString('ru-RU', { 
-                                    hour: '2-digit', 
-                                    minute: '2-digit',
-                                    day: '2-digit',
-                                    month: '2-digit'
-                                })}
-                            </span>
-                        </td>
-                        <td>
-                            <strong>
-                                ${
-                                    msg.client_name
+                    <td>
+                        <span class="badge bg-secondary">
+                            ${new Date(msg.received_at).toLocaleString('ru-RU', { 
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                day: '2-digit',
+                                month: '2-digit'
+                            })}
+                        </span>
+                    </td>
+                    <td>
+                        <strong>
+                            ${
+                                msg.client_name
                                         ? (msg.client_username
                                             ? `${msg.client_name} (<a href=\"https://t.me/${msg.client_username}\" target=\"_blank\">@${msg.client_username}</a>)`
                                             : msg.client_name)
                                         : (msg.client_username ? `<a href=\"https://t.me/${msg.client_username}\" target=\"_blank\">@${msg.client_username}</a>` : 'Неизвестный')
-                                }
-                            </strong>
-                        </td>
-                        <td class="text-truncate" style="max-width: 200px;" title="${msg.message_text || ''}">
+                            }
+                        </strong>
+                    </td>
+                    <td class="text-truncate" style="max-width: 200px;" title="${msg.message_text || ''}">
                             ${msg.message_text ? msg.message_text.substring(0, 50) + (msg.message_text.length > 50 ? '...' : '') : '-'}
-                        </td>
-                        <td>
+                    </td>
+                    <td>
                             ${responseTime ? 
                                 `<span class="badge ${getResponseTimeClass(responseTime)} fs-6">${responseTime} мин</span>` : 
-                                '<span class="badge bg-secondary fs-6">-</span>'}
-                        </td>
-                        <td>
-                            ${msg.responded_at ? 
-                                '<span class="badge bg-success fs-6"><i class="fas fa-check me-1"></i>Отвечено</span>' : 
-                                (msg.is_missed ? 
-                                    '<span class="badge bg-danger fs-6"><i class="fas fa-times me-1"></i>Пропущено</span>' : 
-                                    '<span class="badge bg-warning fs-6"><i class="fas fa-clock me-1"></i>Ожидает</span>')}
-                        </td>
-                    </tr>
+                            '<span class="badge bg-secondary fs-6">-</span>'}
+                    </td>
+                    <td>
+                        ${msg.responded_at ? 
+                            '<span class="badge bg-success fs-6"><i class="fas fa-check me-1"></i>Отвечено</span>' : 
+                            (msg.is_missed ? 
+                                '<span class="badge bg-danger fs-6"><i class="fas fa-times me-1"></i>Пропущено</span>' : 
+                                '<span class="badge bg-warning fs-6"><i class="fas fa-clock me-1"></i>Ожидает</span>')}
+                    </td>
+                </tr>
                     `;
                 }).join('');
             }

@@ -270,7 +270,7 @@ async def get_messages_count(
     """Получить общее количество уникальных сообщений для пагинации"""
     if not current_user.get('is_admin'):
         employee_id = current_user.get('employee_id')
-
+    
     query = select(Message)
     if employee_id:
         query = query.where(Message.employee_id == employee_id)
@@ -781,7 +781,7 @@ async def import_statistics_from_file(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Неверный формат JSON")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка импорта: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Ошибка импорта: {str(e)}") 
 
 
 @router.get("/employees/active-delta")

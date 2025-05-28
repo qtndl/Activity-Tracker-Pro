@@ -228,6 +228,7 @@ class StatisticsService:
             
             # Срочные сообщения (без ответа более 30 минут) - всегда актуальные (можно использовать старую, если она не зависит от суммирования)
             urgent_messages = await self._get_urgent_messages_count() # Эта функция, вероятно, смотрит на текущие неотвеченные
+            deferred_messages = await self._get_deferred_messages_count()
             
             # Эффективность
             efficiency = 0
@@ -249,6 +250,7 @@ class StatisticsService:
                 "unique_clients_today": total_unique_clients,
                 "avg_response_time": round(avg_response_time, 1),
                 "urgent_messages": urgent_messages, # Эта метрика, вероятно, считается по-другому (не по статистике за период, а по текущему состоянию)
+                "deferred_messages": deferred_messages,
                 "efficiency_today": round(efficiency, 1)
             }
         else:
@@ -428,6 +430,25 @@ class StatisticsService:
             )
         )
         return len(result.scalars().all())
+    
+    async def _get_deferred_messages_count(self) -> int:
+        """Получить количество отложенных сообщений (is_deferred=True, не удалённых, не отвеченных) с подробным логированием"""
+        result = await self.db.execute(
+            select(Message).where(
+                and_(
+                    Message.is_deferred == True,
+                    Message.is_deleted == False,
+                    Message.message_type == "client"
+                )
+            )
+        )
+        messages = result.scalars().all()
+        # Считаем уникальные по (chat_id, message_id)
+        unique_keys = set((m.chat_id, m.message_id) for m in messages)
+        logger.info(f"[DEFERRED-DEBUG] Найдено уникальных отложенных сообщений: {len(unique_keys)}. Ключи: {list(unique_keys)}")
+        for m in messages:
+            logger.info(f"[DEFERRED-DEBUG] id={m.id}, chat_id={m.chat_id}, message_id={m.message_id}, text='{(m.message_text or '')[:30]}', is_deleted={m.is_deleted}, answered_by={m.answered_by_employee_id}")
+        return len(unique_keys)
     
     async def _get_unanswered_messages_count(self, employee_id: int) -> int:
         """Получить количество неотвеченных сообщений сотрудника (исключая удаленные и отвеченные другими)"""

@@ -139,6 +139,8 @@ class SmartMonitoringService:
     async def _handle_employee_response(self, telegram_message: TelegramMessage, analysis: Dict[str, Any], db: AsyncSession):
         """Обрабатывает ответ сотрудника"""
         
+        logger.info(f"[DEBUG] Начало обработки ответа сотрудника: message_id={telegram_message.message_id}, reply_to={analysis.get('reply_to_message_id')}")
+        
         reply_to_message_id = analysis['reply_to_message_id']
         sender_telegram_id = telegram_message.from_user.id
         
@@ -152,7 +154,7 @@ class SmartMonitoringService:
             logger.error(f"Сотрудник с Telegram ID {sender_telegram_id} не найден в базе данных")
             return
         
-        logger.info(f"Найден сотрудник: id={employee.id}, telegram_id={employee.telegram_id}, name={employee.full_name}")
+        logger.info(f"[DEBUG] Найден сотрудник: id={employee.id}, telegram_id={employee.telegram_id}, name={employee.full_name}")
         
         # 1. Сначала находим сообщение, на которое отвечают, чтобы определить клиента
         replied_message_result = await db.execute(
@@ -165,18 +167,45 @@ class SmartMonitoringService:
         replied_message = replied_message_result.scalar_one_or_none()
         
         if not replied_message:
-            logger.info(f"Не найдено исходное сообщение для reply {reply_to_message_id}")
+            logger.info(f"[DEBUG] Не найдено исходное сообщение для reply {reply_to_message_id}")
             return
+            
+        logger.info(f"[DEBUG] Найдено исходное сообщение: id={replied_message.id}, chat_id={replied_message.chat_id}, message_id={replied_message.message_id}")
         
         # Обновляем сообщение, на которое отвечают, если оно еще не отвечено
         if replied_message.responded_at is None:
-            replied_message.responded_at = datetime.utcnow()
-            time_diff = replied_message.responded_at - replied_message.received_at
-            replied_message.response_time_minutes = time_diff.total_seconds() / 60
-            replied_message.answered_by_employee_id = employee.id  # Используем ID сотрудника из базы данных
-            await db.commit()  # Явно сохраняем изменения
-            await self.notification_service.cancel_notifications(replied_message.id)
-            logger.info(f"Сообщение {replied_message.id} отмечено как отвеченное сотрудником {employee.id} (время ответа: {replied_message.response_time_minutes:.1f} мин)")
+            now = datetime.utcnow()
+            # Обновляем все копии этого сообщения (по chat_id и message_id), где responded_at is NULL
+            all_copies_result = await db.execute(
+                select(Message).where(
+                    Message.chat_id == replied_message.chat_id,
+                    Message.message_id == replied_message.message_id,
+                    Message.message_type == "client",
+                    Message.responded_at.is_(None)
+                )
+            )
+            all_copies = all_copies_result.scalars().all()
+            for msg in all_copies:
+                msg.responded_at = now
+                msg.response_time_minutes = (now - msg.received_at).total_seconds() / 60
+                msg.answered_by_employee_id = employee.id
+                await self.notification_service.cancel_notifications(msg.id)
+            await db.flush()
+            await db.commit()
+            logger.info(f"Обновлены все копии сообщения chat_id={replied_message.chat_id}, message_id={replied_message.message_id} (ответ сотрудника {employee.id})")
+        
+        # ГАРАНТИЯ: после любого ответа сотрудника делаем raw SQL UPDATE для всех копий
+        logger.info(f"Перед raw SQL UPDATE: chat_id={replied_message.chat_id}, message_id={replied_message.message_id}")
+        await db.execute(
+            f"""
+            UPDATE messages
+            SET response_time_minutes = (strftime('%s', responded_at) - strftime('%s', received_at)) / 60.0
+            WHERE chat_id = :chat_id AND message_id = :message_id AND responded_at IS NOT NULL
+            """,
+            {"chat_id": replied_message.chat_id, "message_id": replied_message.message_id}
+        )
+        await db.commit()
+        logger.info(f"RAW SQL UPDATE (после всех commit): response_time_minutes обновлено для chat_id={replied_message.chat_id}, message_id={replied_message.message_id}")
         
         client_telegram_id = replied_message.client_telegram_id
         if not client_telegram_id:

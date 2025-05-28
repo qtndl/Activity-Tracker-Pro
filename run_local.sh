@@ -84,6 +84,10 @@ if [ ! -f "data/bot.db" ]; then
     fi
 fi
 
+# Миграция: добавление поля is_deferred
+log "Проверка и миграция поля is_deferred в messages..."
+PYTHONPATH=$PYTHONPATH:$(pwd) python migrate_add_is_deferred.py
+
 # Добавление админа из FIRST_ADMIN_ID
 if [ -n "$FIRST_ADMIN_ID" ]; then
     log "Добавление админа из FIRST_ADMIN_ID..."

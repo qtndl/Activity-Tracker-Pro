@@ -3,8 +3,8 @@ import logging
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command, CommandStart
-from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, BotCommandScopeChat, BotCommandScopeDefault, BotCommandScopeAllGroupChats
-from sqlalchemy import select, and_
+from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, BotCommandScopeChat, BotCommandScopeDefault, BotCommandScopeAllGroupChats, CallbackQuery
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.config import settings
@@ -148,11 +148,15 @@ class MessageTracker:
             
             if db_messages_to_update:
                 logger.info(f"[SESSION-CLOSE] Найдено {len(db_messages_to_update)} DBMessage для клиента {client_telegram_id} в чате {chat_id} — закрываем сессию.")
+                now = datetime.utcnow()
                 for db_msg in db_messages_to_update:
                     logger.info(f"[SESSION-CLOSE] Закрываем DBMessage.id={db_msg.id}, employee_id={db_msg.employee_id}, message_id={db_msg.message_id}, received_at={db_msg.received_at}")
-                    db_msg.responded_at = datetime.utcnow()
+                    db_msg.responded_at = now
                     db_msg.answered_by_employee_id = employee.id  # Используем ID сотрудника из базы данных
-                    logger.info(f"[DEBUG] Установлен answered_by_employee_id={employee.id} для сообщения {db_msg.id}")
+                    # Вычисляем время ответа
+                    time_diff = now - db_msg.received_at
+                    db_msg.response_time_minutes = time_diff.total_seconds() / 60
+                    logger.info(f"[DEBUG] Установлен answered_by_employee_id={employee.id} и response_time_minutes={db_msg.response_time_minutes:.1f} для сообщения {db_msg.id}")
                     await self.notifications.cancel_notifications(db_msg.id)
                 await session.commit()
                 logger.info(f"[SESSION-CLOSE] Сессия клиента {client_telegram_id} в чате {chat_id} закрыта для сотрудника {employee.id}.")
@@ -380,6 +384,129 @@ async def handle_group_message(message: Message):
         for employee_obj in real_group_members:
             await message_tracker.track_message(message, employee_obj.id)
             logger.info(f"📊 Трекаем сообщение для сотрудника: {employee_obj.full_name} (ID: {employee_obj.id}) [реально в группе]")
+
+
+@dp.message(F.chat.type == 'private')
+async def handle_private_message(message: Message):
+    # Логирование для диагностики пересланных сообщений
+    logger.info(f"[FORWARD-DEBUG] message_id={message.message_id}, chat_id={message.chat.id}, text={repr(message.text)}")
+    logger.info(f"[FORWARD-DEBUG] forward_from_chat={getattr(message, 'forward_from_chat', None)}")
+    logger.info(f"[FORWARD-DEBUG] forward_from={getattr(message, 'forward_from', None)}")
+    logger.info(f"[FORWARD-DEBUG] forward_sender_name={getattr(message, 'forward_sender_name', None)}")
+    logger.info(f"[FORWARD-DEBUG] forward_from_message_id={getattr(message, 'forward_from_message_id', None)}")
+    logger.info(f"[FORWARD-DEBUG] forward_date={getattr(message, 'forward_date', None)}")
+    # Обработка только пересланных сообщений
+    if not (message.forward_from_chat or message.forward_from or message.forward_sender_name):
+        return  # Не пересланное — игнорируем
+
+    orig_chat_id = None
+    orig_message_id = None
+    found_by_text_and_time = False
+    # Получаем id сотрудника, который переслал сообщение
+    async with AsyncSessionLocal() as session:
+        emp_result = await session.execute(select(Employee).where(Employee.telegram_id == message.from_user.id))
+        employee = emp_result.scalar_one_or_none()
+        if not employee:
+            logger.warning(f"[FORWARD-DEBUG] Сотрудник с telegram_id={message.from_user.id} не найден в базе!")
+            await message.answer("Вы не зарегистрированы как сотрудник. Обратитесь к администратору.")
+            return
+        logger.info(f"[FORWARD-DEBUG] Сотрудник найден: id={employee.id}, full_name={employee.full_name}")
+    if message.forward_from_chat and message.forward_from_message_id:
+        orig_chat_id = message.forward_from_chat.id
+        orig_message_id = message.forward_from_message_id
+    elif message.forward_from and message.forward_from.id and message.forward_date:
+        orig_chat_id = message.forward_from.id
+        orig_message_id = message.forward_date  # fallback, не всегда корректно
+    elif message.forward_date and message.text:
+        # Fallback: ищем по тексту и времени среди последних 100 сообщений
+        async with AsyncSessionLocal() as session:
+            time_from = message.forward_date - timedelta(minutes=2)
+            time_to = message.forward_date + timedelta(minutes=2)
+            result = await session.execute(
+                select(DBMessage)
+                .where(
+                    DBMessage.message_text == message.text,
+                    DBMessage.received_at >= time_from,
+                    DBMessage.received_at <= time_to
+                )
+                .order_by(DBMessage.received_at.desc())
+                .limit(1)
+            )
+            db_msg = result.scalar_one_or_none()
+            if db_msg:
+                logger.info(f"[FORWARD-DEBUG] Найдено сообщение: id={db_msg.id}, chat_id={db_msg.chat_id}, message_id={db_msg.message_id}, text={db_msg.message_text}")
+                # Теперь ищем все копии по chat_id и message_id
+                result_all = await session.execute(
+                    select(DBMessage).where(
+                        DBMessage.chat_id == db_msg.chat_id,
+                        DBMessage.message_id == db_msg.message_id
+                    )
+                )
+                db_msgs_all = result_all.scalars().all()
+                for m in db_msgs_all:
+                    logger.info(f"[FORWARD-DEBUG] Помечаю копию id={m.id} как отложено и отвечено сотрудником id={employee.id}")
+                    m.is_deferred = True
+                    m.is_missed = False
+                    m.answered_by_employee_id = employee.id
+                    m.responded_at = datetime.utcnow()
+                await session.commit()
+                kb = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text="Убрать из отложенных", callback_data=f"undefer:{db_msg.chat_id}:{db_msg.message_id}")
+                ]])
+                await message.answer("Сообщение найдено по тексту и времени, все копии помечены как <b>отложено</b> и сняты с пропущенных.", parse_mode="HTML", reply_markup=kb)
+                found_by_text_and_time = True
+            else:
+                logger.warning(f"[FORWARD-DEBUG] Не найдено сообщение по тексту и времени: text={message.text}, date={message.forward_date}")
+                await message.answer("Не удалось найти сообщение по тексту и времени среди последних сообщений. Пересылайте из группового чата, если возможно.")
+                return
+    else:
+        await message.answer("Не удалось определить оригинал сообщения для пометки как отложено. Пересылайте из группового/клиентского чата.")
+        return
+    if found_by_text_and_time:
+        return
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(DBMessage).where(
+                DBMessage.chat_id == orig_chat_id,
+                DBMessage.message_id == orig_message_id
+            )
+        )
+        db_messages = result.scalars().all()
+        if not db_messages:
+            logger.warning(f"[FORWARD-DEBUG] Не найдено сообщение по chat_id/message_id: chat_id={orig_chat_id}, message_id={orig_message_id}")
+            await message.answer("Сообщение не найдено в базе для пометки как отложено.\nВозможно, переслано не из того чата или не то сообщение.")
+            return
+        for db_msg in db_messages:
+            logger.info(f"[FORWARD-DEBUG] Помечаю сообщение id={db_msg.id} как отложено и отвечено сотрудником id={employee.id}")
+            db_msg.is_deferred = True
+            db_msg.is_missed = False
+            db_msg.answered_by_employee_id = employee.id
+            db_msg.responded_at = datetime.utcnow()
+        await session.commit()
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="Убрать из отложенных", callback_data=f"undefer:{orig_chat_id}:{orig_message_id}")
+    ]])
+    await message.answer("Сообщение помечено как <b>отложено</b> и снято с пропущенных.", parse_mode="HTML", reply_markup=kb)
+
+@dp.callback_query(F.data.startswith("undefer:"))
+async def undefer_callback(call: CallbackQuery):
+    _, chat_id, message_id = call.data.split(":")
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(DBMessage).where(
+                DBMessage.chat_id == int(chat_id),
+                DBMessage.message_id == int(message_id)
+            )
+        )
+        db_messages = result.scalars().all()
+        if not db_messages:
+            await call.answer("Сообщение не найдено.", show_alert=True)
+            return
+        for db_msg in db_messages:
+            db_msg.is_deferred = False
+        await session.commit()
+    await call.answer("Сообщение убрано из отложенных.", show_alert=True)
+    await call.message.edit_reply_markup(reply_markup=None)
 
 
 async def setup_bot_commands():
