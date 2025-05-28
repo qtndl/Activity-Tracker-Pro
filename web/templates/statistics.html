@@ -657,6 +657,7 @@
                         </tr>
                     </tbody>
                 </table>
+                <div id="statisticsPagination" class="mt-3"></div>
             </div>
         </div>
 
@@ -719,6 +720,8 @@
     console.log('User info updated:', userInfo);
 
     let statisticsData = [];
+    let currentPage = 1;
+    const pageSize = 10;
     let efficiencyChart = null;
     let responsePieChart = null;
 
@@ -841,19 +844,23 @@
     // Render statistics table
     function renderStatisticsTable() {
         const tbody = document.getElementById('statisticsTableBody');
-        
+        const pagination = document.getElementById('statisticsPagination');
         if (!userInfo.is_admin) {
             document.getElementById('employeeColumn').style.display = 'none';
         }
-        
         if (statisticsData.length === 0) {
             const colCount = userInfo.is_admin ? 12 : 11;
             tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-center py-5">Нет данных за выбранный период</td></tr>`;
+            if (pagination) pagination.innerHTML = '';
             return;
         }
-        
-        tbody.innerHTML = statisticsData.map((stat, index) => `
-            <tr style="animation-delay: ${index * 0.1}s" class="animate-slide-up">
+        // Пагинация
+        const totalPages = Math.ceil(statisticsData.length / pageSize);
+        const startIdx = (currentPage - 1) * pageSize;
+        const endIdx = startIdx + pageSize;
+        const pageData = statisticsData.slice(startIdx, endIdx);
+        tbody.innerHTML = pageData.map((stat) => `
+            <tr>
                 <td>
                     <span class="badge bg-secondary">
                         ${new Date(stat.date).toLocaleDateString('ru-RU')}
@@ -883,6 +890,24 @@
                 ${userInfo.is_admin ? `<td><button class="btn btn-outline-success btn-sm" title="Экспортировать детальный отчёт" onclick="exportToSheetsByEmployee(${stat.employee_id}, this)"><i class="fab fa-google"></i></button></td>` : ''}
             </tr>
         `).join('');
+        // Рендерим пагинацию
+        if (pagination) {
+            let pagHtml = '';
+            if (totalPages > 1) {
+                pagHtml += `<nav><ul class="pagination justify-content-center">`;
+                for (let i = 1; i <= totalPages; i++) {
+                    pagHtml += `<li class="page-item${i === currentPage ? ' active' : ''}"><a class="page-link" href="#" onclick="gotoStatisticsPage(${i});return false;">${i}</a></li>`;
+                }
+                pagHtml += `</ul></nav>`;
+            }
+            pagination.innerHTML = pagHtml;
+        }
+    }
+
+    // Глобальная функция для перехода по страницам пагинации
+    window.gotoStatisticsPage = function(page) {
+        currentPage = page;
+        renderStatisticsTable();
     }
 
     // Экспорт детального отчёта по сотруднику (для админа)
