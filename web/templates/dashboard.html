@@ -570,6 +570,37 @@
     <button class="fab" onclick="refreshDashboard()" title="Обновить данные">
         <i class="fas fa-sync-alt"></i>
     </button>
+
+    <!-- Модальное окно для отложенных сообщений -->
+    <div class="modal fade" id="deferredMessagesModal" tabindex="-1" aria-labelledby="deferredMessagesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deferredMessagesModalLabel">Отложенные сообщения</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Время</th>
+                                    <th>Клиент</th>
+                                    <th>Ссылка</th>
+                                    <th>Текст</th>
+                                    <th>Сотрудник</th>
+                                    <th>Отложено (мин)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="deferredMessagesTableBody">
+                                <tr><td colspan="6" class="text-center text-muted">Загрузка...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -1095,10 +1126,21 @@
         startAutoRefresh();
         
         // Убираем тяжелые анимации
-            document.querySelectorAll('.stat-card, .metric-card, .chart-card').forEach(card => {
+        document.querySelectorAll('.stat-card, .metric-card, .chart-card').forEach(card => {
             card.style.opacity = '1';
             card.style.transform = 'none';
+        });
+
+        // Открытие модального окна по клику на карточку "Отложено"
+        const deferredCard = document.querySelector('.stat-card.danger');
+        if (deferredCard) {
+            deferredCard.style.cursor = 'pointer';
+            deferredCard.addEventListener('click', function() {
+                const modal = new bootstrap.Modal(document.getElementById('deferredMessagesModal'));
+                loadDeferredMessages();
+                modal.show();
             });
+        }
     });
 
     // Cleanup on page unload
@@ -1130,6 +1172,32 @@
             deltaElement.parentElement.classList.toggle('text-danger', delta < 0);
         } catch (error) {
             console.error('Ошибка при обновлении прироста команды:', error);
+        }
+    }
+
+    // Загрузка отложенных сообщений
+    async function loadDeferredMessages() {
+        const tbody = document.getElementById('deferredMessagesTableBody');
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Загрузка...</td></tr>';
+        try {
+            const resp = await axios.get('/api/statistics/deferred-messages');
+            const data = resp.data;
+            if (!data.length) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Нет отложенных сообщений</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(msg => `
+                <tr>
+                    <td>${msg.received_at ? new Date(msg.received_at).toLocaleString('ru-RU') : '-'}</td>
+                    <td>${msg.client_name || msg.client_username || msg.client_telegram_id || '-'}</td>
+                    <td>${msg.client_username ? `<a href='https://t.me/${msg.client_username}' target='_blank'>@${msg.client_username}</a>` : ''}</td>
+                    <td class='text-truncate' style='max-width:300px' title='${msg.message_text || ''}'>${msg.message_text ? msg.message_text.substring(0, 80) + (msg.message_text.length > 80 ? '...' : '') : '-'}</td>
+                    <td>${msg.answered_by_name || msg.employee_name || '-'}</td>
+                    <td>${msg.deferred_minutes != null ? msg.deferred_minutes : '-'}</td>
+                </tr>
+            `).join('');
+        } catch (e) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Ошибка загрузки</td></tr>';
         }
     }
 </script>

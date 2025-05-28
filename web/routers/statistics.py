@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.requests import Request
 from fastapi.templating import Jinja2Templates
 import json
+from sqlalchemy.orm import selectinload
 
 from database.database import get_db
 from database.models import Employee, Message, SystemSettings
@@ -49,6 +50,23 @@ class MessageResponse(BaseModel):
     client_username: Optional[str]
     message_text: Optional[str]
     
+    class Config:
+        from_attributes = True
+
+
+class DeferredMessageResponse(BaseModel):
+    id: int
+    received_at: datetime
+    client_name: Optional[str]
+    client_username: Optional[str]
+    client_telegram_id: Optional[int]
+    message_text: Optional[str]
+    employee_id: Optional[int]
+    employee_name: Optional[str]
+    answered_by_employee_id: Optional[int]
+    answered_by_name: Optional[str]
+    deferred_minutes: Optional[float]
+
     class Config:
         from_attributes = True
 
@@ -781,7 +799,7 @@ async def import_statistics_from_file(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Неверный формат JSON")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка импорта: {str(e)}") 
+        raise HTTPException(status_code=500, detail=f"Ошибка импорта: {str(e)}")
 
 
 @router.get("/employees/active-delta")
@@ -798,4 +816,56 @@ async def get_active_employees_delta(db: AsyncSession = Depends(get_db)):
     result_week = await db.execute(select(Employee).where(Employee.is_active == True, Employee.created_at <= week_ago))
     active_week = len(result_week.scalars().all())
 
-    return {"active_today": active_today, "active_week": active_week} 
+    return {"active_today": active_today, "active_week": active_week}
+
+
+@router.get("/deferred-messages", response_model=List[DeferredMessageResponse])
+async def get_deferred_messages(
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Получить все отложенные сообщения (только для админа)"""
+    now = datetime.utcnow()
+    result = await db.execute(
+        select(Message)
+        .options(
+            selectinload(Message.employee),
+            selectinload(Message.answered_by)
+        )
+        .where(
+            Message.is_deferred == True,
+            Message.is_deleted == False,
+            Message.message_type == "client"
+        )
+        .order_by(Message.received_at.desc())
+    )
+    messages = result.scalars().all()
+    # Оставляем только уникальные по (chat_id, message_id), самую свежую по id
+    unique = {}
+    for msg in messages:
+        key = (msg.chat_id, msg.message_id)
+        if key not in unique or msg.id > unique[key].id:
+            unique[key] = msg
+
+    response = []
+    for msg in unique.values():
+        employee_name = msg.employee.full_name if msg.employee else None
+        answered_by_name = msg.answered_by.full_name if msg.answered_by else None
+        if msg.responded_at:
+            deferred_minutes = (msg.responded_at - msg.received_at).total_seconds() / 60
+        else:
+            deferred_minutes = (now - msg.received_at).total_seconds() / 60
+        response.append(DeferredMessageResponse(
+            id=msg.id,
+            received_at=msg.received_at,
+            client_name=msg.client_name,
+            client_username=msg.client_username,
+            client_telegram_id=msg.client_telegram_id,
+            message_text=msg.message_text,
+            employee_id=msg.employee_id,
+            employee_name=employee_name,
+            answered_by_employee_id=msg.answered_by_employee_id,
+            answered_by_name=answered_by_name,
+            deferred_minutes=round(deferred_minutes, 1)
+        ))
+    return response 
