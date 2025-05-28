@@ -630,31 +630,25 @@
                 </h5>
             </div>
             <div class="table-responsive">
-                <table class="table">
+                <table id="simpleStatisticsTable" border="1" style="width:100%; background:white; color:black;">
                     <thead>
                         <tr>
-                            <th><i class="fas fa-calendar me-2"></i>Период</th>
-                            <th id="employeeColumn"><i class="fas fa-user me-2"></i>Сотрудник</th>
-                            <th><i class="fas fa-envelope me-2"></i>Всего</th>
-                            <th><i class="fas fa-check me-2"></i>Отвечено</th>
-                            <th><i class="fas fa-times me-2"></i>Пропущено</th>
-                            <th><i class="fas fa-user-friends me-2"></i>Клиентов</th>
-                            <th><i class="fas fa-clock me-2"></i>Ср. время</th>
-                            <th><i class="fas fa-exclamation me-2"></i>>15м</th>
-                            <th><i class="fas fa-exclamation me-2"></i>>30м</th>
-                            <th><i class="fas fa-exclamation me-2"></i>>60м</th>
-                            <th><i class="fas fa-chart-line me-2"></i>Результат</th>
-                            {% if userInfo and userInfo.is_admin %}<th><i class="fab fa-google me-2"></i>Экспорт</th>{% endif %}
+                            <th>Период</th>
+                            <th id="employeeColumn">Сотрудник</th>
+                            <th>Всего</th>
+                            <th>Отвечено</th>
+                            <th>Пропущено</th>
+                            <th>Клиентов</th>
+                            <th>Ср. время</th>
+                            <th>>15м</th>
+                            <th>>30м</th>
+                            <th>>60м</th>
+                            <th>Результат</th>
+                            {% if userInfo and userInfo.is_admin %}<th>Экспорт</th>{% endif %}
                         </tr>
                     </thead>
                     <tbody id="statisticsTableBody">
-                        <tr>
-                            <td colspan="{% if userInfo and userInfo.is_admin %}12{% else %}11{% endif %}" class="text-center py-5">
-                                <div class="loading-skeleton"></div>
-                                <div class="loading-skeleton"></div>
-                                <div class="loading-skeleton"></div>
-                            </td>
-                        </tr>
+                        <tr><td colspan="12" class="text-center">Загрузка...</td></tr>
                     </tbody>
                 </table>
                 <div id="statisticsPagination" class="mt-3"></div>
@@ -824,11 +818,10 @@
         }
         if (statisticsData.length === 0) {
             const colCount = userInfo.is_admin ? 12 : 11;
-            tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-center py-5">Нет данных за выбранный период</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${colCount}" class="text-center">Нет данных за выбранный период</td></tr>`;
             if (pagination) pagination.innerHTML = '';
             return;
         }
-        // Пагинация
         let totalPages = 1;
         let pageData = statisticsData;
         if (userInfo.is_admin) {
@@ -842,36 +835,20 @@
         }
         tbody.innerHTML = pageData.map((stat) => `
             <tr>
-                <td>
-                    <span class="badge bg-secondary">
-                        ${new Date(stat.date).toLocaleDateString('ru-RU')}
-                    </span>
-                </td>
-                ${userInfo.is_admin ? `<td><strong>${stat.employee_name}</strong></td>` : ''}
-                <td><span class="badge bg-info fs-6">${stat.total_messages}</span></td>
-                <td><span class="badge bg-success fs-6">${stat.responded_messages}</span></td>
-                <td><span class="badge bg-danger fs-6">${stat.missed_messages}</span></td>
-                <td><span class="badge bg-info fs-6">${stat.unique_clients}</span></td>
-                <td>
-                    <span class="badge ${getTimeClass(stat.avg_response_time)} fs-6">
-                        ${stat.avg_response_time ? Math.round(stat.avg_response_time) : 0}м
-                    </span>
-                </td>
-                <td><span class="badge bg-warning text-dark fs-6">${stat.exceeded_15_min}</span></td>
-                <td><span class="badge bg-warning text-dark fs-6">${stat.exceeded_30_min}</span></td>
-                <td><span class="badge bg-danger fs-6">${stat.exceeded_60_min}</span></td>
-                <td>
-                    <div class="progress">
-                        <div class="progress-bar ${getEfficiencyClass(stat.efficiency_percent)}" 
-                             style="width: ${stat.efficiency_percent || 0}%">
-                            ${stat.efficiency_percent ? Math.round(stat.efficiency_percent) : 0}%
-                        </div>
-                    </div>
-                </td>
-                ${userInfo.is_admin ? `<td><button class="btn btn-outline-success btn-sm" title="Экспортировать детальный отчёт" onclick="exportToSheetsByEmployee(${stat.employee_id}, this)"><i class="fab fa-google"></i></button></td>` : ''}
+                <td>${new Date(stat.date).toLocaleDateString('ru-RU')}</td>
+                ${userInfo.is_admin ? `<td>${stat.employee_name}</td>` : ''}
+                <td>${stat.total_messages}</td>
+                <td>${stat.responded_messages}</td>
+                <td>${stat.missed_messages}</td>
+                <td>${stat.unique_clients}</td>
+                <td>${stat.avg_response_time ? Math.round(stat.avg_response_time) : 0}м</td>
+                <td>${stat.exceeded_15_min}</td>
+                <td>${stat.exceeded_30_min}</td>
+                <td>${stat.exceeded_60_min}</td>
+                <td>${stat.efficiency_percent ? Math.round(stat.efficiency_percent) : 0}%</td>
+                ${userInfo.is_admin ? `<td><button onclick="exportToSheetsByEmployee(${stat.employee_id}, this)">Экспорт</button></td>` : ''}
             </tr>
         `).join('');
-        // Рендерим пагинацию
         if (pagination) {
             let pagHtml = '';
             if (totalPages > 1) {
