@@ -454,6 +454,53 @@
         background: rgba(26, 26, 46, 0.9) !important;
         color: var(--dark-text) !important;
     }
+
+    .simple-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        background: #fff;
+        color: #222;
+        font-size: 1rem;
+        font-family: 'Inter', Arial, sans-serif;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .simple-table th, .simple-table td {
+        border: 1px solid #e0e0e0;
+        padding: 10px 8px;
+        text-align: center;
+    }
+    .simple-table th {
+        background: #f7f7fa;
+        font-weight: 600;
+        color: #333;
+    }
+    .simple-table tbody tr:nth-child(even) {
+        background: #f9f9fc;
+    }
+    .simple-table tbody tr:hover {
+        background: #eaf3ff;
+        transition: background 0.2s;
+    }
+    .simple-table td {
+        vertical-align: middle;
+    }
+    .simple-table button {
+        background: #f5f5f5;
+        border: 1px solid #d0d0d0;
+        border-radius: 6px;
+        padding: 4px 10px;
+        cursor: pointer;
+        font-size: 0.95em;
+        color: #333;
+        transition: background 0.2s, border 0.2s;
+    }
+    .simple-table button:hover {
+        background: #e0eaff;
+        border-color: #a0bfff;
+    }
 </style>
 {% endblock %}
 
@@ -630,7 +677,7 @@
                 </h5>
             </div>
             <div class="table-responsive">
-                <table id="simpleStatisticsTable" border="1" style="width:100%; background:white; color:black;">
+                <table id="simpleStatisticsTable" class="simple-table" border="0">
                     <thead>
                         <tr>
                             <th>Период</th>
