@@ -170,16 +170,39 @@ class GoogleSheetsService:
             # Если есть сообщения, добавляем их список
             if messages:
                 data.extend([
-                    ["Последние сообщения", "", "", "", ""],
-                    ["Дата/время", "Тип", "Время ответа (мин)", "Отвечено", "Текст сообщения"]
+                    ["Последние сообщения", "", "", "", "", "", "", ""],
+                    ["Дата/время", "Тип", "Клиент", "Ссылка на профиль", "Время ответа (мин)", "Отвечено", "Отложено", "Текст сообщения"]
                 ])
                 
                 for msg in messages[:20]:  # Показываем последние 20 сообщений
+                    # Клиент: имя, username или ID
+                    if msg.client_name:
+                        client_display = msg.client_name
+                    elif msg.client_username:
+                        client_display = f"@{msg.client_username}"
+                    elif msg.client_telegram_id:
+                        client_display = str(msg.client_telegram_id)
+                    else:
+                        client_display = "-"
+
+                    # Ссылка на профиль
+                    if msg.client_username:
+                        client_link = f"https://t.me/{msg.client_username}"
+                    else:
+                        client_link = ""
+
+                    # Отложено
+                    is_deferred = getattr(msg, 'is_deferred', False)
+                    deferred_str = "Да" if is_deferred else "Нет"
+
                     data.append([
                         msg.received_at.strftime("%Y-%m-%d %H:%M:%S") if msg.received_at else "-",
                         msg.message_type or "-",
+                        client_display,
+                        client_link,
                         round(msg.response_time_minutes or 0, 1) if msg.response_time_minutes else "-",
                         "Да" if msg.responded_at else "Нет",
+                        deferred_str,
                         (msg.message_text or "")[:100] + "..." if msg.message_text and len(msg.message_text) > 100 else msg.message_text or "-"
                     ])
             
