@@ -172,7 +172,7 @@ sudo apt install python3.10-venv
 - **Переменные окружения (`.env`)**: Основной способ конфигурации.
 - **Время уведомлений**: Настраивается через переменные `RESPONSE_TIME_WARNING_1`, `RESPONSE_TIME_WARNING_2`, `RESPONSE_TIME_WARNING_3` в `.env` (в минутах).
 - **Google Sheets Экспорт**: (Если включено `GOOGLE_SHEETS_ENABLED=True`)
-    - Настройте `google_sheets_credentials_file` (путь к JSON файлу с учетными данными сервисного аккаунта Google Cloud) и `spreadsheet_id` (ID вашей Google Таблицы).
+    - Настройте `GOOGLE_SHEETS_CREDENTIALS_FILE` (путь к JSON файлу с учетными данными сервисного аккаунта Google Cloud) и `SPREADSHEET_ID` (ID вашей Google Таблицы).
     - Предоставьте сервисному аккаунту права на редактирование вашей таблицы.
 
 ### Подробная настройка Google Sheets интеграции
