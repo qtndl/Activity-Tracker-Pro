@@ -163,45 +163,6 @@ class MessageTracker:
             else:
                 logger.info(f"[SESSION-CLOSE] Не найдено DBMessage для клиента {client_telegram_id} в чате {chat_id} — возможно, уже отвечено или удалено.")
 
-    async def mark_as_deleted(self, chat_id: int, message_id: int): # message_id здесь это Telegram message_id
-        """Отметка сообщения как удаленного"""
-        logger.info(f"🗑 Сообщение Telegram.ID={message_id} удалено в чате {chat_id}")
-        # Обновляем в БД ВСЕ копии этого сообщения (для всех сотрудников)
-        async with AsyncSessionLocal() as session:
-            result = await session.execute(
-                select(DBMessage).where(
-                    and_(
-                        DBMessage.chat_id == chat_id,
-                        DBMessage.message_id == message_id  # Используем Telegram message_id для поиска всех копий
-                    )
-                )
-            )
-            db_message_copies = result.scalars().all()
-
-            if not db_message_copies:
-                logger.warning(f"Не найдено DBMessage записей для Telegram.ID={message_id} в чате {chat_id} для пометки как удаленное.")
-                return
-
-            deleted_count = 0
-            for db_message_copy in db_message_copies:
-                if not db_message_copy.is_deleted:  # Если еще не помечено как удаленное
-                    db_message_copy.is_deleted = True
-                    db_message_copy.deleted_at = datetime.utcnow()
-
-                    # Отменяем уведомления для этого конкретного DBMessage.id
-                    await self.notifications.cancel_notifications(db_message_copy.id)
-                    deleted_count += 1
-                    logger.info(f"✅ Сообщение DBMessage.id={db_message_copy.id} (Telegram.ID={message_id}) помечено как удаленное для сотрудника {db_message_copy.employee_id}")
-
-            if deleted_count > 0:
-                await session.commit()
-                logger.info(f"✅ Помечено как удаленные {deleted_count} DBMessage записей для Telegram.ID={message_id}.")
-
-        # Удаляем из отслеживаемых pending_messages (если такой ключ там был)
-        if chat_id in self.pending_messages and message_id in self.pending_messages[chat_id]:
-            del self.pending_messages[chat_id][message_id]
-            logger.info(f"🗑 Удалено из pending_messages: Telegram.ID={message_id} в чате {chat_id}")
-    
     async def schedule_notifications(self, message_id: int, employee_id: int, chat_id: int):
         """Планирование уведомлений с актуальными настройками из БД"""
         # Используем метод NotificationService который правильно читает настройки из БД
@@ -451,7 +412,8 @@ async def handle_private_message(message: Message):
                     m.responded_at = datetime.utcnow()
                 await session.commit()
                 kb = InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text="Убрать из отложенных", callback_data=f"undefer:{db_msg.chat_id}:{db_msg.message_id}")
+                    InlineKeyboardButton(text="Убрать из отложенных", callback_data=f"undefer:{db_msg.chat_id}:{db_msg.message_id}"),
+                    InlineKeyboardButton(text="Удалить", callback_data=f"delete:{db_msg.chat_id}:{db_msg.message_id}")
                 ]])
                 await message.answer("Сообщение найдено по тексту и времени, все копии помечены как <b>отложено</b> и сняты с пропущенных.", parse_mode="HTML", reply_markup=kb)
                 found_by_text_and_time = True
@@ -484,7 +446,8 @@ async def handle_private_message(message: Message):
             db_msg.responded_at = datetime.utcnow()
         await session.commit()
     kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="Убрать из отложенных", callback_data=f"undefer:{orig_chat_id}:{orig_message_id}")
+        InlineKeyboardButton(text="Убрать из отложенных", callback_data=f"undefer:{orig_chat_id}:{orig_message_id}"),
+        InlineKeyboardButton(text="Удалить", callback_data=f"delete:{orig_chat_id}:{orig_message_id}")
     ]])
     await message.answer("Сообщение помечено как <b>отложено</b> и снято с пропущенных.", parse_mode="HTML", reply_markup=kb)
 
@@ -506,6 +469,26 @@ async def undefer_callback(call: CallbackQuery):
             db_msg.is_deferred = False
         await session.commit()
     await call.answer("Сообщение убрано из отложенных.", show_alert=True)
+    await call.message.edit_reply_markup(reply_markup=None)
+
+@dp.callback_query(F.data.startswith("delete:"))
+async def delete_message_callback(call: CallbackQuery):
+    _, chat_id, message_id = call.data.split(":")
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(DBMessage).where(
+                DBMessage.chat_id == int(chat_id),
+                DBMessage.message_id == int(message_id)
+            )
+        )
+        db_messages = result.scalars().all()
+        if not db_messages:
+            await call.answer("Сообщение не найдено.", show_alert=True)
+            return
+        for db_msg in db_messages:
+            await session.delete(db_msg)
+        await session.commit()
+    await call.answer("Сообщение полностью удалено из базы и не будет учитываться.", show_alert=True)
     await call.message.edit_reply_markup(reply_markup=None)
 
 

@@ -590,6 +590,7 @@
                                     <th>Текст</th>
                                     <th>Сотрудник</th>
                                     <th>Отложено (мин)</th>
+                                    <th>Действие</th>
                                 </tr>
                             </thead>
                             <tbody id="deferredMessagesTableBody">
@@ -1194,8 +1195,30 @@
                     <td class='text-truncate' style='max-width:300px' title='${msg.message_text || ''}'>${msg.message_text ? msg.message_text.substring(0, 80) + (msg.message_text.length > 80 ? '...' : '') : '-'}</td>
                     <td>${msg.answered_by_name || msg.employee_name || '-'}</td>
                     <td>${msg.deferred_minutes != null ? msg.deferred_minutes : '-'}</td>
+                    <td><button class="btn btn-sm btn-success undefer-btn" data-id="${msg.id}">Снять</button></td>
                 </tr>
             `).join('');
+            // Вешаем обработчик на кнопки 'Снять'
+            tbody.querySelectorAll('.undefer-btn').forEach(btn => {
+                btn.addEventListener('click', async function() {
+                    const messageId = this.getAttribute('data-id');
+                    console.log('Нажата кнопка Снять для сообщения', messageId);
+                    this.disabled = true;
+                    try {
+                        const resp = await axios.post('/api/statistics/undefer-message', { message_id: Number(messageId) });
+                        console.log('Ответ сервера:', resp.data);
+                        if (resp.data.success) {
+                            await loadDeferredMessages();
+                        } else {
+                            alert(resp.data.message || 'Ошибка');
+                        }
+                    } catch (e) {
+                        alert('Ошибка при снятии с отложенных');
+                        console.error(e);
+                    }
+                    this.disabled = false;
+                });
+            });
         } catch (e) {
             tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Ошибка загрузки</td></tr>';
         }

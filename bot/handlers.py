@@ -3,7 +3,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from sqlalchemy import select
 from database.database import AsyncSessionLocal
-from database.models import Employee
+from database.models import Employee, Message as DBMessage
 from .scheduler import setup_scheduler
 
 
@@ -212,11 +212,9 @@ def register_handlers(dp: Dispatcher, message_tracker):
     
     @dp.message(Command("mark_deleted"))
     async def mark_deleted_command(message: Message):
-        """Пометить сообщение как удаленное (только для админов) - ТОЛЬКО в личных сообщениях"""
-        # Игнорируем команды в группах
+        """Полное удаление сообщения (только для админов) - ТОЛЬКО в личных сообщениях"""
         if message.chat.type != "private":
             return
-            
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 select(Employee).where(
@@ -225,39 +223,43 @@ def register_handlers(dp: Dispatcher, message_tracker):
                 )
             )
             admin = result.scalar_one_or_none()
-            
             if not admin:
                 await message.answer("❌ У вас нет прав администратора")
                 return
-            
-            # Парсим аргументы команды
             args = message.text.split()[1:] if len(message.text.split()) > 1 else []
-            
             if len(args) < 2:
                 await message.answer(
                     "ℹ️ <b>Использование:</b>\n"
                     "<code>/mark_deleted CHAT_ID MESSAGE_ID</code>\n\n"
                     "<b>Пример:</b>\n"
                     "<code>/mark_deleted -1001234567890 123</code>\n\n"
-                    "Эта команда пометит сообщение как удаленное клиентом. "
-                    "Такие сообщения не будут считаться пропущенными.",
+                    "Эта команда полностью удалит сообщение из базы для всех сотрудников.",
                     parse_mode="HTML"
                 )
                 return
-            
             try:
                 chat_id = int(args[0])
                 msg_id = int(args[1])
             except ValueError:
                 await message.answer("❌ Неправильный формат. Chat ID и Message ID должны быть числами.")
                 return
-            
-            # Используем метод message_tracker для пометки удаленного сообщения
-            await message_tracker.mark_as_deleted(chat_id, msg_id)
-            
+            # Полное удаление всех копий сообщения
+            result = await session.execute(
+                select(DBMessage).where(
+                    DBMessage.chat_id == chat_id,
+                    DBMessage.message_id == msg_id
+                )
+            )
+            db_messages = result.scalars().all()
+            if not db_messages:
+                await message.answer("❌ Сообщение не найдено в базе.")
+                return
+            for db_msg in db_messages:
+                await session.delete(db_msg)
+            await session.commit()
             await message.answer(
-                f"✅ Сообщение {msg_id} в чате {chat_id} помечено как удаленное.\n\n"
-                "Оно больше не будет учитываться как пропущенное в статистике.",
+                f"✅ Сообщение {msg_id} в чате {chat_id} полностью удалено из базы.\n\n"
+                "Оно больше не будет учитываться нигде в статистике.",
                 parse_mode="HTML"
             )
 

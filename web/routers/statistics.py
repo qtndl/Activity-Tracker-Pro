@@ -71,6 +71,10 @@ class DeferredMessageResponse(BaseModel):
         from_attributes = True
 
 
+class UndeferMessageRequest(BaseModel):
+    message_id: int
+
+
 @router.get("/my", response_model=List[StatisticsResponse])
 async def get_my_statistics(
     period_type: str = Query("daily", regex="^(daily|weekly|monthly)$"),
@@ -941,3 +945,30 @@ async def get_my_deferred_messages(
             deferred_minutes=round(deferred_minutes, 1)
         ))
     return response 
+
+
+@router.post("/undefer-message")
+async def undefer_message(
+    req: UndeferMessageRequest,
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Снять сообщение с отложенных (только для админа, снимает у всех копий)"""
+    result = await db.execute(select(Message).where(Message.id == req.message_id))
+    msg = result.scalar_one_or_none()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Сообщение не найдено")
+    # Снимаем флаг у всех копий (по chat_id и message_id)
+    result_all = await db.execute(
+        select(Message).where(
+            Message.chat_id == msg.chat_id,
+            Message.message_id == msg.message_id
+        )
+    )
+    msgs_all = result_all.scalars().all()
+    for m in msgs_all:
+        m.is_deferred = False
+        m.responded_at = datetime.utcnow()
+        m.answered_by_employee_id = current_user.get('employee_id')
+    await db.commit()
+    return {"success": True, "message": "Сообщение снято с отложенных у всех копий и отмечено как успешно отвеченное"} 
