@@ -85,4 +85,19 @@ class ChatEmployee(Base):
     assigned_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
-    employee = relationship("Employee") 
+    employee = relationship("Employee")
+
+
+class DeferredMessageSimple(Base):
+    __tablename__ = "deferred_messages_simple"
+
+    id = Column(Integer, primary_key=True, index=True)
+    from_user_id = Column(BigInteger, nullable=True)  # теперь nullable
+    from_username = Column(String, nullable=True)
+    text = Column(Text, nullable=True)
+    date = Column(DateTime, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    client_telegram_id = Column(BigInteger, nullable=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+    chat_id = Column(BigInteger, nullable=True)

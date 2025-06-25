@@ -24,10 +24,17 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
 
 
+async def init_deferred_message_simple():
+    """Инициализация таблицы deferred_messages_simple"""
+    async with engine.begin() as conn:
+        from .models import DeferredMessageSimple
+        await conn.run_sync(DeferredMessageSimple.metadata.create_all)
+
+
 async def get_db():
     """Получение сессии базы данных"""
     async with AsyncSessionLocal() as session:
         try:
             yield session
         finally:
-            await session.close() 
+            await session.close()

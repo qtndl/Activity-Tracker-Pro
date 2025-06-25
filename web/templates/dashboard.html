@@ -22,7 +22,7 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: 
+        background:
             radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.2) 0%, transparent 50%),
             radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
             radial-gradient(circle at 40% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
@@ -30,8 +30,15 @@
     }
 
     @keyframes heroGlow {
-        0% { opacity: 0.5; transform: scale(1); }
-        100% { opacity: 1; transform: scale(1.05); }
+        0% {
+            opacity: 0.5;
+            transform: scale(1);
+        }
+
+        100% {
+            opacity: 1;
+            transform: scale(1.05);
+        }
     }
 
     .hero-content {
@@ -110,10 +117,21 @@
         border-radius: 25px 25px 0 0;
     }
 
-    .stat-card.primary::before { background: var(--primary); }
-    .stat-card.success::before { background: var(--success); }
-    .stat-card.info::before { background: var(--info); }
-    .stat-card.danger::before { background: var(--danger); }
+    .stat-card.primary::before {
+        background: var(--primary);
+    }
+
+    .stat-card.success::before {
+        background: var(--success);
+    }
+
+    .stat-card.info::before {
+        background: var(--info);
+    }
+
+    .stat-card.danger::before {
+        background: var(--danger);
+    }
 
     .stat-icon {
         width: 80px;
@@ -128,10 +146,21 @@
         overflow: hidden;
     }
 
-    .stat-icon.primary { background: var(--primary); }
-    .stat-icon.success { background: var(--success); }
-    .stat-icon.info { background: var(--info); }
-    .stat-icon.danger { background: var(--danger); }
+    .stat-icon.primary {
+        background: var(--primary);
+    }
+
+    .stat-icon.success {
+        background: var(--success);
+    }
+
+    .stat-icon.info {
+        background: var(--info);
+    }
+
+    .stat-icon.danger {
+        background: var(--danger);
+    }
 
     .stat-icon::before {
         content: '';
@@ -234,7 +263,9 @@
     }
 
     @keyframes progressFill {
-        from { stroke-dasharray: 0 314; }
+        from {
+            stroke-dasharray: 0 314;
+        }
     }
 
     /* Chart Cards */
@@ -282,8 +313,13 @@
     }
 
     @keyframes loading {
-        0% { background-position: 200% 0; }
-        100% { background-position: -200% 0; }
+        0% {
+            background-position: 200% 0;
+        }
+
+        100% {
+            background-position: -200% 0;
+        }
     }
 
     /* Status Indicators */
@@ -336,15 +372,15 @@
         .hero-title {
             font-size: 2rem;
         }
-        
+
         .stat-card {
             padding: 1.5rem;
         }
-        
+
         .metric-card {
             padding: 2rem;
         }
-        
+
         .stat-number,
         .metric-value {
             font-size: 2.5rem;
@@ -471,13 +507,13 @@
                     <h5>Среднее время ответа</h5>
                     <div class="metric-value" id="avgResponseTime">0</div>
                     <p class="text-muted mb-0">минут</p>
-                    
+
                     <!-- Progress Ring -->
                     <svg class="progress-ring" viewBox="0 0 120 120">
                         <defs>
                             <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" style="stop-color:#667eea"/>
-                                <stop offset="100%" style="stop-color:#764ba2"/>
+                                <stop offset="0%" style="stop-color:#667eea" />
+                                <stop offset="100%" style="stop-color:#764ba2" />
                             </linearGradient>
                         </defs>
                         <circle class="bg" cx="60" cy="60" r="50"></circle>
@@ -493,7 +529,7 @@
                     <h5>Эффективность команды</h5>
                     <div class="metric-value" id="efficiencyToday">0</div>
                     <p class="text-muted mb-0">процентов</p>
-                    
+
                     <!-- Progress Ring -->
                     <svg class="progress-ring" viewBox="0 0 120 120">
                         <circle class="bg" cx="60" cy="60" r="50"></circle>
@@ -509,7 +545,7 @@
                     <h5 id="uniqueClientsLabel">Уникальных клиентов</h5>
                     <div class="metric-value" id="uniqueClientsToday">0</div>
                     <p class="text-muted mb-0">обработано</p>
-                    
+
                     <!-- Progress Ring -->
                     <svg class="progress-ring" viewBox="0 0 120 120">
                         <circle class="bg" cx="60" cy="60" r="50"></circle>
@@ -525,7 +561,7 @@
                     <h5>Пропущено</h5>
                     <div class="metric-value" id="missedToday">0</div>
                     <p class="text-muted mb-0">сообщений</p>
-                    
+
                     <!-- Progress Ring -->
                     <svg class="progress-ring" viewBox="0 0 120 120">
                         <circle class="bg" cx="60" cy="60" r="50"></circle>
@@ -572,7 +608,8 @@
     </button>
 
     <!-- Модальное окно для отложенных сообщений -->
-    <div class="modal fade" id="deferredMessagesModal" tabindex="-1" aria-labelledby="deferredMessagesModalLabel" aria-hidden="true">
+    <div class="modal fade" id="deferredMessagesModal" tabindex="-1" aria-labelledby="deferredMessagesModalLabel"
+        aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
@@ -594,7 +631,9 @@
                                 </tr>
                             </thead>
                             <tbody id="deferredMessagesTableBody">
-                                <tr><td colspan="6" class="text-center text-muted">Загрузка...</td></tr>
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">Загрузка...</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -655,23 +694,23 @@
         };
 
         const periodLabels = labels[period] || labels.today;
-        
+
         // Обновляем надписи с проверкой существования элементов
         const totalMessagesLabel = document.getElementById('totalMessagesLabel');
         if (totalMessagesLabel) {
             totalMessagesLabel.textContent = periodLabels.totalMessages;
         }
-        
+
         const respondedLabel = document.getElementById('respondedLabel');
         if (respondedLabel) {
             respondedLabel.textContent = periodLabels.responded;
         }
-        
+
         const uniqueClientsLabel = document.getElementById('uniqueClientsLabel');
         if (uniqueClientsLabel) {
             uniqueClientsLabel.textContent = periodLabels.uniqueClients;
         }
-        
+
         console.log(`📝 Labels updated for period: ${period}`);
     }
 
@@ -690,15 +729,15 @@
     async function loadDashboard(period = 'today') {
         console.log('🔄 Loading dashboard data for period:', period);
         currentPeriod = period;
-        
+
         // Update period labels immediately
         updatePeriodLabels(period);
-        
+
         // Update active button
         document.querySelectorAll('.period-btn').forEach(btn => {
             btn.classList.remove('active');
         });
-        
+
         // Find and activate correct button
         const buttons = document.querySelectorAll('.period-btn');
         buttons.forEach(btn => {
@@ -708,18 +747,18 @@
                 btn.classList.add('active');
             }
         });
-        
+
         try {
             // Show loading state
             console.log('🔄 Showing loading state');
             document.getElementById('loadingSpinner').style.display = 'block';
             document.getElementById('dashboardContent').style.display = 'none';
-            
+
             console.log('📡 Making API request to /api/dashboard/overview with period:', period);
             const response = await axios.get(`/api/dashboard/overview?period=${period}`);
             console.log('✅ API response received:', response.data);
             const data = response.data;
-            
+
             // Детальное логирование получаемых данных
             console.log('📊 Received data breakdown:');
             console.log('  - active_employees:', data.active_employees);
@@ -730,21 +769,21 @@
             console.log('  - avg_response_time:', data.avg_response_time);
             console.log('  - efficiency_today:', data.efficiency_today);
             console.log('  - missed_today:', data.missed_today);
-            
+
             // Hide loading and show content
             console.log('✅ Hiding loading, showing content');
             document.getElementById('loadingSpinner').style.display = 'none';
             document.getElementById('dashboardContent').style.display = 'block';
-            
+
             // Update stats with animations - с проверкой элементов
             console.log('🎬 Starting number animations');
-            
+
             // Проверяем наличие элементов и их текущие значения
             const elements = [
-                'activeEmployees', 'totalMessagesToday', 'respondedToday', 
+                'activeEmployees', 'totalMessagesToday', 'respondedToday',
                 'uniqueClientsToday', 'avgResponseTime', 'efficiencyToday', 'missedToday'
             ];
-            
+
             elements.forEach(id => {
                 const element = document.getElementById(id);
                 if (element) {
@@ -753,31 +792,31 @@
                     console.error(`  Element ${id}: NOT FOUND!`);
                 }
             });
-            
+
             // Анимируем числа с логированием
             console.log('🔢 Animating numbers:');
             console.log('  - activeEmployees:', data.active_employees || 0);
             animateNumber('activeEmployees', data.active_employees || 0);
-            
+
             console.log('  - totalMessagesToday:', data.total_messages_today || 0);
             animateNumber('totalMessagesToday', data.total_messages_today || 0);
-            
+
             console.log('  - respondedToday:', data.responded_today || 0);
             animateNumber('respondedToday', data.responded_today || 0);
-            
+
             console.log('  - uniqueClientsToday:', data.unique_clients_today || 0);
             animateNumber('uniqueClientsToday', data.unique_clients_today || 0);
-            
+
             // avgResponseTime — дробное число, 1 знак после запятой
             console.log('  - avgResponseTime:', data.avg_response_time || 0);
             animateNumber('avgResponseTime', data.avg_response_time || 0, true);
-            
+
             console.log('  - efficiencyToday:', data.efficiency_today || 0);
             animateNumber('efficiencyToday', data.efficiency_today || 0);
-            
+
             console.log('  - missedToday:', data.missed_today || 0);
             animateNumber('missedToday', data.missed_today || 0);
-            
+
             // Update progress rings
             setTimeout(() => {
                 console.log('⭕ Updating progress rings');
@@ -785,21 +824,21 @@
                 const timePercentage = Math.min((data.avg_response_time || 0) / maxTime * 100, 100);
                 console.log('  - timeProgress percentage:', timePercentage);
                 setProgressRing('timeProgress', timePercentage);
-                
+
                 console.log('  - efficiencyProgress percentage:', data.efficiency_today || 0);
                 setProgressRing('efficiencyProgress', data.efficiency_today || 0);
-                
+
                 // Прогресс уникальных клиентов (относительно общего количества сообщений)
                 const totalMessages = data.total_messages_today || 1;
                 const clientsPercentage = Math.min((data.unique_clients_today || 0) / totalMessages * 100, 100);
                 console.log('  - clientsProgress percentage:', clientsPercentage);
                 setProgressRing('clientsProgress', clientsPercentage);
-                
+
                 const missedPercentage = (data.missed_today || 0) / totalMessages * 100;
                 console.log('  - missedProgress percentage:', missedPercentage);
                 setProgressRing('missedProgress', missedPercentage);
             }, 1000);
-            
+
             // Обновление блока отложенных
             const deferredStatus = document.getElementById('deferredStatus');
             const deferredMessages = document.getElementById('deferredMessages');
@@ -817,30 +856,30 @@
                     deferredStatus.style.display = 'none';
                 }
             }
-            
+
             // Load charts
             console.log('📊 Loading charts');
             await loadCharts();
-            
+
             // Вызываем updateActiveTeamDelta после загрузки дашборда
             await updateActiveTeamDelta();
-            
+
             console.log('✅ Dashboard loaded successfully');
-            
+
         } catch (error) {
             console.error('❌ Error loading dashboard:', error);
             console.error('Error details:', error.response?.data || error.message);
-            
+
             document.getElementById('loadingSpinner').style.display = 'none';
             document.getElementById('dashboardContent').style.display = 'block';
-            
+
             // Show fallback data
             console.log('⚠️ Showing fallback data');
             animateNumber('activeEmployees', 0);
             animateNumber('totalMessagesToday', 0);
             animateNumber('respondedToday', 0);
             animateNumber('missedToday', 0);
-            
+
         }
     }
 
@@ -851,41 +890,41 @@
             console.error(`❌ animateNumber: Element ${elementId} not found!`);
             return;
         }
-        
+
         const startValue = isFloat ? parseFloat(element.textContent.replace(',', '.')) || 0 : parseInt(element.textContent) || 0;
         console.log(`🎯 animateNumber ${elementId}: ${startValue} → ${targetValue}`);
-        
+
         // Если значения одинаковые, просто обновляем без анимации
         if (startValue === targetValue) {
             console.log(`⚡ animateNumber ${elementId}: values are the same, no animation needed`);
             element.textContent = isFloat ? Number(targetValue).toFixed(1) : targetValue;
             return;
         }
-        
+
         const duration = 1000;
         const startTime = performance.now();
-        
+
         function updateNumber(currentTime) {
             const elapsed = currentTime - startTime;
             const progress = Math.min(elapsed / duration, 1);
-            
+
             // Easing function
             const easeOut = 1 - Math.pow(1 - progress, 3);
             const currentValue = startValue + (targetValue - startValue) * easeOut;
-            
+
             if (isFloat) {
                 element.textContent = Number(currentValue).toFixed(1);
             } else {
                 element.textContent = Math.round(currentValue);
             }
-            
+
             if (progress < 1) {
                 requestAnimationFrame(updateNumber);
             } else {
                 console.log(`✅ animateNumber ${elementId}: animation completed, final value = ${isFloat ? Number(targetValue).toFixed(1) : targetValue}`);
             }
         }
-        
+
         requestAnimationFrame(updateNumber);
     }
 
@@ -896,44 +935,44 @@
             const chartResponse = await axios.get(`/api/statistics/charts/response-time?period=${currentPeriod === 'today' ? 'week' : 'month'}`);
             console.log('📊 Chart response:', chartResponse.data);
             const chartData = chartResponse.data;
-            
+
             // Извлекаем labels и data из ответа API
             const labels = chartData.data.map(item => {
                 const date = new Date(item.date);
-                return date.toLocaleDateString('ru-RU', { 
-                    month: 'short', 
-                    day: 'numeric' 
+                return date.toLocaleDateString('ru-RU', {
+                    month: 'short',
+                    day: 'numeric'
                 });
             });
             const responseTimeData = chartData.data.map(item => item.avg_response_time);
-            
+
             console.log('📊 Processed chart data:');
             console.log('  - labels:', labels);
             console.log('  - data:', responseTimeData);
-            
+
             document.getElementById('chartsSection').style.display = 'flex';
-            
+
             // Modern gradient colors
             const gradientBlue = {
                 start: '#667eea',
                 end: '#764ba2'
             };
-            
+
             const gradientGreen = {
                 start: '#4facfe',
                 end: '#00f2fe'
             };
-            
+
             // Response time chart
             const ctx1 = document.getElementById('responseTimeChart').getContext('2d');
             if (responseTimeChart) {
                 responseTimeChart.destroy();
             }
-            
+
             const gradient = ctx1.createLinearGradient(0, 0, 0, 400);
             gradient.addColorStop(0, 'rgba(102, 126, 234, 0.3)');
             gradient.addColorStop(1, 'rgba(102, 126, 234, 0.05)');
-            
+
             console.log('📊 Creating chart with Chart.js...');
             responseTimeChart = new Chart(ctx1, {
                 type: 'line',
@@ -1012,20 +1051,20 @@
                     }
                 }
             });
-            
+
             console.log('✅ Line chart created successfully');
-            
+
             // Pie chart
             console.log('📊 Loading pie chart data...');
             const summaryResponse = await axios.get(`/api/statistics/summary?period=${currentPeriod}`);
             console.log('📊 Summary response:', summaryResponse.data);
             const summaryData = summaryResponse.data;
-            
+
             const ctx2 = document.getElementById('messagesPieChart').getContext('2d');
             if (pieChart) {
                 pieChart.destroy();
             }
-            
+
             pieChart = new Chart(ctx2, {
                 type: 'doughnut',
                 data: {
@@ -1079,9 +1118,9 @@
                     }
                 }
             });
-            
+
             console.log('✅ Pie chart created successfully');
-            
+
         } catch (error) {
             console.error('❌ Error loading charts:', error);
             console.error('Error details:', error.response?.data || error.message);
@@ -1092,9 +1131,9 @@
     function refreshDashboard() {
         const fab = document.querySelector('.fab');
         const originalTransform = fab.style.transform;
-        
+
         fab.style.transform = 'scale(1.2) rotate(360deg)';
-        
+
         setTimeout(() => {
             fab.style.transform = originalTransform;
             loadDashboard(currentPeriod);
@@ -1113,19 +1152,19 @@
         // Start time updates
         updateCurrentTime();
         setInterval(updateCurrentTime, 1000);
-        
+
         // Initial load - ensure dashboard content is hidden during loading
         document.getElementById('loadingSpinner').style.display = 'block';
         document.getElementById('dashboardContent').style.display = 'none';
-        
+
         // Load dashboard data automatically
         setTimeout(() => {
             loadDashboard('today');
         }, 100); // Small delay to ensure DOM is ready
-        
+
         // Auto refresh every 10 minutes
         startAutoRefresh();
-        
+
         // Убираем тяжелые анимации
         document.querySelectorAll('.stat-card, .metric-card, .chart-card').forEach(card => {
             card.style.opacity = '1';
@@ -1136,10 +1175,17 @@
         const deferredCard = document.querySelector('.stat-card.danger');
         if (deferredCard) {
             deferredCard.style.cursor = 'pointer';
-            deferredCard.addEventListener('click', function() {
+            deferredCard.addEventListener('click', function () {
                 const modal = new bootstrap.Modal(document.getElementById('deferredMessagesModal'));
                 loadDeferredMessages();
                 modal.show();
+            });
+        }
+        // Гарантируем загрузку отложенных сообщений при любом открытии модального окна (например, через show())
+        const deferredModal = document.getElementById('deferredMessagesModal');
+        if (deferredModal) {
+            deferredModal.addEventListener('show.bs.modal', function () {
+                loadDeferredMessages();
             });
         }
     });
@@ -1157,7 +1203,7 @@
             const response = await axios.get('/api/statistics/employees/active-delta');
             const activeToday = response.data.active_today || 0;
             const activeWeek = response.data.active_week || 0;
-            
+
             let delta = 0;
             if (activeWeek > 0) {
                 delta = Math.round(((activeToday - activeWeek) / activeWeek) * 100);
@@ -1167,7 +1213,7 @@
 
             const statCard = document.querySelector('#activeEmployees').closest('.stat-card');
             const deltaElement = statCard.querySelector('.stat-change span');
-            
+
             deltaElement.innerHTML = `${delta >= 0 ? '+' : ''}${delta}% за неделю`;
             deltaElement.parentElement.classList.toggle('text-success', delta >= 0);
             deltaElement.parentElement.classList.toggle('text-danger', delta < 0);
@@ -1200,12 +1246,12 @@
             `).join('');
             // Вешаем обработчик на кнопки 'Снять'
             tbody.querySelectorAll('.undefer-btn').forEach(btn => {
-                btn.addEventListener('click', async function() {
+                btn.addEventListener('click', async function () {
                     const messageId = this.getAttribute('data-id');
                     console.log('Нажата кнопка Снять для сообщения', messageId);
                     this.disabled = true;
                     try {
-                        const resp = await axios.post('/api/statistics/undefer-message', { message_id: Number(messageId) });
+                        const resp = await axios.post('/api/statistics/undefer-deferred-simple', { message_id: Number(messageId) });
                         console.log('Ответ сервера:', resp.data);
                         if (resp.data.success) {
                             await loadDeferredMessages();
@@ -1224,4 +1270,4 @@
         }
     }
 </script>
-{% endblock %} 
+{% endblock %}

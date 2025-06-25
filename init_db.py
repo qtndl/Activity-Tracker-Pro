@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Скрипт инициализации базы данных"""
 
-import asyncio
-from database.database import init_db, AsyncSessionLocal
+from database.database import init_db, init_deferred_message_simple
 from database.models import Employee
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def main():
     print("Инициализация базы данных...")
     await init_db()
-    print("✅ База данных создана")
+    await init_deferred_message_simple()
+    print("✅ База данных и таблица deferred_messages_simple созданы")
     
     # Создаем первого администратора
-    async with AsyncSessionLocal() as session:
+    async with AsyncSession() as session:
         # Проверяем, есть ли уже админ
         admin = await session.get(Employee, 1)
         if not admin:
@@ -33,4 +34,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    import asyncio
+    asyncio.run(init_db())
+    asyncio.run(init_deferred_message_simple())
+    print("База данных и таблица deferred_messages_simple инициализированы.")

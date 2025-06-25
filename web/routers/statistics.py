@@ -11,7 +11,7 @@ import json
 from sqlalchemy.orm import selectinload
 
 from database.database import get_db
-from database.models import Employee, Message, SystemSettings
+from database.models import Employee, Message, SystemSettings, DeferredMessageSimple
 from web.auth import get_current_user, get_current_admin
 from web.services.statistics_service import StatisticsService, EmployeeStats
 from web.services.google_sheets import GoogleSheetsService
@@ -66,6 +66,7 @@ class DeferredMessageResponse(BaseModel):
     answered_by_employee_id: Optional[int]
     answered_by_name: Optional[str]
     deferred_minutes: Optional[float]
+    chat_id: Optional[int]
 
     class Config:
         from_attributes = True
@@ -833,49 +834,40 @@ async def get_deferred_messages(
     current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получить все отложенные сообщения (только для админа)"""
+    """Получить все отложенные сообщения (новая таблица deferred_messages_simple)"""
     now = datetime.utcnow()
     result = await db.execute(
-        select(Message)
-        .options(
-            selectinload(Message.employee),
-            selectinload(Message.answered_by)
-        )
-        .where(
-            Message.is_deferred == True,
-            Message.is_deleted == False,
-            Message.message_type == "client"
-        )
-        .order_by(Message.received_at.desc())
+        select(DeferredMessageSimple)
+        .where(DeferredMessageSimple.is_active == True)
+        .order_by(DeferredMessageSimple.date.desc())
     )
     messages = result.scalars().all()
-    # Оставляем только уникальные по (chat_id, message_id), самую свежую по id
-    unique = {}
-    for msg in messages:
-        key = (msg.chat_id, msg.message_id)
-        if key not in unique or msg.id > unique[key].id:
-            unique[key] = msg
-
+    # Получаем все employee_id из сообщений
+    employee_ids = list({msg.employee_id for msg in messages if msg.employee_id})
+    employees = {}
+    if employee_ids:
+        emp_result = await db.execute(select(Employee).where(Employee.id.in_(employee_ids)))
+        for emp in emp_result.scalars().all():
+            employees[emp.id] = emp.full_name
     response = []
-    for msg in unique.values():
-        employee_name = msg.employee.full_name if msg.employee else None
-        answered_by_name = msg.answered_by.full_name if msg.answered_by else None
-        if msg.responded_at:
-            deferred_minutes = (msg.responded_at - msg.received_at).total_seconds() / 60
+    for msg in messages:
+        if msg.date:
+            deferred_minutes = (now - msg.date).total_seconds() / 60
         else:
-            deferred_minutes = (now - msg.received_at).total_seconds() / 60
+            deferred_minutes = None
         response.append(DeferredMessageResponse(
             id=msg.id,
-            received_at=msg.received_at,
-            client_name=msg.client_name,
-            client_username=msg.client_username,
-            client_telegram_id=msg.client_telegram_id,
-            message_text=msg.message_text,
+            received_at=msg.date,
+            client_name=msg.from_username,
+            client_username=msg.from_username,
+            client_telegram_id=msg.client_telegram_id if hasattr(msg, 'client_telegram_id') else msg.from_user_id,
+            message_text=msg.text,
             employee_id=msg.employee_id,
-            employee_name=employee_name,
-            answered_by_employee_id=msg.answered_by_employee_id,
-            answered_by_name=answered_by_name,
-            deferred_minutes=round(deferred_minutes, 1)
+            employee_name=employees.get(msg.employee_id) if msg.employee_id else None,
+            answered_by_employee_id=None,
+            answered_by_name=None,
+            deferred_minutes=round(deferred_minutes, 1) if deferred_minutes is not None else None,
+            chat_id=msg.chat_id
         ))
     return response
 
@@ -942,7 +934,8 @@ async def get_my_deferred_messages(
             employee_name=employee_name,
             answered_by_employee_id=msg.answered_by_employee_id,
             answered_by_name=answered_by_name,
-            deferred_minutes=round(deferred_minutes, 1)
+            deferred_minutes=round(deferred_minutes, 1),
+            chat_id=msg.chat_id
         ))
     return response 
 
@@ -971,4 +964,19 @@ async def undefer_message(
         m.responded_at = datetime.utcnow()
         m.answered_by_employee_id = current_user.get('employee_id')
     await db.commit()
-    return {"success": True, "message": "Сообщение снято с отложенных у всех копий и отмечено как успешно отвеченное"} 
+    return {"success": True, "message": "Сообщение снято с отложенных у всех копий и отмечено как успешно отвеченное"}
+
+
+@router.post("/undefer-deferred-simple")
+async def undefer_deferred_simple(
+    req: UndeferMessageRequest,
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(DeferredMessageSimple).where(DeferredMessageSimple.id == req.message_id))
+    msg = result.scalar_one_or_none()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Сообщение не найдено")
+    msg.is_active = False
+    await db.commit()
+    return {"success": True, "message": "Сообщение снято с отложенных"}

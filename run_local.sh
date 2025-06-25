@@ -88,6 +88,14 @@ fi
 log "Проверка и миграция поля is_deferred в messages..."
 PYTHONPATH=$PYTHONPATH:$(pwd) python migrate_add_is_deferred.py
 
+# Миграция: nullable для from_user_id в deferred_messages_simple
+log "Проверка и миграция nullable для from_user_id в deferred_messages_simple..."
+PYTHONPATH=$PYTHONPATH:$(pwd) python migrate_deferred_nullable.py
+
+# Миграция: добавление client_telegram_id, employee_id, chat_id в deferred_messages_simple
+log "Проверка и миграция новых полей в deferred_messages_simple..."
+PYTHONPATH=$PYTHONPATH:$(pwd) python migrate_add_client_fields_to_deferred.py
+
 # Добавление админа из FIRST_ADMIN_ID
 if [ -n "$FIRST_ADMIN_ID" ]; then
     log "Добавление админа из FIRST_ADMIN_ID..."
@@ -149,4 +157,4 @@ log "Веб-интерфейс: PID $WEB_PID"
 log "Для остановки используйте: ./stop_local.sh"
 log "Для просмотра логов используйте:"
 log "  tail -f logs/bot.log    # логи бота"
-log "  tail -f logs/web.log    # логи веб-интерфейса" 
+log "  tail -f logs/web.log    # логи веб-интерфейса"

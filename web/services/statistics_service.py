@@ -8,7 +8,7 @@ from sqlalchemy import select, and_, or_
 from dataclasses import dataclass
 import logging
 
-from database.models import Employee, Message
+from database.models import Employee, Message, DeferredMessageSimple
 
 logger = logging.getLogger(__name__)
 
@@ -82,11 +82,16 @@ class StatisticsService:
         # Вычисляем статистику
         stats = self._calculate_stats(messages)
         
-        # Считаем отложенные сообщения для сотрудника за период
-        deferred_count = len([
-            m for m in messages
-            if m.is_deferred and not m.is_deleted and m.answered_by_employee_id == employee_id
-        ])
+        # Считаем отложенные сообщения для сотрудника за период по новой таблице
+        result = await self.db.execute(
+            select(DeferredMessageSimple).where(
+                DeferredMessageSimple.is_active == True,
+                DeferredMessageSimple.from_user_id == employee_id,
+                DeferredMessageSimple.created_at >= period_start,
+                DeferredMessageSimple.created_at <= period_end
+            )
+        )
+        deferred_count = len(result.scalars().all())
         
         return EmployeeStats(
             employee_id=employee.id,
@@ -140,10 +145,16 @@ class StatisticsService:
         for employee in employees:
             messages = messages_by_employee.get(employee.id, [])
             stats = self._calculate_stats(messages)
-            deferred_count = len([
-                m for m in messages
-                if m.is_deferred and not m.is_deleted and m.answered_by_employee_id == employee.id
-            ])
+            # Новый подсчёт deferred_count по deferred_messages_simple
+            result = await self.db.execute(
+                select(DeferredMessageSimple).where(
+                    DeferredMessageSimple.is_active == True,
+                    DeferredMessageSimple.from_user_id == employee.id,
+                    DeferredMessageSimple.created_at >= period_start,
+                    DeferredMessageSimple.created_at <= period_end
+                )
+            )
+            deferred_count = len(result.scalars().all())
             all_stats.append(EmployeeStats(
                 employee_id=employee.id,
                 employee_name=employee.full_name,
@@ -439,7 +450,7 @@ class StatisticsService:
         }
     
     async def _get_urgent_messages_count(self) -> int:
-        """Получить количество срочных сообщений (без ответа более 30 минут, исключая удаленные и отвеченные)"""
+        """Получить количество срочных сообщений (без ответа более 30 минут, исключая удаленные и отвеченные другими)"""
         
         threshold_time = datetime.utcnow() - timedelta(minutes=30)
         
@@ -456,23 +467,13 @@ class StatisticsService:
         return len(result.scalars().all())
     
     async def _get_deferred_messages_count(self) -> int:
-        """Получить количество отложенных сообщений (is_deferred=True, не удалённых, не отвеченных) с подробным логированием"""
+        """Получить количество отложенных сообщений из новой таблицы deferred_messages_simple (is_active=1)"""
         result = await self.db.execute(
-            select(Message).where(
-                and_(
-                    Message.is_deferred == True,
-                    Message.is_deleted == False,
-                    Message.message_type == "client"
-                )
-            )
+            select(DeferredMessageSimple).where(DeferredMessageSimple.is_active == True)
         )
         messages = result.scalars().all()
-        # Считаем уникальные по (chat_id, message_id)
-        unique_keys = set((m.chat_id, m.message_id) for m in messages)
-        logger.info(f"[DEFERRED-DEBUG] Найдено уникальных отложенных сообщений: {len(unique_keys)}. Ключи: {list(unique_keys)}")
-        for m in messages:
-            logger.info(f"[DEFERRED-DEBUG] id={m.id}, chat_id={m.chat_id}, message_id={m.message_id}, text='{(m.message_text or '')[:30]}', is_deleted={m.is_deleted}, answered_by={m.answered_by_employee_id}")
-        return len(unique_keys)
+        logger.info(f"[DEFERRED-DEBUG] deferred_messages_simple: найдено {len(messages)} активных записей")
+        return len(messages)
     
     async def _get_unanswered_messages_count(self, employee_id: int) -> int:
         """Получить количество неотвеченных сообщений сотрудника (исключая удаленные и отвеченные другими)"""
@@ -490,4 +491,17 @@ class StatisticsService:
                 )
             )
         )
-        return len(result.scalars().all()) 
+        return len(result.scalars().all())
+    
+    async def get_deferred_simple_count(self, employee_id: int, period: str = "today") -> int:
+        """Получить количество активных отложенных сообщений из новой таблицы для сотрудника за период"""
+        period_start, period_end = self._get_period_dates(period)
+        result = await self.db.execute(
+            select(DeferredMessageSimple).where(
+                DeferredMessageSimple.is_active == True,
+                DeferredMessageSimple.created_at >= period_start,
+                DeferredMessageSimple.created_at <= period_end
+            )
+        )
+        messages = result.scalars().all()
+        return len(messages)
