@@ -4,9 +4,9 @@ from database.database import AsyncSessionLocal, init_db
 from database.models import Employee
 from sqlalchemy import select
 
-TELEGRAM_ID = 896737668
+TELEGRAM_ID = 410916774
 TELEGRAM_USERNAME = "admin"
-FULL_NAME = "Лео"
+FULL_NAME = "Даниил"
 IS_ADMIN = True
 
 async def add_user():
