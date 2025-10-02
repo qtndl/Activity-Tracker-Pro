@@ -32,6 +32,9 @@ google-auth-oauthlib==1.2.0
 python-dotenv==1.0.0
 aiofiles==23.2.1
 httpx==0.25.2
+pytz==2025.2
+tzdata==2025.2
+tzlocal==5.3.1
 
 # Charts and Visualization
 plotly==5.18.0

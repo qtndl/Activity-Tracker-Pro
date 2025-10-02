@@ -30,14 +30,14 @@ async def create_admin():
     async with AsyncSessionLocal() as session:
         # Проверяем, есть ли уже админ с правильным ID
         result = await session.execute(
-            select(Employee).where(Employee.telegram_id == 896737668)
+            select(Employee).where(Employee.telegram_id == 410916774)
         )
         admin = result.scalar_one_or_none()
         
         if not admin:
             admin = Employee(
-                telegram_id=896737668,  # Ваш правильный Telegram ID
-                telegram_username="kellax",
+                telegram_id=410916774,  # Ваш правильный Telegram ID
+                telegram_username="kutin_dl",
                 full_name="Администратор",
                 is_admin=True,
                 is_active=True

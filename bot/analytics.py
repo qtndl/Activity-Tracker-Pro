@@ -43,9 +43,12 @@ class AnalyticsService:
             
             # Удаленные сообщения не считаются пропущенными
             deleted_messages = sum(1 for m in messages if m.is_deleted)
+
+            deferred_messages = sum(1 for m in messages if m.is_deferred)
             # Пропущенные = всего - отвечено - удалено
-            missed_messages = total_messages - responded_messages - deleted_messages
-            
+            missed_messages = total_messages - (responded_messages+deferred_messages) - deleted_messages
+
+            missed_messages = max(0, missed_messages)
             # Считаем уникальных клиентов (включая клиентов удаленных сообщений)
             unique_client_ids = set()
             for message in messages:
@@ -69,6 +72,7 @@ class AnalyticsService:
             return {
                 'total_messages': total_messages,
                 'responded_messages': responded_messages,
+                'deferred_messages': deferred_messages,
                 'missed_messages': missed_messages,
                 'deleted_messages': deleted_messages,  # Добавляем информацию об удаленных
                 'unique_clients': unique_clients,

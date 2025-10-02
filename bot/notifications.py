@@ -8,6 +8,7 @@ from database.models import Employee, Message, Notification
 from .settings_manager import settings_manager
 from web.services.statistics_service import EmployeeStats
 import logging
+import pytz
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,17 @@ class NotificationService:
         self.scheduled_tasks: Dict[int, List[asyncio.Task]] = {}  # message_id (DBMessage.id): [tasks]
     
     async def schedule_warnings_for_message(self, message_id: int, employee_id: int, chat_id: int):
-        delays = await settings_manager.get_notification_delays()
+        delay_data = await settings_manager.get_notification_delays()
+        if not delay_data[0]:
+            next_working_hour = await self.get_next_9am_moscow_utc()
+            async with AsyncSessionLocal() as session:
+                db_message = await session.execute(select(Message).where(Message.id == message_id))
+                db_msg = db_message.scalar_one_or_none()
+                if db_msg:
+                    db_msg.received_at = next_working_hour
+                    await session.commit()
+
+        delays = delay_data[1:]
         types = ["warning_15", "warning_30", "warning_60"]
         logger.info(f"[NOTIFY] Планирование уведомлений: DBMessage={message_id}, Employee={employee_id}, Delays={delays}m, Types={types}")
         if not await settings_manager.notifications_enabled():
@@ -40,11 +51,11 @@ class NotificationService:
         if delay_minutes == 1:
             logger.info(f"[NOTIFY] Ожидание: DBMessage={message_id}, Employee={employee_id}, Delays=[1m, 2m, 60m], Types=[warning_15, warning_30, warning_60]")
         try:
-            await asyncio.sleep(delay_minutes * 60)
+            await asyncio.sleep(delay_minutes)
             async with AsyncSessionLocal() as session:
                 result = await session.execute(select(Message).where(Message.id == message_id))
                 message = result.scalar_one_or_none()
-                if message and not message.responded_at:
+                if message and not message.responded_at and not message.is_deferred:
                     emp_result = await session.execute(select(Employee).where(Employee.id == employee_id))
                     employee = emp_result.scalar_one_or_none()
                     if employee and employee.is_active:
@@ -129,7 +140,7 @@ class NotificationService:
             f"{client_profile}\n"
             f"Текст: {message.message_text[:50]}...\n"
             f"\n"
-            f"⏱ <b>Время ожидания:</b> {delay_minutes} мин."
+            f"⏱ <b>Время ожидания:</b> {delay_minutes/60} мин."
         )
     
     async def send_daily_report(self, employee_id: int, stats_obj: EmployeeStats):
@@ -261,4 +272,22 @@ class NotificationService:
             )
             logger.info(f"Отправлен отчет администратору {admin_telegram_id}")
         except Exception as e:
-            logger.error(f"Не удалось отправить отчет администратору {admin_telegram_id}: {e}") 
+            logger.error(f"Не удалось отправить отчет администратору {admin_telegram_id}: {e}")
+
+    async def get_next_9am_moscow_utc(self):
+        """Возвращает datetime следующего 9:00 по МСК в UTC"""
+        moscow_tz = pytz.timezone('Europe/Moscow')
+        moscow_now = datetime.now(moscow_tz)
+
+        # Создаем 9:00 сегодня
+        today_9am = moscow_now.replace(hour=9, minute=0, second=0, microsecond=0)
+
+        # Определяем следующее 9:00
+        if moscow_now < today_9am:
+            next_9am_moscow = today_9am
+        else:
+            next_9am_moscow = today_9am + timedelta(days=1)
+
+        # Конвертируем в UTC
+        next_9am_utc = next_9am_moscow.astimezone(pytz.UTC).replace(tzinfo=None)
+        return next_9am_utc

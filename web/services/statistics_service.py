@@ -241,7 +241,9 @@ class StatisticsService:
                     # Рассчитываем время ответа для этого УНИКАЛЬНОГО сообщения
                     # Время ответа должно считаться от received_at до первого responded_at по этому сообщению
                     response_duration_seconds = (first_answered_at - first_received_at).total_seconds()
-                    response_times_for_avg.append(response_duration_seconds / 60)
+                    response_time_minutes = response_duration_seconds / 60
+                    logger.info(f"[STAT_DEBUG|ResponseTime] Message {client_msg_key}: received={first_received_at}, answered={first_answered_at}, duration_sec={response_duration_seconds}, duration_min={response_time_minutes}")
+                    response_times_for_avg.append(response_time_minutes)
 
                 elif is_deleted_by_anyone: # Если не отвечено, но удалено
                     deleted_unique_client_messages_count += 1 # Считаем отдельно, если нужно
@@ -253,7 +255,7 @@ class StatisticsService:
 
             # Общее количество уникальных клиентов
             total_unique_clients = len(client_ids_for_unique_count)
-            
+            # print(f'response_times_for_avg = {response_times_for_avg}')
             # Среднее время ответа (по уникальным отвеченным сообщениям)
             avg_response_time = sum(response_times_for_avg) / len(response_times_for_avg) if response_times_for_avg else 0
             
@@ -264,7 +266,9 @@ class StatisticsService:
             # Срочные сообщения (без ответа более 30 минут) - всегда актуальные (можно использовать старую, если она не зависит от суммирования)
             urgent_messages = await self._get_urgent_messages_count() # Эта функция, вероятно, смотрит на текущие неотвеченные
             deferred_messages = await self._get_deferred_messages_count()
-            
+            if deferred_messages>0:
+                missed_unique_client_messages_count -=deferred_messages
+            missed_unique_client_messages_count = max(0, missed_unique_client_messages_count)
             # Эффективность
             efficiency = 0
             if total_unique_client_messages_count > 0:
@@ -406,9 +410,12 @@ class StatisticsService:
         answered_by_others = len([m for m in messages 
                                  if m.answered_by_employee_id is not None 
                                  and m.answered_by_employee_id != employee_id])
+
+        # Отложенные сообщения не считаются пропущенными
+        deferred_messages = len([m for m in messages if m.is_deferred==True])
         
-        # Пропущенные = всего - отвечено мной - удалено - отвечено другими
-        missed_messages = total_messages - responded_messages - deleted_messages - answered_by_others
+        # Пропущенные = всего - отвечено мной - удалено - отвечено другими - отложенные
+        missed_messages = total_messages - (responded_messages+deferred_messages) - deleted_messages - answered_by_others
         
         # Защита от отрицательных значений
         missed_messages = max(0, missed_messages)
@@ -425,6 +432,7 @@ class StatisticsService:
         avg_response_time = sum(response_times) / len(response_times) if response_times else None
         
         # Превышения времени (только для ответов этого сотрудника)
+
         exceeded_15_min = len([t for t in response_times if t > 15])
         exceeded_30_min = len([t for t in response_times if t > 30])
         exceeded_60_min = len([t for t in response_times if t > 60])
@@ -487,6 +495,7 @@ class StatisticsService:
                     ),
                     Message.answered_by_employee_id.is_(None),  # Никто еще не ответил
                     Message.is_deleted == False,  # Исключаем удаленные сообщения
+                    Message.is_deferred == False,  # Исключаем отложенные сообщения
                     Message.message_type == "client"
                 )
             )

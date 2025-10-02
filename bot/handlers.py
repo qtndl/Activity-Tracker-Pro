@@ -266,7 +266,7 @@ def register_handlers(dp: Dispatcher, message_tracker):
 
 async def register_handlers_and_scheduler(dp: Dispatcher, message_tracker):
     """Регистрация обработчиков и запуск планировщика"""
-    register_handlers(dp, message_tracker)
+    # register_handlers(dp, message_tracker)
     
     # Настройка планировщика задач (теперь async)
     scheduler = await setup_scheduler(message_tracker)
