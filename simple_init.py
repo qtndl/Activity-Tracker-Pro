@@ -8,7 +8,7 @@ from database.models import Base, Employee, SystemSettings
 from sqlalchemy import select
 
 # Простые настройки без pydantic
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = "postgresql+asyncpg://bot:Hesoyam123@localhost:5432/activity_db"
 
 # Создаем движок и сессию
 engine = create_async_engine(DATABASE_URL, echo=True)
