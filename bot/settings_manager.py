@@ -19,17 +19,17 @@ class SettingsManager:
         self._cache_timeout = 300  # 5 минут кэша
         self._last_update = 0
     
-    async def get_notification_delays(self) -> Tuple[bool, int, int, int]:
+    async def get_notification_delays(self) -> Tuple[str, int, int, int]:
         """Получить задержки для уведомлений в минутах"""
         settings = await self._get_settings()
         is_work_hour = await self.is_working_hours_moscow_detailed()
         if not is_work_hour:
-            work_hour = False
+            work_hour = 'False'
             delay1 = await self.get_seconds_until_9am() + (int(settings.get("notification_delay_1", "15"))*60)
             delay2 = await self.get_seconds_until_9am() + (int(settings.get("notification_delay_2", "30"))*60)
             delay3 = await self.get_seconds_until_9am() + (int(settings.get("notification_delay_3", "60"))*60)
         else:
-            work_hour = True
+            work_hour = 'True'
             delay1 = int(settings.get("notification_delay_1", "15"))*60
             delay2 = int(settings.get("notification_delay_2", "30"))*60
             delay3 = int(settings.get("notification_delay_3", "60"))*60

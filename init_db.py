@@ -18,8 +18,8 @@ async def main():
         admin = await session.get(Employee, 1)
         if not admin:
             admin = Employee(
-                telegram_id=4867960619,  # Ваш Telegram ID
-                telegram_username="kellax",  # Можете изменить
+                telegram_id=410916774,  # Ваш Telegram ID
+                telegram_username="kutin_dl",  # Можете изменить
                 full_name="Администратор",
                 is_admin=True,
                 is_active=True

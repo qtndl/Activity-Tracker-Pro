@@ -20,7 +20,8 @@ class NotificationService:
     
     async def schedule_warnings_for_message(self, message_id: int, employee_id: int, chat_id: int):
         delay_data = await settings_manager.get_notification_delays()
-        if not delay_data[0]:
+        # print(f'delay_data={delay_data[0]}')
+        if delay_data[0] == 'False':
             next_working_hour = await self.get_next_9am_moscow_utc()
             async with AsyncSessionLocal() as session:
                 db_message = await session.execute(select(Message).where(Message.id == message_id))
@@ -30,12 +31,14 @@ class NotificationService:
                     await session.commit()
 
         delays = delay_data[1:]
+        # print(f'delays={delays}')
         types = ["warning_15", "warning_30", "warning_60"]
         logger.info(f"[NOTIFY] Планирование уведомлений: DBMessage={message_id}, Employee={employee_id}, Delays={delays}m, Types={types}")
         if not await settings_manager.notifications_enabled():
             logger.info("[NOTIFY] Уведомления отключены в настройках")
             return
         for delay, ntype in zip(delays, types):
+            # print(f'delay={delay}')
             await self.schedule_warning(message_id, employee_id, chat_id, delay, ntype)
     
     async def schedule_warning(self, message_id: int, employee_id: int, chat_id: int, delay_minutes: int, notification_type: str):
@@ -48,6 +51,7 @@ class NotificationService:
     
     async def _send_delayed_warning(self, message_id: int, employee_id: int, chat_id: int, delay_minutes: int, notification_type: str):
         # Группируем логи ожидания по DBMessage и Employee
+        print(f'delay_minutes = {delay_minutes}')
         if delay_minutes == 1:
             logger.info(f"[NOTIFY] Ожидание: DBMessage={message_id}, Employee={employee_id}, Delays=[1m, 2m, 60m], Types=[warning_15, warning_30, warning_60]")
         try:
