@@ -195,7 +195,7 @@ async def start_command(message: Message):
         "• ⚠️ Пропущенные сообщения\n"
         "• 📈 Статистику работы\n\n"
         "🔐 <b>Для входа в веб-панель:</b>\n"
-        f"1. Откройте: {settings.web_host}:{settings.web_port}/login\n"
+        f"1. Откройте: http://{settings.web_host}:{settings.web_port}/login\n"
         f"2. Введите ваш Telegram ID: <code>{message.from_user.id}</code>\n"
         "3. Получите код в этом чате и введите его\n\n"
         "📊 <b>Команды:</b>\n"
