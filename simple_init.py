@@ -8,7 +8,7 @@ from database.models import Base, Employee, SystemSettings
 from sqlalchemy import select
 
 # Простые настройки без pydantic
-DATABASE_URL = "sqlite+aiosqlite:///./bot.db"
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Создаем движок и сессию
 engine = create_async_engine(DATABASE_URL, echo=True)
