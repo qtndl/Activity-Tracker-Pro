@@ -9,9 +9,9 @@ async def clear_database():
             # Список таблиц для очистки
             tables = [
                 'messages',
-                'notifications'
-                # 'chat_employees',
-                # 'system_settings'
+                'notifications',
+                'chat_employees',
+                'system_settings'
             ]
             
             # Отключаем проверку внешних ключей для SQLite
