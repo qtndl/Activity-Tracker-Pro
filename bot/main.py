@@ -700,7 +700,7 @@ async def handle_private_message(message: Message):
                     DBMessage.responded_at.is_(None),
                     DBMessage.is_deleted == False
                 )
-                .order_by(DBMessage.received_at())
+                .order_by(DBMessage.received_at)
             )
         elif message.forward_sender_name:
             missed_deferred_msgs_result = await session.execute(select(DBMessage)
@@ -721,7 +721,7 @@ async def handle_private_message(message: Message):
                     DBMessage.responded_at.is_(None),
                     DBMessage.is_deleted == False
                 )
-                .order_by(DBMessage.received_at())
+                .order_by(DBMessage.received_at)
             )
         else:
             await message.answer("Настройки аккаунта у пользователя на позволяют найти пересылаемое сообщение в чате")
