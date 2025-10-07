@@ -220,29 +220,36 @@ class StatisticsService:
                     client_ids_for_unique_count.add(db_message_copies[0].client_telegram_id)
 
                 is_responded_by_anyone = False
+                is_not_responded_by_another = True
                 is_deleted_by_anyone = False # Если понадобится трекать удаленные на этом уровне
                 
                 # Ищем самый ранний ответ на это сообщение среди всех сотрудников
                 # и был ли ответ вообще
                 earliest_response_time_for_this_message = None
                 first_answered_at = None
-                first_received_at = db_message_copies[0].received_at # Все копии имеют одно время получения
-
+                first_received_at = None
                 for copy in db_message_copies:
                     if copy.answered_by_employee_id is not None and copy.responded_at is not None:
                         is_responded_by_anyone = True
-                        if first_answered_at is None or copy.responded_at < first_answered_at:
+                        if first_received_at is None or copy.received_at > first_received_at:
+                            first_received_at = copy.received_at # Все копии имеют одно время получения
+                        if first_answered_at is None or copy.responded_at > first_answered_at:
                             first_answered_at = copy.responded_at
+                    if copy.answered_by_employee_id is None and copy.responded_at is None:
+                        is_not_responded_by_another = False
                     if copy.is_deleted:
                         is_deleted_by_anyone = True # Если хотя бы одна копия удалена
                 
                 if is_responded_by_anyone and first_answered_at is not None:
                     responded_unique_client_messages_count += 1
+                    if not is_not_responded_by_another:
+                        responded_unique_client_messages_count -= 1
+                        missed_unique_client_messages_count +=1
                     # Рассчитываем время ответа для этого УНИКАЛЬНОГО сообщения
                     # Время ответа должно считаться от received_at до первого responded_at по этому сообщению
                     response_duration_seconds = (first_answered_at - first_received_at).total_seconds()
                     response_time_minutes = response_duration_seconds / 60
-                    logger.info(f"[STAT_DEBUG|ResponseTime] Message {client_msg_key}: received={first_received_at}, answered={first_answered_at}, duration_sec={response_duration_seconds}, duration_min={response_time_minutes}")
+                    # logger.info(f"[STAT_DEBUG|ResponseTime] Message {client_msg_key}: received={first_received_at}, answered={first_answered_at}, duration_sec={response_duration_seconds}, duration_min={response_time_minutes}")
                     response_times_for_avg.append(response_time_minutes)
 
                 elif is_deleted_by_anyone: # Если не отвечено, но удалено
@@ -266,8 +273,11 @@ class StatisticsService:
             # Срочные сообщения (без ответа более 30 минут) - всегда актуальные (можно использовать старую, если она не зависит от суммирования)
             urgent_messages = await self._get_urgent_messages_count() # Эта функция, вероятно, смотрит на текущие неотвеченные
             deferred_messages = await self._get_deferred_messages_count()
+            # print(f'missed_unique_client_messages_count = {missed_unique_client_messages_count}')
             if deferred_messages>0:
+                responded_unique_client_messages_count -=deferred_messages
                 missed_unique_client_messages_count -=deferred_messages
+                # print(f'deferred_messages = {deferred_messages}')
             missed_unique_client_messages_count = max(0, missed_unique_client_messages_count)
             # Эффективность
             efficiency = 0
@@ -412,7 +422,7 @@ class StatisticsService:
                                  and m.answered_by_employee_id != employee_id])
 
         # Отложенные сообщения не считаются пропущенными
-        deferred_messages = len([m for m in messages if m.is_deferred==True])
+        deferred_messages = len([m for m in messages if m.is_deferred==True and m.answered_by_employee_id==employee_id])
         
         # Пропущенные = всего - отвечено мной - удалено - отвечено другими - отложенные
         missed_messages = total_messages - (responded_messages+deferred_messages) - deleted_messages - answered_by_others
@@ -427,7 +437,7 @@ class StatisticsService:
                 unique_client_ids.add(msg.client_telegram_id)
         unique_clients = len(unique_client_ids)
         
-        # Время ответа (только для сообщений где ЭТОТ сотрудник ответил)
+        # Время ответа (только для сообщений, где ЭТОТ сотрудник ответил)
         response_times = [m.response_time_minutes for m in responded_by_me if m.response_time_minutes is not None]
         avg_response_time = sum(response_times) / len(response_times) if response_times else None
         
@@ -444,7 +454,7 @@ class StatisticsService:
         efficiency_percent = response_rate
         
         return {
-            "total_messages": total_messages,
+            "total_messages": total_messages-answered_by_others,
             "responded_messages": responded_messages,
             "missed_messages": missed_messages,
             "deleted_messages": deleted_messages,

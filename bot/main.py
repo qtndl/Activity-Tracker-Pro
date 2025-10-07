@@ -133,7 +133,22 @@ class MessageTracker:
             assert employee.id != employee.telegram_id, f"BUG: employee.id == telegram_id! {employee.id}"
             
             logger.info(f"[DEBUG] Найден сотрудник: id={employee.id}, telegram_id={employee.telegram_id}, name={employee.full_name}")
-            
+            deferred_messages = await session.execute(
+                select(DeferredMessageSimple).where(
+                        and_(
+                            DBMessage.chat_id == chat_id,
+                            DBMessage.client_telegram_id == client_telegram_id,
+                            DBMessage.is_deferred == True,
+                            DBMessage.is_deleted == False
+                        )
+                    )
+                )
+            deferred_msgs = deferred_messages.scalars().all()
+            if deferred_msgs:
+                for def_msg in deferred_msgs:
+                    def_msg.is_active = False
+                    def_msg.original_message.is_deferred = False
+            await session.commit()
             # Закрываем сессию: отмечаем все неотвеченные сообщения этого клиента в этом чате для всех сотрудников
             all_db_messages_for_client = await session.execute(
                 select(DBMessage).where(
@@ -386,6 +401,7 @@ async def admin_stats_command(message: Message):
         total_responded = 0
         total_missed = 0
         total_deleted = 0
+        total_deferred = 0
 
         for employee in employees:
             stats = await message_tracker.analytics.get_employee_stats(employee.id, 'daily')
@@ -395,7 +411,7 @@ async def admin_stats_command(message: Message):
                 text += f"  ✅ Отвечено: {stats['responded_messages']}\n"
                 text += f"  ❌ Пропущено: {stats['missed_messages']}\n"
                 if stats['deferred_messages'] > 0:
-                    text += f"🕓 Отложено: {stats['deferred_messages']}\n"
+                    text += f"  🕓 Отложено: {stats['deferred_messages']}\n"
 
                 if stats.get('deleted_messages', 0) > 0:
                     text += f"  🗑 Удалено: {stats['deleted_messages']}\n"
@@ -409,11 +425,15 @@ async def admin_stats_command(message: Message):
                 total_responded += stats['responded_messages']
                 total_missed += stats['missed_messages']
                 total_deleted += stats.get('deleted_messages', 0)
+                total_deferred += stats.get('deferred_messages', 0)
 
         text += f"\n📊 <b>Итого:</b>\n"
         text += f"📨 Всего сообщений: {total_messages}\n"
         text += f"✅ Отвечено: {total_responded}\n"
         text += f"❌ Пропущено: {total_missed}\n"
+
+        if total_deferred > 0:
+            text += f"🕓 Отложено: {total_deferred}\n"
 
         if total_deleted > 0:
             text += f"🗑 Удалено: {total_deleted}\n"
@@ -706,23 +726,30 @@ async def handle_private_message(message: Message):
         else:
             await message.answer("Настройки аккаунта у пользователя на позволяют найти пересылаемое сообщение в чате")
         orig_msgs = orig_result.scalars().all()
-        now = datetime.utcnow()
-        for i, orig_msg in enumerate(orig_msgs):
-            if i == 0:
-                orig_msg.is_deferred = True
-                continue
-            # orig_msg.is_missed = True
-            orig_msg.responded_at = now
-            time_diff = now - orig_msg.received_at
-            orig_msg.response_time_minutes = time_diff.total_seconds() / 60
-            orig_msg.answered_by_employee_id = employee.id
         if orig_msgs:
-            orig_msg_id = orig_msgs[0].id
-            prnt = orig_msgs[0].is_deferred
-            print(f'orig_msg_id = {orig_msg_id}')
-            print(f'orig_msgs[0].is_deferred = {prnt}')
+            emp_msgs_list = [[], []]
+            for orig_msg in orig_msgs:
+                if orig_msg.employee_id==employee.id:
+                    emp_msgs_list[0].append(orig_msg)
+                else:
+                    emp_msgs_list[1].append(orig_msg)
+            now = datetime.utcnow()
+            for i, emp_msgs in enumerate(emp_msgs_list):
+                for ii, emp_msg in enumerate(emp_msgs):
+                    if emp_msg.is_deferred:
+                        continue
+                    if i == 0 and ii == 0:
+                        emp_msg.is_deferred = True
+                        orig_msg_id = emp_msg.id
+                        def_msg_text = emp_msg.message_text
+                        prnt = emp_msg.is_deferred
+                    # orig_msg.is_missed = True
+                    emp_msg.responded_at = now
+                    time_diff = now - emp_msg.received_at
+                    emp_msg.response_time_minutes = time_diff.total_seconds() / 60
+                    emp_msg.answered_by_employee_id = employee.id
+
             await session.commit()
-            logger.info(f"[FORWARD-DEBUG] {len(orig_msgs)} оригинальных сообщений отмечены как отложенные.")
             # --- Конец новой логики ---
         # Добавляем пересланное сообщение в новую таблицу DeferredMessageSimple
         if orig_msg_id is None:
@@ -731,7 +758,7 @@ async def handle_private_message(message: Message):
         new_deferred = DeferredMessageSimple(
             from_user_id=employee.id,  # сохраняем id сотрудника, а не telegram_id клиента
             from_username=message.forward_sender_name if message.forward_sender_name else None,
-            text=message.text,
+            text=def_msg_text,
             date=message.forward_date if message.forward_date else datetime.utcnow(),
             is_active=True,
             created_at=datetime.utcnow(),
@@ -754,24 +781,23 @@ async def undefer_simple_callback(call: CallbackQuery):
     _, deferred_id = call.data.split(":")
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(DeferredMessageSimple).where(DeferredMessageSimple.id == int(deferred_id)))
-        print(f'result = {result}')
         deferred = result.scalar_one_or_none()
-        print(f'deferred = {deferred}')
-        print(f'------------------')
         if not deferred:
-            await call.answer("Сообщение не найдено.", show_alert=True)
+            await call.answer("Сообщение не найдено или уже отвечено", show_alert=True)
             return
         deferred.is_active = False
         # await session.commit()
 
         if deferred.original_message:
             db_msg = deferred.original_message
+
             if db_msg:
                 now = datetime.utcnow()
                 db_msg.is_deferred = False
                 db_msg.received_at = now
                 db_msg.responded_at = None
                 db_msg.response_time_minutes = None
+                db_msg.answered_by_employee_id = None
                 await session.commit()
                 print('Не Фоллбэк')
                 await call.answer("Сообщение убрано из отложенных.", show_alert=True)
@@ -792,18 +818,22 @@ async def undefer_simple_callback(call: CallbackQuery):
                 )
                 db_msg = msg_res.scalar_one_or_none()
                 if db_msg:
+                    now = datetime.utcnow()
                     db_msg.is_deferred = False
+                    db_msg.received_at = now
                     db_msg.responded_at = None
                     db_msg.response_time_minutes = None
+                    db_msg.answered_by_employee_id = None
                     await session.commit()
                     print('Фоллбэк')
-                    await call.answer("Сообщение убрано из отложенных.", show_alert=True)
+                    await call.answer("Сообщение убрано из отложенных. (Fallback)", show_alert=True)
                     await call.message.edit_reply_markup(reply_markup=None)
                 else:
                     await call.message.answer("Что-то пошло не так", show_alert=True)
 
 @dp.callback_query(F.data.startswith("delete_s:"))
 async def delete_simple_callback(call: CallbackQuery):
+    another_emp_msg = None
     _, deferred_id = call.data.split(":")
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(DeferredMessageSimple).where(DeferredMessageSimple.id == int(deferred_id)))
@@ -814,11 +844,11 @@ async def delete_simple_callback(call: CallbackQuery):
         if deferred.original_message:
             db_msg = deferred.original_message
             if db_msg:
+                another_emp_msg = int(db_msg.message_id)
                 result = await session.execute(select(Employee).where(Employee.is_admin == True))
                 admins = result.scalars().all()
                 for admin in admins:
                     admin_id = int(admin.telegram_id)
-                    print(admin_id)
                     await bot.send_message(admin_id, f'Сотрудник @{admin.telegram_username} ({admin.full_name}) удалил сообщение из базы данных:\n'
                                                      f'<blockquote>{db_msg.message_text}</blockquote>\n'
                                                      f'От клиента: @{db_msg.client_username} ({db_msg.client_name})',
@@ -830,8 +860,27 @@ async def delete_simple_callback(call: CallbackQuery):
                     text("DELETE FROM notifications WHERE message_id = :message_id"),
                     {"message_id": db_msg.id}
                 )
-                await session.delete(db_msg)
+                await session.execute(
+                    text("DELETE FROM messages WHERE message_id = :message_id"),
+                    {"message_id": db_msg.id}
+                )
                 await session.commit()
+                results = await session.execute(select(DBMessage).where(DBMessage.message_id==another_emp_msg))
+                anthr_emp_msgs = results.scalars().all()
+                if anthr_emp_msgs:
+                    for anthr_msg in anthr_emp_msgs:
+                        await session.execute(text("DELETE FROM deferred_messages_simple WHERE original_message_id = :message_id"),
+                    {"message_id": anthr_msg.message_id}
+                        )
+                        await session.execute(
+                            text("DELETE FROM notifications WHERE message_id = :message_id"),
+                            {"message_id": anthr_msg.message_id}
+                        )
+                        await session.execute(
+                            text("DELETE FROM messages WHERE message_id = :message_id"),
+                            {"message_id": anthr_msg.message_id}
+                        )
+                    await session.commit()
                 await call.answer("Сообщение удалено из базы.\n"
                                   "Оно больше не будет учитываться нигде в статистике.", show_alert=True)
                 await call.message.edit_reply_markup(reply_markup=None)
