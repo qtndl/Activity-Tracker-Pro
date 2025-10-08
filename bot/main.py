@@ -173,7 +173,7 @@ class MessageTracker:
                     # Вычисляем время ответа
                     if now >= db_msg.received_at:
                         time_diff = now - db_msg.received_at
-                        db_msg.response_time_minutes = time_diff.total_seconds() / 60
+                        # db_msg.response_time_minutes = time_diff.total_seconds() / 60
                     else:
                         db_msg.received_at = now
                         time_diff = now - now

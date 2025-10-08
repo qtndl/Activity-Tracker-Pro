@@ -29,6 +29,14 @@ class NotificationService:
                 if db_msg:
                     db_msg.received_at = next_working_hour
                     await session.commit()
+        elif delay_data[0] == 'saturday':
+            next_working_hour = await self.get_next_next_9am_moscow_utc()
+            async with AsyncSessionLocal() as session:
+                db_message = await session.execute(select(Message).where(Message.id == message_id))
+                db_msg = db_message.scalar_one_or_none()
+                if db_msg:
+                    db_msg.received_at = next_working_hour
+                    await session.commit()
 
         delays = delay_data[1:]
         # print(f'delays={delays}')
@@ -291,6 +299,24 @@ class NotificationService:
             next_9am_moscow = today_9am
         else:
             next_9am_moscow = today_9am + timedelta(days=1)
+
+        # Конвертируем в UTC
+        next_9am_utc = next_9am_moscow.astimezone(pytz.UTC).replace(tzinfo=None)
+        return next_9am_utc
+
+    async def get_next_next_9am_moscow_utc(self):
+        """Возвращает datetime следующего 9:00 по МСК в UTC"""
+        moscow_tz = pytz.timezone('Europe/Moscow')
+        moscow_now = datetime.now(moscow_tz)
+
+        # Создаем 9:00 сегодня
+        today_9am = moscow_now.replace(hour=9, minute=0, second=0, microsecond=0)
+
+        # Определяем следующее 9:00
+        if moscow_now < today_9am:
+            next_9am_moscow = today_9am
+        else:
+            next_9am_moscow = today_9am + timedelta(days=2)
 
         # Конвертируем в UTC
         next_9am_utc = next_9am_moscow.astimezone(pytz.UTC).replace(tzinfo=None)
