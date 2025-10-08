@@ -742,6 +742,8 @@ async def handle_private_message(message: Message):
                         emp_msg.is_deferred = True
                         orig_msg_id = emp_msg.id
                         def_msg_text = emp_msg.message_text
+                    if emp_msg.received_at > now:
+                        emp_msg.received_at = now
                     emp_msg.responded_at = now
                     time_diff = now - emp_msg.received_at
                     emp_msg.response_time_minutes = time_diff.total_seconds() / 60
