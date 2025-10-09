@@ -847,9 +847,11 @@ async def delete_simple_callback(call: CallbackQuery):
                 another_emp_msg = int(db_msg.message_id)
                 result = await session.execute(select(Employee).where(Employee.is_admin == True))
                 admins = result.scalars().all()
+                result_usr = await session.execute(select(Employee).where(Employee.telegram_id == int(call.from_user.id)))
+                usr = result_usr.scalar_one_or_none()
                 for admin in admins:
                     admin_id = int(admin.telegram_id)
-                    await bot.send_message(admin_id, f'Сотрудник @{admin.telegram_username} ({admin.full_name}) удалил сообщение из базы данных:\n'
+                    await bot.send_message(admin_id, f'Сотрудник @{usr.telegram_username} ({usr.full_name}) удалил сообщение из базы данных:\n'
                                                      f'<blockquote>{db_msg.message_text}</blockquote>\n'
                                                      f'От клиента: @{db_msg.client_username} ({db_msg.client_name})',
                                                     parse_mode='HTML')
