@@ -60,8 +60,8 @@ class NotificationService:
     async def _send_delayed_warning(self, message_id: int, employee_id: int, chat_id: int, delay_minutes: int, notification_type: str):
         # Группируем логи ожидания по DBMessage и Employee
         # print(f'delay_minutes = {delay_minutes}')
-        if delay_minutes == 1:
-            logger.info(f"[NOTIFY] Ожидание: DBMessage={message_id}, Employee={employee_id}, Delays=[1m, 2m, 60m], Types=[warning_15, warning_30, warning_60]")
+        if delay_minutes == 5:
+            logger.info(f"[NOTIFY] Ожидание: DBMessage={message_id}, Employee={employee_id}, Delays=[5m, 10m, 15m], Types=[warning_15, warning_30, warning_60]")
         try:
             await asyncio.sleep(delay_minutes)
             async with AsyncSessionLocal() as session:
